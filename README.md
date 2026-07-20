@@ -42,7 +42,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 
 ## Project Status
 
-> **Alpha — actively building.** The desktop app runs end-to-end (Rust engine boots, frosted-glass shell renders, live telemetry streams to the Diagnostics view). An Expert "real adapter" mode (Windows/Wintun) creates a virtual interface and captures live packets. Two peers can exchange signaling blobs and establish a **direct, authenticated encrypted link** by hole-punching through their NATs (C4); real IP traffic now **tunnels between them over that link** through the virtual adapter (C5), with live RTT and throughput. **Forward Error Correction** (XOR parity) recovers isolated packet losses without retransmission (D.1), and a **split-tunnel policy** controls which LAN traffic — in-subnet unicast, broadcast, and multicast — the tunnel carries (E.1). Reed-Solomon FEC and OS route management are in progress.
+> **Alpha — actively building.** The desktop app runs end-to-end (Rust engine boots, frosted-glass shell renders, live telemetry streams to the Diagnostics view). An Expert "real adapter" mode (Windows/Wintun) creates a virtual interface and captures live packets. Two peers can exchange signaling blobs and establish a **direct, authenticated encrypted link** by hole-punching through their NATs (C4); real IP traffic now **tunnels between them over that link** through the virtual adapter (C5), with live RTT and throughput. **Forward Error Correction** (Reed-Solomon) rebuilds lost packets without retransmission — any `r` losses per group (D.1 · D.2), and a **split-tunnel policy** controls which LAN traffic — in-subnet unicast, broadcast, and multicast — the tunnel carries (E.1). OS route management is in progress.
 
 > **Real adapter (Expert, Windows):** creating the Wintun virtual interface requires Administrator privileges. When toggled on without elevation, the engine reports a `Needs Admin` state and offers a one-click relaunch. The signed `wintun.dll` is bundled from [wintun.net](https://www.wintun.net) (see `src-tauri/resources/wintun/NOTICE.txt`).
 
@@ -59,9 +59,9 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Manual signaling — paste-robust Offer/Answer blobs (pubkey + candidates, CRC32) (C3) | ✅ Done |
 | Peer link — NAT hole-punch-as-handshake (fan-out + single-winner nomination), encrypted keepalive RTT (C4) | ✅ Done |
 | Data-plane join — virtual adapter ↔ encrypted session, IP packets tunnelled peer-to-peer (C5) | ✅ Done |
-| Forward Error Correction — XOR parity over the data plane, single-loss recovery without retransmit (D.1) | ✅ Done |
+| Forward Error Correction — Reed-Solomon over the data plane, recovers any `r` losses per group without retransmit (D.1 · D.2) | ✅ Done |
 | Split tunneling — data-plane policy gating unicast/broadcast/multicast into the tunnel (E.1) | ✅ Done |
-| Networking engine — Reed-Solomon FEC (D.2), OS route management (E.2) | 🚧 In progress |
+| Networking engine — OS route management for split tunnelling (E.2) | 🚧 In progress |
 | Diagnostics — live telemetry readout ✅ · topology, spectrum 🚧 | 🚧 In progress |
 | Expert settings, JSON profiles, game detection | ⏳ Planned |
 | Multi-language (i18n) | ⏳ Planned |

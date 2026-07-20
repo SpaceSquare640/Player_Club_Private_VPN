@@ -37,7 +37,7 @@ use crate::engine::crypto::handshake::{self, Handshaken};
 use crate::engine::crypto::identity::{fingerprint_of, Identity};
 use crate::engine::crypto::session::CryptoSession;
 use crate::engine::dataplane;
-use crate::engine::fec::{Parity, XorDecoder, XorEncoder};
+use crate::engine::fec::{RsDecoder, RsEncoder, RsParity};
 use crate::engine::notice::EngineNotice;
 use crate::engine::split_tunnel::SplitPolicy;
 use crate::engine::state::EngineState;
@@ -60,11 +60,13 @@ const INNER_PING: u8 = 1; // keepalive request:  `[1][seq:8 BE]`
 const INNER_PONG: u8 = 2; // keepalive reply:    `[2][seq:8 BE]`
 const INNER_DATA: u8 = 3; // tunnelled packet:   `[3][ip bytes…]`
 const INNER_FEC_DATA: u8 = 4; // FEC data packet: `[4][group:4][index:1][ip…]`
-const INNER_FEC_PARITY: u8 = 5; // FEC parity:    `[5][group:4][k:1][Q…]`
+const INNER_FEC_PARITY: u8 = 5; // FEC parity: `[5][group:4][k:1][r:1][idx:1][shard…]`
 
-/// FEC group size (data packets per XOR parity) and the idle flush that closes
-/// a partial group so its parity is not delayed when traffic pauses (Phase D).
+/// FEC geometry: `FEC_GROUP_SIZE` data packets protected by `FEC_PARITY_SHARDS`
+/// parity shards, so any `FEC_PARITY_SHARDS` losses in a group are recoverable
+/// (Phase D.2). `r = 1` reproduces the D.1 XOR behaviour at 1/k overhead.
 const FEC_GROUP_SIZE: u8 = 8;
+const FEC_PARITY_SHARDS: u8 = 1;
 const FEC_FLUSH: std::time::Duration = std::time::Duration::from_millis(30);
 /// Recent groups the decoder retains for reordering / late parity.
 const FEC_GROUP_CAP: usize = 64;
@@ -215,7 +217,7 @@ pub async fn run(
                     sink.notice(&EngineNotice::info(
                         "data_plane",
                         format!(
-                            "Data plane active on {vip} — tunnelling to {peer_fp} · FEC on (XOR k={FEC_GROUP_SIZE})"
+                            "Data plane active on {vip} — tunnelling to {peer_fp} · FEC on (RS k={FEC_GROUP_SIZE}/r={FEC_PARITY_SHARDS})"
                         ),
                     ));
                     (Some(dp), Some(policy))
@@ -241,8 +243,8 @@ pub async fn run(
 
     // FEC protects data-plane traffic only; a control-only link has none.
     let has_dataplane = uplink_rx.is_some();
-    let fec_enc = has_dataplane.then(|| XorEncoder::new(FEC_GROUP_SIZE));
-    let fec_dec = has_dataplane.then(|| XorDecoder::new(FEC_GROUP_CAP));
+    let fec_enc = has_dataplane.then(|| RsEncoder::new(FEC_GROUP_SIZE, FEC_PARITY_SHARDS));
+    let fec_dec = has_dataplane.then(|| RsDecoder::new(FEC_GROUP_CAP));
 
     drive(
         &transport,
@@ -281,8 +283,8 @@ async fn drive(
     responder_m2: Option<Vec<u8>>,
     mut uplink_rx: Option<&mut tokio_mpsc::Receiver<Vec<u8>>>,
     downlink_tx: Option<&std_mpsc::SyncSender<Vec<u8>>>,
-    mut fec_enc: Option<XorEncoder>,
-    mut fec_dec: Option<XorDecoder>,
+    mut fec_enc: Option<RsEncoder>,
+    mut fec_dec: Option<RsDecoder>,
     split_policy: Option<SplitPolicy>,
     sink: &dyn TelemetrySink,
     cancel: &mut watch::Receiver<bool>,
@@ -349,11 +351,9 @@ async fn drive(
                         send_sealed(transport, &mut session, peer, &fec_data_encode(group, index, &ip)).await;
                         tx_bytes += ip.len() as u64;
                         pending.push(pkt(started, Direction::Tx, &proto_label(&ip), ip.len(), format!("g{group}/{index} → {peer}")));
-                        if let Some(p) = parity {
-                            let bytes = p.payload.len();
-                            let (g, k) = (p.group, p.k);
-                            send_sealed(transport, &mut session, peer, &fec_parity_encode(&p)).await;
-                            pending.push(pkt(started, Direction::Tx, "FEC-PAR", bytes, format!("g{g} k{k} → {peer}")));
+                        for p in &parity {
+                            send_sealed(transport, &mut session, peer, &fec_parity_encode(p)).await;
+                            pending.push(pkt(started, Direction::Tx, "FEC-PAR", p.shard.len(), format!("g{} k{}/r{} #{} → {peer}", p.group, p.k, p.r, p.index)));
                         }
                     } else if let Ok((counter, ct)) = session.seal(&dp_encode(&ip)) {
                         let datagram = frame::encode_data(counter, &ct);
@@ -366,13 +366,10 @@ async fn drive(
             }
             // FEC idle flush: close a partial group so its parity is not delayed.
             _ = fec_flush.tick() => {
-                if let Some(enc) = fec_enc.as_mut() {
-                    if let Some(p) = enc.flush() {
-                        let bytes = p.payload.len();
-                        let (g, k) = (p.group, p.k);
-                        send_sealed(transport, &mut session, peer, &fec_parity_encode(&p)).await;
-                        pending.push(pkt(started, Direction::Tx, "FEC-PAR", bytes, format!("g{g} k{k} flush → {peer}")));
-                    }
+                let flushed = fec_enc.as_mut().map(|enc| enc.flush()).unwrap_or_default();
+                for p in &flushed {
+                    send_sealed(transport, &mut session, peer, &fec_parity_encode(p)).await;
+                    pending.push(pkt(started, Direction::Tx, "FEC-PAR", p.shard.len(), format!("g{} k{}/r{} #{} flush → {peer}", p.group, p.k, p.r, p.index)));
                 }
             }
             r = transport.recv_from(&mut buf) => {
@@ -406,18 +403,17 @@ async fn drive(
                                 pending.push(inbound_entry(started, inject_downlink(ip, split_policy.as_ref(), downlink_tx), ip, format!("g{group}/{index} ← {from}")));
                                 // Feed the decoder regardless: FEC bookkeeping tracks the
                                 // transport stream, so a legitimate loss stays recoverable.
-                                if let Some(dec) = fec_dec.as_mut() {
-                                    if let Some(rec) = dec.on_data(group, index, ip) {
-                                        forward_recovered(&rec, split_policy.as_ref(), downlink_tx, started, &mut pending);
-                                    }
+                                let recovered = fec_dec.as_mut().map(|d| d.on_data(group, index, ip)).unwrap_or_default();
+                                for rec in &recovered {
+                                    forward_recovered(rec, split_policy.as_ref(), downlink_tx, started, &mut pending);
                                 }
                             }
-                            // Parity: never injected; only feeds recovery.
-                            Some(Inner::FecParity { group, k, q }) => {
-                                if let Some(dec) = fec_dec.as_mut() {
-                                    if let Some(rec) = dec.on_parity(group, k, q) {
-                                        forward_recovered(&rec, split_policy.as_ref(), downlink_tx, started, &mut pending);
-                                    }
+                            // Parity: never injected; only feeds recovery. A single
+                            // parity can complete a group that lost several packets.
+                            Some(Inner::FecParity { group, k, r, index, q }) => {
+                                let recovered = fec_dec.as_mut().map(|d| d.on_parity(group, k, r, index, q)).unwrap_or_default();
+                                for rec in &recovered {
+                                    forward_recovered(rec, split_policy.as_ref(), downlink_tx, started, &mut pending);
                                 }
                             }
                             _ => {}
@@ -455,7 +451,7 @@ enum Inner<'a> {
     /// A FEC-protected IP packet with its group id and index.
     FecData { group: u32, index: u8, ip: &'a [u8] },
     /// A FEC parity packet: its group id, member count `k`, and `Q` bytes.
-    FecParity { group: u32, k: u8, q: &'a [u8] },
+    FecParity { group: u32, k: u8, r: u8, index: u8, q: &'a [u8] },
 }
 
 /// Encode a keepalive control payload: `[kind:1][seq:8 BE]` (sealed before send).
@@ -524,13 +520,16 @@ fn fec_data_encode(group: u32, index: u8, ip: &[u8]) -> Vec<u8> {
     v
 }
 
-/// Encode a FEC parity payload: `[INNER_FEC_PARITY][group:4 BE][k:1][Q…]`.
-fn fec_parity_encode(p: &Parity) -> Vec<u8> {
-    let mut v = Vec::with_capacity(6 + p.payload.len());
+/// Encode a FEC parity payload:
+/// `[INNER_FEC_PARITY][group:4 BE][k:1][r:1][parity index:1][shard…]`.
+fn fec_parity_encode(p: &RsParity) -> Vec<u8> {
+    let mut v = Vec::with_capacity(8 + p.shard.len());
     v.push(INNER_FEC_PARITY);
     v.extend_from_slice(&p.group.to_be_bytes());
     v.push(p.k);
-    v.extend_from_slice(&p.payload);
+    v.push(p.r);
+    v.push(p.index);
+    v.extend_from_slice(&p.shard);
     v
 }
 
@@ -609,14 +608,16 @@ fn decode_inner(pt: &[u8]) -> Option<Inner<'_>> {
             })
         }
         &INNER_FEC_PARITY => {
-            if pt.len() < 6 {
-                return None; // tag(1) + group(4) + k(1)
+            if pt.len() < 8 {
+                return None; // tag(1) + group(4) + k(1) + r(1) + index(1)
             }
             let group = u32::from_be_bytes(pt[1..5].try_into().ok()?);
             Some(Inner::FecParity {
                 group,
                 k: pt[5],
-                q: &pt[6..],
+                r: pt[6],
+                index: pt[7],
+                q: &pt[8..],
             })
         }
         _ => None,
@@ -805,28 +806,31 @@ mod tests {
         let mut a_session = handshake::initiate(&a_tx, b_addr, &a_id, &b_pub).await.unwrap();
         let (b_tx, mut b_session) = responder.await.unwrap();
 
-        // Sender: run 4 packets through the encoder; drop index 2 in transit
-        // (never sealed/sent), but still send the parity that covers all four.
-        let mut enc = XorEncoder::new(4);
-        let packets: Vec<Vec<u8>> = (0..4).map(|i| vec![0x10 + i as u8; 20 + i * 4]).collect();
-        let dropped = 2u8;
+        // Sender: 6 packets with r=2 parity; drop TWO data packets in transit
+        // (never sealed/sent) — beyond what D.1's single XOR parity could rebuild.
+        let mut enc = RsEncoder::new(6, 2);
+        let packets: Vec<Vec<u8>> = (0..6).map(|i| vec![0x10 + i as u8; 20 + i * 4]).collect();
+        let dropped = [1u8, 4u8];
+        let mut sent = 0usize;
         for p in &packets {
             let (g, idx, parity) = enc.push(p);
-            if idx != dropped {
+            if !dropped.contains(&idx) {
                 let (c, ct) = a_session.seal(&fec_data_encode(g, idx, p)).unwrap();
                 a_tx.send_to(&frame::encode_data(c, &ct), b_addr).await.unwrap();
+                sent += 1;
             }
-            if let Some(par) = parity {
-                let (c, ct) = a_session.seal(&fec_parity_encode(&par)).unwrap();
+            for par in &parity {
+                let (c, ct) = a_session.seal(&fec_parity_encode(par)).unwrap();
                 a_tx.send_to(&frame::encode_data(c, &ct), b_addr).await.unwrap();
+                sent += 1;
             }
         }
 
-        // Receiver: decrypt each datagram and drive the decoder (3 data + parity).
-        let mut dec = XorDecoder::new(64);
-        let mut recovered = None;
+        // Receiver: decrypt each datagram and drive the decoder (4 data + 2 parity).
+        let mut dec = RsDecoder::new(64);
+        let mut recovered: Vec<Vec<u8>> = Vec::new();
         let mut buf = vec![0u8; 2048];
-        for _ in 0..4 {
+        for _ in 0..sent {
             let (n, _from) = b_tx.recv_from(&mut buf).await.unwrap();
             let (c, ct) = match frame::classify(&buf[..n]) {
                 Inbound::Frame(FrameKind::Data, payload) => frame::decode_data(payload).unwrap(),
@@ -835,18 +839,16 @@ mod tests {
             let pt = b_session.open(c, ct).unwrap();
             match decode_inner(&pt) {
                 Some(Inner::FecData { group, index, ip }) => {
-                    if let Some(r) = dec.on_data(group, index, ip) {
-                        recovered = Some(r);
-                    }
+                    recovered.extend(dec.on_data(group, index, ip));
                 }
-                Some(Inner::FecParity { group, k, q }) => {
-                    if let Some(r) = dec.on_parity(group, k, q) {
-                        recovered = Some(r);
-                    }
+                Some(Inner::FecParity { group, k, r, index, q }) => {
+                    recovered.extend(dec.on_parity(group, k, r, index, q));
                 }
                 _ => panic!("unexpected inner payload on the FEC stream"),
             }
         }
-        assert_eq!(recovered.unwrap(), packets[dropped as usize]);
+        assert_eq!(recovered.len(), 2, "both dropped packets must be rebuilt");
+        assert!(recovered.contains(&packets[1]));
+        assert!(recovered.contains(&packets[4]));
     }
 }

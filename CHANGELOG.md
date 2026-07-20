@@ -19,6 +19,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.13.0] - 2026-06-22
+
+### Added
+- **Networking engine — Phase D.2 (Reed-Solomon FEC).** The data plane now recovers **any `r` losses per group** instead of D.1's single loss:
+  - `engine/fec/rs.rs` *(new)* — `RsEncoder` rolls a group of `k` packets and emits `r` parity shards on close; `RsDecoder` buffers a group until **any `k`** of its `k + r` shards have arrived, then reconstructs every missing packet at once. Shard construction is unchanged from D.1 (length-prefixed, zero-padded to the group's longest packet), so **only the parity costs bandwidth** — data packets still travel at their natural length.
+  - Burst loss is the case this addresses: XOR parity gave up the moment a group lost two packets, which is exactly how real networks drop traffic.
+
+### Changed
+- **FEC wire format.** `FEC_PARITY` is now `[5][group:4][k:1][r:1][parity index:1][shard…]` — it previously carried no `r` or shard index. ⚠️ **The FEC path is therefore incompatible with a v0.12.1 peer**; both ends must run the same version. `FEC_DATA` is unchanged.
+- `RS(k, 1)` is equivalent to the XOR parity it replaces, so the previous behaviour remains available by configuring `r = 1` — which is the shipped default, keeping overhead at 1/k until the geometry is made configurable.
+- **Removed `engine/fec/xor.rs`** — Reed-Solomon is a strict superset, and maintaining two equivalent codecs was avoidable duplication. Its five tests are subsumed by the nine in `rs.rs`, including one that pins `r = 1` to the old behaviour.
+- New dependency **`reed-solomon-erasure` 6.0.0** (MIT). Default features only; `simd-accel` is deliberately not enabled as it would pull a C toolchain. Attributed in `THIRD-PARTY-NOTICES.md`. The `alloc-no-stdlib`/`brotli` lock pins were re-verified intact after the graph change.
+- Versions aligned to `0.13.0` across `Cargo.toml`, `package.json`, `tauri.conf.json`.
+
+### Security
+- **Peer-supplied FEC geometry is untrusted and range-checked.** `k`, `r` and the shard index arrive from the peer, so they are bounded (`k ≤ 64`, `r ≤ 16`, index `< r`, shard `≤ 2048` bytes) before any allocation, and a codec error is handled rather than unwrapped — a malformed group is dropped, never panicked on.
+- **A parity shard cannot silently set an inconsistent geometry.** Writing the tests surfaced a real weakness: a shard arriving *before* any genuine parity established the group's dimensions unchallenged, and could drive a reconstruction that produced garbage. A shard shorter than a data packet already held is now *provably* inconsistent and rejected, and shards disagreeing with an established geometry are ignored.
+
+### Verified
+- `cargo test` — **58/58 pass**, warning-free (9 new, 5 retired with the XOR codec): recovers two losses with two parity; three losses with two parity yield **nothing** rather than corrupt data; `r = 1` reproduces the D.1 behaviour exactly; parity-first and reordered arrival; parity-only loss is a no-op; flush closes a partial group and still recovers; malformed/hostile headers rejected; geometry disagreement rejected; group buffer stays bounded.
+- **End-to-end** — two handshake-established sessions, **two** data packets dropped in transit, both reconstructed byte-identical through the real `seal → transport → open` path.
+- `tsc` clean.
+- **Pending manual verification (your run):** on a lossy link, confirm recovery still holds where D.1 would have given up (two losses inside one group of eight).
+
+---
+
 ## [0.12.1] - 2026-06-21
 
 Hardening from a **complete** adversarial review of the E.1 data plane (21 agents, 0 failures, 16 raw findings, **6 confirmed**, 0 unverified — unlike the truncated run recorded in 0.12.0). The 6 confirmed findings deduplicated to 4 defects; 3 are fixed here and 1 is documented below as a known limitation.
@@ -378,6 +404,7 @@ Hardened after an adversarial multi-agent review of the new egress policy (findi
 - Project `README.md` documenting overview, feature set, technology stack, architecture (Mermaid), structure, and development protocol.
 
 [Unreleased]: #unreleased
+[0.13.0]: #0130---2026-06-22
 [0.12.1]: #0121---2026-06-21
 [0.12.0]: #0120---2026-06-20
 [0.11.0]: #0110---2026-06-19

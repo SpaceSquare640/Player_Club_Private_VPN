@@ -36,6 +36,24 @@ the local notice ships alongside the binaries at
 
 ---
 
+## Notable source dependencies
+
+### reed-solomon-erasure
+
+Reed-Solomon erasure coding over GF(2⁸), used by the Forward Error Correction
+layer to reconstruct packets lost in transit (see [`src-tauri/src/engine/fec/`](src-tauri/src/engine/fec/)).
+
+| | |
+| --- | --- |
+| **Project** | <https://github.com/darrenldl/reed-solomon-erasure> |
+| **Version** | 6.0.0 |
+| **Licence** | MIT |
+
+Used with default features (`std`); the optional `simd-accel` feature — which
+would pull a C toolchain via `cc`/`libc` — is deliberately **not** enabled.
+
+---
+
 ## Build-time dependencies
 
 The application additionally depends on open-source packages resolved at build
@@ -44,7 +62,7 @@ time, each under its own licence as declared by its publisher:
 - **Rust crates** — declared in [`src-tauri/Cargo.toml`](src-tauri/Cargo.toml) and
   pinned in [`src-tauri/Cargo.lock`](src-tauri/Cargo.lock). Notable direct
   dependencies include `tauri`, `tokio`, `snow` (Noise protocol), `socket2`,
-  `zeroize`, `crc32fast`, and — on Windows — `wintun` and `windows-sys`.
+  `zeroize`, `crc32fast`, `reed-solomon-erasure`, and — on Windows — `wintun` and `windows-sys`.
 - **JavaScript / TypeScript packages** — declared in
   [`package.json`](package.json) and pinned in
   [`pnpm-lock.yaml`](pnpm-lock.yaml). Notable direct dependencies include

@@ -1,6 +1,6 @@
 [package]
 name = "player-club-private-vpn"
-version = "0.12.1"
+version = "0.13.0"
 description = "Player Club Private VPN — a high-performance Gaming Virtual Network."
 authors = ["Player Club"]
 edition = "2021"
@@ -36,6 +36,11 @@ sha2 = "0.10"
 zeroize = "1"
 # Phase C3: CRC32 checksum for paste-corruption detection on signaling blobs.
 crc32fast = "1"
+# Phase D.2: Reed-Solomon erasure coding — recovers up to `r` lost packets per
+# FEC group (D.1's XOR parity recovered only one). MIT; pulls parking_lot via
+# the default `std` feature. `simd-accel` is deliberately NOT enabled (it needs
+# a C toolchain and buys little at our packet rates).
+reed-solomon-erasure = "6"
 
 # --- Phase B: TUN/TAP (Windows only) ---------------------------------------
 # wintun loads the bundled, signed wintun.dll at runtime to create/manage the
