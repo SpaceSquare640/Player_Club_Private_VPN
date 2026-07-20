@@ -22,18 +22,18 @@ use super::tun::{privilege, TunConfig};
 
 /// The point-to-point virtual LAN a connected pair shares (C5). Each side takes
 /// a distinct host address by role so in-subnet traffic routes to the other.
-fn dataplane_cfg_for(role: Role) -> Option<TunConfig> {
+fn dataplane_source_for(role: Role) -> pipeline::DataPlaneSource {
     // A real data plane needs a real adapter → Windows + elevation. Otherwise
-    // the link stays control-only (encrypted keepalive) and this returns None.
+    // the link stays control-only (encrypted keepalive).
     if !privilege::status().can_create_tun {
-        return None;
+        return pipeline::DataPlaneSource::None;
     }
     let virtual_ip = match role {
         Role::Initiator => Ipv4Addr::new(10, 77, 0, 1),
         Role::Responder => Ipv4Addr::new(10, 77, 0, 2),
-        Role::Idle => return None,
+        Role::Idle => return pipeline::DataPlaneSource::None,
     };
-    Some(TunConfig {
+    pipeline::DataPlaneSource::Adapter(TunConfig {
         virtual_ip,
         ..TunConfig::default()
     })
@@ -232,7 +232,7 @@ impl ConnectionManager {
             identity,
             peer_public,
             peer_candidates,
-            dataplane_cfg_for(role),
+            dataplane_source_for(role),
             sink,
             link,
             cancel_rx,

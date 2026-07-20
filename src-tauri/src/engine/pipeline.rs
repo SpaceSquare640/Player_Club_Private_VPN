@@ -117,13 +117,25 @@ impl LogBatch {
     }
 }
 
+/// Where this link's data plane comes from.
+///
+/// The adapter is only brought up *after* the handshake succeeds, so a failed
+/// connection never creates (and destroys) one needlessly.
+pub enum DataPlaneSource {
+    /// No data plane — the link runs control-only (encrypted keepalive), as in C4.
+    None,
+    /// Create a real virtual adapter with this configuration (the production path).
+    Adapter(TunConfig),
+    /// Drive an already-built device. This is the seam that lets the integration
+    /// tests exercise the entire path — handshake, crypto, FEC, policy and the
+    /// bridge — against a mock adapter, with no Windows, elevation or second
+    /// machine required. Compiled out of release builds entirely.
+    #[cfg(test)]
+    Device(Box<dyn crate::engine::tun::TunDevice>, TunConfig),
+}
+
 /// Drive one peer connection from handshake through steady state. Owns the recv
 /// loop on the shared socket for the lifetime of the link.
-///
-/// `dataplane_cfg` is `Some` when the caller wants a real TUN data plane (C5)
-/// with the role-assigned virtual IP; the adapter is opened only after the
-/// handshake succeeds. When it is `None` — or the adapter fails to open — the
-/// link runs control-only (encrypted keepalive), exactly as in C4.
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
     transport: UdpTransport,
@@ -131,7 +143,7 @@ pub async fn run(
     identity: Arc<Identity>,
     peer_public: Vec<u8>,
     peer_candidates: Vec<SocketAddr>,
-    dataplane_cfg: Option<TunConfig>,
+    dataplane_src: DataPlaneSource,
     sink: Box<dyn TelemetrySink>,
     link: Arc<Mutex<LinkState>>,
     mut cancel: watch::Receiver<bool>,
@@ -208,8 +220,8 @@ pub async fn run(
 
     // Bring up the C5 data plane if requested; degrade gracefully on failure.
     // The split-tunnel policy (E.1) is derived from the same config.
-    let (dataplane, split_policy) = match dataplane_cfg {
-        Some(cfg) => {
+    let (dataplane, split_policy) = match dataplane_src {
+        DataPlaneSource::Adapter(cfg) => {
             let vip = cfg.virtual_ip;
             let policy = SplitPolicy::from_tun(&cfg);
             match dataplane::open(cfg, cancel.clone()).await {
@@ -231,7 +243,13 @@ pub async fn run(
                 }
             }
         }
-        None => (None, None),
+        #[cfg(test)]
+        DataPlaneSource::Device(dev, cfg) => {
+            let policy = SplitPolicy::from_tun(&cfg);
+            let dp = dataplane::spawn_bridge(dev, cancel.clone(), cfg.mtu as usize);
+            (Some(dp), Some(policy))
+        }
+        DataPlaneSource::None => (None, None),
     };
 
     // Destructure so the driver owns the channel ends (dropping them signals the
@@ -642,6 +660,213 @@ fn pkt(started: Instant, dir: Direction, proto: &str, len: usize, note: String) 
         proto: proto.to_string(),
         len: len as u16,
         note,
+    }
+}
+
+/// Full-path integration harness (Phase F.0).
+///
+/// Two complete [`run`] tasks are connected over loopback with a mock adapter on
+/// each side, so a packet handed to one virtual adapter must come back out of
+/// the other having travelled the **real** path: hole-punch handshake, Noise
+/// session, FEC, split-tunnel policy, UDP transport and the data-plane bridge.
+///
+/// What this deliberately does **not** cover: real NAT traversal (there is no
+/// NAT on loopback), the real Wintun driver, and the Windows firewall/routing
+/// stack. Those remain verifiable only on two real machines.
+#[cfg(test)]
+mod integration {
+    use super::*;
+    use crate::engine::crypto::identity::Identity;
+    use crate::engine::dataplane::MockTun;
+    use crate::engine::tun::TunConfig;
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
+    use std::net::Ipv4Addr;
+    use std::time::Duration;
+
+    /// A sink that ignores everything — these tests assert on observable link
+    /// state and adapter traffic, not on telemetry.
+    struct NullSink;
+    impl TelemetrySink for NullSink {
+        fn stats(&self, _: &TelemetrySnapshot) {}
+        fn packets(&self, _: &[PacketLogEntry]) {}
+        fn state(&self, _: EngineState) {}
+        fn notice(&self, _: &EngineNotice) {}
+    }
+
+    fn tun_cfg(last_octet: u8) -> TunConfig {
+        TunConfig {
+            virtual_ip: Ipv4Addr::new(10, 77, 0, last_octet),
+            ..TunConfig::default()
+        }
+    }
+
+    /// A minimal well-formed IPv4 packet with the given addresses and body.
+    fn ipv4(src: [u8; 4], dst: [u8; 4], body: &[u8]) -> Vec<u8> {
+        let total = 20 + body.len();
+        let mut p = vec![0u8; total];
+        p[0] = 0x45; // IPv4, IHL 5
+        p[2..4].copy_from_slice(&(total as u16).to_be_bytes());
+        p[9] = 17; // UDP, so the packet log labels it
+        p[12..16].copy_from_slice(&src);
+        p[16..20].copy_from_slice(&dst);
+        p[20..].copy_from_slice(body);
+        p
+    }
+
+    /// Poll `cond` until true, or fail after `secs`.
+    async fn until(secs: u64, label: &str, mut cond: impl FnMut() -> bool) {
+        for _ in 0..(secs * 100) {
+            if cond() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("timed out waiting for: {label}");
+    }
+
+    struct Pair {
+        a_tun: MockTun,
+        b_tun: MockTun,
+        a_link: Arc<Mutex<LinkState>>,
+        b_link: Arc<Mutex<LinkState>>,
+        a_cancel: watch::Sender<bool>,
+        b_cancel: watch::Sender<bool>,
+        a_task: tokio::task::JoinHandle<()>,
+        b_task: tokio::task::JoinHandle<()>,
+    }
+
+    /// Bring up a connected pair over loopback, each with a mock adapter.
+    async fn connect_pair() -> Pair {
+        let a_id = Arc::new(Identity::generate().unwrap());
+        let b_id = Arc::new(Identity::generate().unwrap());
+        let a_pub = STANDARD.decode(a_id.public_b64()).unwrap();
+        let b_pub = STANDARD.decode(b_id.public_b64()).unwrap();
+
+        let a_tx = UdpTransport::bind(0).await.unwrap();
+        let b_tx = UdpTransport::bind(0).await.unwrap();
+        let a_addr = SocketAddr::from((Ipv4Addr::LOCALHOST, a_tx.local_addr().unwrap().port()));
+        let b_addr = SocketAddr::from((Ipv4Addr::LOCALHOST, b_tx.local_addr().unwrap().port()));
+        // RFC 5737 TEST-NET-1: unreachable, so the fan-out must ignore it.
+        let dead = SocketAddr::from((Ipv4Addr::new(192, 0, 2, 1), 9));
+
+        let (a_tun, b_tun) = (MockTun::default(), MockTun::default());
+        let a_link = Arc::new(Mutex::new(LinkState::Connecting));
+        let b_link = Arc::new(Mutex::new(LinkState::Connecting));
+        let (a_cancel, a_rx) = watch::channel(false);
+        let (b_cancel, b_rx) = watch::channel(false);
+
+        let a_task = tokio::spawn(run(
+            a_tx,
+            Role::Initiator,
+            a_id,
+            b_pub,
+            vec![dead, b_addr],
+            DataPlaneSource::Device(a_tun.device(), tun_cfg(1)),
+            Box::new(NullSink),
+            a_link.clone(),
+            a_rx,
+        ));
+        let b_task = tokio::spawn(run(
+            b_tx,
+            Role::Responder,
+            b_id,
+            a_pub,
+            vec![a_addr],
+            DataPlaneSource::Device(b_tun.device(), tun_cfg(2)),
+            Box::new(NullSink),
+            b_link.clone(),
+            b_rx,
+        ));
+
+        let (al, bl) = (a_link.clone(), b_link.clone());
+        until(15, "both sides Connected", move || {
+            *al.lock().unwrap() == LinkState::Connected
+                && *bl.lock().unwrap() == LinkState::Connected
+        })
+        .await;
+
+        Pair { a_tun, b_tun, a_link, b_link, a_cancel, b_cancel, a_task, b_task }
+    }
+
+    /// The handshake completes through the real fan-out, ignoring a dead
+    /// candidate, and both sides reach Connected.
+    #[tokio::test]
+    async fn two_pipelines_complete_the_handshake() {
+        let p = connect_pair().await;
+        assert_eq!(*p.a_link.lock().unwrap(), LinkState::Connected);
+        assert_eq!(*p.b_link.lock().unwrap(), LinkState::Connected);
+        let _ = p.a_cancel.send(true);
+        let _ = p.b_cancel.send(true);
+        let _ = p.a_task.await;
+        let _ = p.b_task.await;
+    }
+
+    /// ⭐ The end-to-end proof: a packet handed to A's virtual adapter comes out
+    /// of B's virtual adapter byte-identical, having traversed the entire real
+    /// stack in both processes.
+    #[tokio::test]
+    async fn a_packet_crosses_the_tunnel_intact() {
+        let p = connect_pair().await;
+
+        let packet = ipv4([10, 77, 0, 1], [10, 77, 0, 2], b"hello over the tunnel");
+        p.a_tun.send_from_host(packet.clone());
+
+        let b = p.b_tun.clone();
+        until(10, "the packet to arrive on B's adapter", move || {
+            !b.injected().is_empty()
+        })
+        .await;
+
+        assert_eq!(p.b_tun.injected()[0], packet, "bytes must survive intact");
+        // Nothing should have leaked back onto the sender's own adapter.
+        assert!(p.a_tun.injected().is_empty());
+
+        let _ = p.a_cancel.send(true);
+        let _ = p.b_cancel.send(true);
+        let _ = p.a_task.await;
+        let _ = p.b_task.await;
+    }
+
+    /// The split-tunnel policy holds on the real path: a packet addressed
+    /// outside the virtual subnet never reaches the peer.
+    #[tokio::test]
+    async fn policy_blocks_a_packet_bound_outside_the_virtual_lan() {
+        let p = connect_pair().await;
+
+        p.a_tun
+            .send_from_host(ipv4([10, 77, 0, 1], [8, 8, 8, 8], b"should never leave"));
+        // Then a legitimate one, so we can prove the first was dropped rather
+        // than merely slower — the tunnel is ordered.
+        let allowed = ipv4([10, 77, 0, 1], [10, 77, 0, 2], b"this one is fine");
+        p.a_tun.send_from_host(allowed.clone());
+
+        let b = p.b_tun.clone();
+        until(10, "the allowed packet to arrive", move || {
+            !b.injected().is_empty()
+        })
+        .await;
+
+        let got = p.b_tun.injected();
+        assert_eq!(got.len(), 1, "only the in-subnet packet may cross");
+        assert_eq!(got[0], allowed);
+
+        let _ = p.a_cancel.send(true);
+        let _ = p.b_cancel.send(true);
+        let _ = p.a_task.await;
+        let _ = p.b_task.await;
+    }
+
+    /// Disconnecting tears the link down cleanly on both sides.
+    #[tokio::test]
+    async fn cancel_returns_both_sides_to_idle() {
+        let p = connect_pair().await;
+        let _ = p.a_cancel.send(true);
+        let _ = p.b_cancel.send(true);
+        let _ = p.a_task.await;
+        let _ = p.b_task.await;
+        assert_eq!(*p.a_link.lock().unwrap(), LinkState::Idle);
+        assert_eq!(*p.b_link.lock().unwrap(), LinkState::Idle);
     }
 }
 

@@ -19,6 +19,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.14.0] - 2026-06-23
+
+### Added
+- **Full-path integration harness (Phase F.0).** Two complete `pipeline::run` tasks are now connected over loopback with a mock adapter on each side, so a packet handed to one virtual adapter must emerge from the other having travelled the **real** path — hole-punch handshake, Noise session, FEC, split-tunnel policy, UDP transport and the data-plane bridge. Four tests: the handshake completes through the fan-out (ignoring a dead candidate); **a packet crosses the tunnel byte-identical**; the split-tunnel policy blocks an out-of-subnet packet on the live path; and cancellation returns both sides to `Idle`.
+- `DataPlaneSource` — the seam that makes this possible. `None` / `Adapter(TunConfig)` are the production paths; a `Device(..)` variant lets a test drive a mock adapter and is `#[cfg(test)]`, so it does not exist in release builds.
+- A reusable `MockTun` in `engine::dataplane`, replacing the ad-hoc mock the bridge test carried.
+
+### Changed
+- `pipeline::run` takes a `DataPlaneSource` in place of `Option<TunConfig>`; `connection.rs` builds one via `dataplane_source_for(role)`.
+- Versions aligned to `0.14.0` across `Cargo.toml`, `package.json`, `tauri.conf.json`.
+
+### Verified
+- `cargo test` — **62/62 pass**, warning-free (4 new integration tests).
+- **The harness was mutation-tested to prove it has teeth:** deliberately breaking the downlink injection made exactly the two traffic tests fail with timeouts, while the handshake and teardown tests correctly still passed. The change was then reverted and the suite re-run green.
+- `tsc` clean.
+
+### ⚠️ Verification status — corrected
+Earlier entries (C4 through D.2) each carried a *"Pending manual verification — two-machine test"* note. **That test has not been performed and cannot currently be performed by the maintainer.** Those notes are superseded by this entry, and the honest position is:
+
+| Covered automatically, end to end | Still unverified |
+| --- | --- |
+| Hole-punch handshake and candidate fan-out | **Real NAT traversal** — loopback has no NAT, so whether hole-punching survives real-world NATs is unproven |
+| Noise session, seal/open, anti-replay | The real **Wintun** driver (mocked in tests) |
+| Data-plane bridge, uplink and downlink | Windows **firewall / routing** interaction |
+| FEC encode, transmit and reconstruct | Real-world latency, loss and MTU behaviour |
+| Split-tunnel egress and ingress policy | |
+| Connect / disconnect lifecycle | |
+
+**NAT traversal is the material open risk.** It is also the reason relay/TURN fallback has *not* been built yet: it could not be verified either, and adding unverifiable code on top of unverified code compounds the problem rather than reducing it. A checklist for the two-machine test is kept at `DOC/Two_Machine_Verification.md` (outside this repository) for whenever a second machine is available.
+
+---
+
 ## [0.13.0] - 2026-06-22
 
 ### Added
@@ -404,6 +436,7 @@ Hardened after an adversarial multi-agent review of the new egress policy (findi
 - Project `README.md` documenting overview, feature set, technology stack, architecture (Mermaid), structure, and development protocol.
 
 [Unreleased]: #unreleased
+[0.14.0]: #0140---2026-06-23
 [0.13.0]: #0130---2026-06-22
 [0.12.1]: #0121---2026-06-21
 [0.12.0]: #0120---2026-06-20

@@ -134,53 +134,81 @@ fn bridge(
     drop(dev); // release the adapter promptly on teardown
 }
 
+/// A fake virtual adapter, shared by the data-plane and pipeline tests.
+///
+/// Standing in for Wintun lets the tests drive the *whole* path — a packet
+/// pushed in with [`MockTun::send_from_host`] travels through the real encoder,
+/// crypto session and socket, and is observed with [`MockTun::injected`] on the
+/// far side — without needing Windows, elevation or a second machine.
+#[cfg(test)]
+#[derive(Clone, Default)]
+pub(crate) struct MockTun {
+    /// Packets the host stack "hands" to the adapter (i.e. the uplink source).
+    outbound: std::sync::Arc<std::sync::Mutex<std::collections::VecDeque<Vec<u8>>>>,
+    /// Packets the engine injected onto the adapter (i.e. the downlink sink).
+    inbound: std::sync::Arc<std::sync::Mutex<Vec<Vec<u8>>>>,
+}
+
+#[cfg(test)]
+impl MockTun {
+    /// A device handle backed by this mock. The handle can be moved into the
+    /// bridge while the `MockTun` stays here for observation.
+    pub(crate) fn device(&self) -> Box<dyn TunDevice> {
+        Box::new(MockTunDevice(self.clone()))
+    }
+
+    /// Queue a packet as though the host stack routed it to the adapter.
+    pub(crate) fn send_from_host(&self, packet: Vec<u8>) {
+        self.outbound.lock().unwrap().push_back(packet);
+    }
+
+    /// Everything the engine has injected onto the adapter so far.
+    pub(crate) fn injected(&self) -> Vec<Vec<u8>> {
+        self.inbound.lock().unwrap().clone()
+    }
+}
+
+#[cfg(test)]
+struct MockTunDevice(MockTun);
+
+#[cfg(test)]
+impl TunDevice for MockTunDevice {
+    fn read_frame(&mut self, buf: &mut [u8]) -> io::Result<Option<usize>> {
+        match self.0.outbound.lock().unwrap().pop_front() {
+            Some(f) => {
+                let n = f.len().min(buf.len());
+                buf[..n].copy_from_slice(&f[..n]);
+                Ok(Some(n))
+            }
+            None => Ok(None),
+        }
+    }
+    fn write_frame(&mut self, frame: &[u8]) -> io::Result<usize> {
+        self.0.inbound.lock().unwrap().push(frame.to_vec());
+        Ok(frame.len())
+    }
+    fn info(&self) -> crate::engine::tun::device::DeviceInfo {
+        crate::engine::tun::device::DeviceInfo {
+            name: "mock".to_string(),
+            mtu: 1420,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::tun::device::DeviceInfo;
-    use std::collections::VecDeque;
-    use std::sync::{Arc, Mutex};
-
-    /// A fake layer-3 device: yields queued frames on read, records writes.
-    struct MockTun {
-        to_read: VecDeque<Vec<u8>>,
-        written: Arc<Mutex<Vec<Vec<u8>>>>,
-    }
-
-    impl TunDevice for MockTun {
-        fn read_frame(&mut self, buf: &mut [u8]) -> io::Result<Option<usize>> {
-            match self.to_read.pop_front() {
-                Some(f) => {
-                    let n = f.len().min(buf.len());
-                    buf[..n].copy_from_slice(&f[..n]);
-                    Ok(Some(n))
-                }
-                None => Ok(None),
-            }
-        }
-        fn write_frame(&mut self, frame: &[u8]) -> io::Result<usize> {
-            self.written.lock().unwrap().push(frame.to_vec());
-            Ok(frame.len())
-        }
-        fn info(&self) -> DeviceInfo {
-            DeviceInfo {
-                name: "mock".to_string(),
-                mtu: 1420,
-            }
-        }
-    }
 
     /// Frames read off the device surface on the uplink; packets pushed to the
     /// downlink are written back onto the device.
     #[tokio::test]
     async fn bridge_pumps_both_directions() {
-        let written = Arc::new(Mutex::new(Vec::new()));
-        let mock = MockTun {
-            to_read: VecDeque::from(vec![vec![1, 2, 3], vec![4, 5, 6, 7]]),
-            written: written.clone(),
-        };
+        let mock = MockTun::default();
+        mock.send_from_host(vec![1, 2, 3]);
+        mock.send_from_host(vec![4, 5, 6, 7]);
+
         let (cancel, rx) = watch::channel(false);
-        let mut dp = spawn_bridge(Box::new(mock), rx, 1420);
+        let mut dp = spawn_bridge(mock.device(), rx, 1420);
 
         // Uplink: the two queued frames emerge in order.
         assert_eq!(dp.uplink_rx.recv().await.unwrap(), vec![1, 2, 3]);
@@ -189,12 +217,12 @@ mod tests {
         // Downlink: a pushed packet gets written to the device.
         dp.downlink_tx.send(vec![9, 9, 9]).unwrap();
         for _ in 0..200 {
-            if !written.lock().unwrap().is_empty() {
+            if !mock.injected().is_empty() {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(2)).await;
         }
-        assert_eq!(written.lock().unwrap().as_slice(), &[vec![9, 9, 9]]);
+        assert_eq!(mock.injected().as_slice(), &[vec![9, 9, 9]]);
 
         cancel.send(true).unwrap();
         let _ = dp.handle.await;
