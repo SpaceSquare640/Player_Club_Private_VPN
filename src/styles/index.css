@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+/*
+ * Base theme tokens (Tailwind v4, CSS-first) = the "Midnight" theme.
+ * The semantic color system — Cyan / Violet / Amber / Red — and base surfaces
+ * generate utilities (e.g. text-brand-cyan, bg-surface-2). Alternate themes
+ * override these variables via :root[data-theme="..."] blocks below.
+ */
+@theme {
+  /* Semantic colors */
+  --color-brand-cyan: #22d3ee; /* info / idle */
+  --color-brand-violet: #8b5cf6; /* active / primary */
+  --color-brand-amber: #f59e0b; /* warning */
+  --color-brand-red: #ef4444; /* error / critical */
+
+  /* Base surfaces & ink */
+  --color-surface: #0b0f17;
+  --color-surface-2: #131a26;
+  --color-ink: #e6edf6;
+  --color-ink-muted: #93a4ba;
+}
+
+:root {
+  color-scheme: dark;
+  /* Golden ratio, available to layouts as var(--phi). */
+  --phi: 1.618;
+}
+
+/* ---------------------------------------------------------------------------
+ * Theme palettes — each overrides the semantic tokens app-wide.
+ * ------------------------------------------------------------------------ */
+:root[data-theme="midnight"] {
+  --color-surface: #0b0f17;
+  --color-surface-2: #131a26;
+  --color-ink: #e6edf6;
+  --color-ink-muted: #93a4ba;
+  --color-brand-cyan: #22d3ee;
+  --color-brand-violet: #8b5cf6;
+  --color-brand-amber: #f59e0b;
+  --color-brand-red: #ef4444;
+}
+
+:root[data-theme="carbon"] {
+  --color-surface: #0c0d10;
+  --color-surface-2: #16181d;
+  --color-ink: #e7e9ee;
+  --color-ink-muted: #9aa0ab;
+  --color-brand-cyan: #38bdf8;
+  --color-brand-violet: #a78bfa;
+  --color-brand-amber: #fbbf24;
+  --color-brand-red: #f87171;
+}
+
+:root[data-theme="nebula"] {
+  --color-surface: #0f0b1a;
+  --color-surface-2: #1b1430;
+  --color-ink: #ece8f7;
+  --color-ink-muted: #a99fc4;
+  --color-brand-cyan: #22d3ee;
+  --color-brand-violet: #a855f7;
+  --color-brand-amber: #f59e0b;
+  --color-brand-red: #fb7185;
+}
+
+:root[data-theme="abyss"] {
+  --color-surface: #061613;
+  --color-surface-2: #0d241e;
+  --color-ink: #e3f4ee;
+  --color-ink-muted: #8fb3a8;
+  --color-brand-cyan: #2dd4bf;
+  --color-brand-violet: #818cf8;
+  --color-brand-amber: #fbbf24;
+  --color-brand-red: #f87171;
+}
+
+:root[data-theme="aurora"] {
+  --color-surface: #07131a;
+  --color-surface-2: #0e2230;
+  --color-ink: #e6f1f6;
+  --color-ink-muted: #93b1c0;
+  --color-brand-cyan: #34d399;
+  --color-brand-violet: #60a5fa;
+  --color-brand-amber: #fcd34d;
+  --color-brand-red: #f87171;
+}
+
+:root[data-theme="ember"] {
+  --color-surface: #14100e;
+  --color-surface-2: #221a15;
+  --color-ink: #f4ebe4;
+  --color-ink-muted: #c2ab9d;
+  --color-brand-cyan: #38bdf8;
+  --color-brand-violet: #f97316;
+  --color-brand-amber: #f59e0b;
+  --color-brand-red: #ef4444;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

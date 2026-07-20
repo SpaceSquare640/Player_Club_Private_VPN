@@ -1,0 +1,26 @@
+# Normalise line endings in the repository; check out native on each platform.
+* text=auto
+
+# Shell scripts must stay LF so they run on Linux/macOS.
+*.sh text eol=lf
+
+# Windows-only scripts stay CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary assets — never munge line endings or try to diff them as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.dll binary
+*.exe binary
+*.so  binary
+*.dylib binary
+
+# Lockfiles are generated: collapse them in diffs and reviews.
+pnpm-lock.yaml linguist-generated=true -diff
+Cargo.lock     linguist-generated=true -diff

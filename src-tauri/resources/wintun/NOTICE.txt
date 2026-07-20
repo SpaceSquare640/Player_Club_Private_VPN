@@ -1,0 +1,18 @@
+Wintun — userspace TUN driver for Windows (https://www.wintun.net)
+==================================================================
+
+These prebuilt, Authenticode-signed binaries are redistributed unmodified
+from the official source.
+
+  Source   : https://www.wintun.net/builds/wintun-0.14.1.zip
+  Version  : 0.14.1
+  SHA256   : 07C256185D6EE3652E09FA55C0B673E2624B565E02C4B9091C79CA7D2F24EF51 (zip)
+  Signer   : WireGuard LLC (O=WireGuard LLC, C=US) — signature verified Valid
+  Arches   : amd64, arm64, x86
+
+Wintun is a project of WireGuard / Jason A. Donenfeld. It is provided under the
+terms published at https://www.wintun.net/ ("Prebuilt binaries of Wintun ...").
+See that page for the authoritative license and redistribution terms.
+
+The Player Club Private VPN engine loads wintun.dll at runtime (see
+src-tauri/src/engine/tun/windows.rs) and bundles it as a Tauri resource.

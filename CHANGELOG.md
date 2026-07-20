@@ -1,0 +1,396 @@
+# Changelog
+
+All notable changes to **Player Club Private VPN** are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+---
+
+## [Unreleased]
+
+### Planned
+- **Engine (Rust) — Phase D.2/E.2:** Reed-Solomon FEC (multiple-loss recovery per group, slotting in behind the D.1 XOR call sites), and OS route management for split tunneling (steering additional prefixes into the adapter via `netsh`, Windows + elevation).
+- **Diagnostics:** a dedicated "FEC recovered" stat tile (recoveries currently surface in the packet log) and split-tunnel broadcast/multicast toggles in Settings.
+- **Diagnostics:** interactive topology map and spectrum monitoring (the live telemetry readout shipped in 0.4.0).
+- **Elevation:** privileged helper-service backend (replacing the relaunch-elevated path behind the existing seam).
+- **Settings:** Basic/Expert layered access, JSON profile management, automatic game detection.
+- **Personalization:** multi-language (i18n) support.
+
+---
+
+## [0.12.1] - 2026-06-21
+
+Hardening from a **complete** adversarial review of the E.1 data plane (21 agents, 0 failures, 16 raw findings, **6 confirmed**, 0 unverified — unlike the truncated run recorded in 0.12.0). The 6 confirmed findings deduplicated to 4 defects; 3 are fixed here and 1 is documented below as a known limitation.
+
+### Security
+- **Ingress now validates the source, not just the destination.** Decryption proves a frame came from the authenticated peer; it proves nothing about the *inner* IP header, which the peer writes freely. The 0.12.0 downlink filter checked only the destination, so a hostile peer could forge a source — `127.0.0.1`, or our own virtual address — and reach services that trust loopback or the local subnet. New `SplitPolicy::admits_inbound` applies a reverse-path test: the **source** must be on the virtual LAN and never our own address (no self-spoofing), and the **destination** must be us or an accepted broadcast/multicast — never a phantom in-subnet host, which the OS could forward off-box.
+
+### Fixed
+- **Packet-log batch is now bounded.** `drive()` accumulated log entries in an unbounded `Vec` drained only once per keepalive second, then handed the whole batch to the IPC layer in a single `emit`. At high packet rates this both grew the buffer within a tick and produced one enormous payload to serialize. Entries are now capped (`PACKET_LOG_BATCH_CAP = 256`) with the overflow **counted and reported** as a summary line, so the gap is visible rather than silent. (Pre-existing on the send path; widened by E.1's drop-path logging.)
+- **The packet log no longer claims undelivered packets were injected.** `inject_downlink` returned "injected" even when nothing was written — no channel, or a full adapter queue. It now reports `Delivered` / `Blocked` / `Queueless`, so a full-queue drop shows as `adapter queue full — packet dropped` instead of appearing as a clean receive while the adapter got nothing.
+
+### Known limitation
+- **`get_packet_log` returns empty for a peer session.** `capture.rs` and `probe.rs` push entries into the bounded `RingBuffer` in `SharedState`; the peer-link `drive()` only emits live `telemetry://packet` events, because it is handed a `&dyn TelemetrySink` and has no `SharedState` handle. The live stream is unaffected — only the pull-on-late-mount path returns nothing. Wiring it would couple the peer link to `EngineController`'s shared state, so it is deferred rather than rushed.
+
+### Verified
+- `cargo test` — **54/54 pass**, warning-free (4 new: forged-source rejection incl. `127.0.0.1` and self-spoofing, ingress destination restriction incl. phantom hosts, ingress broadcast/multicast toggles, and the bounded log batch reporting its suppression count).
+- `tsc` clean; versions aligned to `0.12.1` across `Cargo.toml`, `package.json`, `tauri.conf.json`.
+
+---
+
+## [0.12.0] - 2026-06-20
+
+### Added
+- **Networking engine — Phase E.1 (split tunnelling).** The data plane now applies an explicit policy to every packet crossing the tunnel:
+  - `engine/split_tunnel/mod.rs` *(new)* — `SplitPolicy`, a pure function of the destination address: **in-subnet unicast** → tunnel; **broadcast** (limited `255.255.255.255` and subnet-directed, e.g. `10.77.0.255`) and **multicast** (`224.0.0.0/4`) → tunnel *when enabled*, so LAN-discovery games find each other while the flooding stays gated; **everything else** → drop. Includes `Ipv4Cidr`, prefix→mask arithmetic, and `dst_ipv4()` (destination at octets 16..20, guarded on length and IP version).
+  - `pipeline.rs` — the uplink pump gates every outbound packet through the policy before it is sealed; blocked packets are logged, never sent. The policy is derived from the data-plane `TunConfig` in `run()`.
+- Because the virtual adapter is a layer-3 `/24`, native and internet traffic never reaches the adapter in the first place — this layer adds explicit control over what the tunnel *does* carry.
+
+### Changed
+- `engine/mod.rs` registers `pub mod split_tunnel`.
+- Versions aligned to `0.12.0` across `Cargo.toml`, `package.json`, `tauri.conf.json`.
+
+### Security
+Hardened after an adversarial multi-agent review of the new egress policy (findings triaged manually — see *Verified*):
+- **The gate is fail-closed.** The uplink/downlink check was centralised in `admits_packet(policy, frame)`, which admits **nothing** when the policy is absent. Previously an absent policy meant "admit", so a leak-prevention filter's correctness rested on two locals staying coupled rather than on the gate itself.
+- **Downlink is now filtered symmetrically.** Inbound `Data`, `FEC_DATA`, and FEC-recovered packets pass the same destination policy before injection, so an authenticated-but-hostile peer cannot inject packets for arbitrary destinations onto our adapter. FEC bookkeeping still sees every packet, so legitimate losses stay recoverable.
+- **The allow-list can no longer widen to the internet.** `prefix_len` is an unvalidated `u8` from config; a `/0` would have made the allow-list `0.0.0.0/0` and admitted every unicast destination. A prefix outside the plausible LAN range (`/8`–`/32`) now collapses to `/32` — the fail-closed direction.
+
+### Verified
+- `cargo test` — **50/50 pass**, warning-free (10 new: CIDR/prefix arithmetic, subnet/broadcast derivation at `/24`, **`/16` and `/25`** (guards against a hardcoded-last-octet regression), unicast classification, broadcast + multicast forwarding, both toggles gating, `dst_ipv4` parse/reject incl. IPv6 and short frames, `admits()` on full frames, **nonsensical prefixes failing closed**, and the **gate polarity + fail-closed default**).
+- `tsc` clean.
+- **Review caveat, recorded honestly:** the adversarial workflow reported `confirmedCount: 0`, but **4 of its verify agents died on a session limit**, so that figure is *inconclusive, not an all-clear*. The raw finder output was read from the run journal and triaged by hand: 5 findings across 5 dimensions (2 dimensions clean), 3 acted on above, 2 covered by the new tests. No finding indicated a live leak in the shipped configuration — all three fixes harden latent/defensive gaps.
+- **Pending manual verification (your run):** with two peers connected, run a LAN-discovery game/tool and confirm they find each other; then disable broadcast forwarding and confirm discovery stops — proving the gate works.
+
+---
+
+## [0.11.0] - 2026-06-19
+
+### Added
+- **Networking engine — Phase D.1 (Forward Error Correction, XOR parity).** The tunnelled data plane now recovers isolated packet losses **without retransmission**:
+  - `engine/fec/xor.rs` *(new)* — a single-parity XOR erasure code. `XorEncoder` rolls a group of up to `k=8` data packets and, when the group closes (full or idle-flushed), emits one parity packet = the XOR of its length-prefixed, zero-padded members. `XorDecoder` buffers each group (bounded, tolerant of reordering and late parity) and reconstructs the **single** missing member exactly — original length included — from the parity; **two or more** losses in a group are reported unrecoverable rather than emitting corrupt data.
+  - `engine/fec/mod.rs` *(new)* — module + re-exports; documents the FEC-then-encrypt placement and the D.2 Reed-Solomon path.
+  - `pipeline.rs` — the data-plane pumps now run FEC **over the inner IP plaintext**: uplink packets are sent immediately as `FEC_DATA` (never delayed) with a `FEC_PARITY` following when the group closes or a ~30 ms idle-flush timer fires; downlink `FEC_DATA` is injected immediately and fed to the decoder, and a `FEC_PARITY` may reconstruct a missing packet, which is then injected. Two inner tags (`FEC_DATA=4`, `FEC_PARITY=5`) join `PING`/`PONG`/`DATA`.
+- Recovered packets and parity surface in the Diagnostics packet log (`FEC-PAR` sends, `recovered via FEC` injections); the data-plane notice now reads `… · FEC on (XOR k=8)`.
+
+### Changed
+- `engine/mod.rs` registers `pub mod fec`. FEC is enabled **per-direction** whenever the data plane is up (control-only links have none) and is transparent to a peer running the same codec — no signaling change.
+- Versions aligned to `0.11.0` across `Cargo.toml`, `package.json`, `tauri.conf.json`.
+
+### Security
+- **FEC runs inside the encryption boundary:** parity is computed over inner IP *plaintext*, and every data and parity packet is individually sealed. The receiver decrypts each, then recovers on plaintext — so a reconstructed packet needs no per-packet nonce, and the C4 single-session guarantee and 64-packet anti-replay window are untouched.
+- **No corrupt output:** the decoder reconstructs only when exactly one member of a group is missing; 2+ losses yield nothing. Group buffers are bounded (64 recent groups, FIFO-evicted), so loss or reordering cannot grow memory without bound.
+- **Latency-safe redundancy:** data packets are never buffered for FEC — only parity is additive — so the no-loss path adds zero latency; only genuinely-lost packets pay the (bounded) recovery delay.
+
+### Verified
+- `cargo test` — **40/40 pass**, warning-free (6 new: XOR recovers a single loss; recovers with parity-first / reordered arrival; reports a 2-loss group unrecoverable; flush closes a partial group and recovers; no-loss recovers nothing; **end-to-end** — a data packet dropped in transit is reconstructed from parity through the real seal → transport → open path across two handshake-established sessions).
+- `tsc` clean.
+- **Pending manual verification (your run):** on a lossy link (or with induced loss), confirm ping/game latency is visibly steadier with FEC on, and the packet log shows `recovered via FEC` entries.
+
+---
+
+## [0.10.0] - 2026-06-18
+
+### Added
+- **Networking engine — Phase C5 (data-plane join).** The C4 peer link now carries **real IP traffic** between the two virtual adapters:
+  - `engine/dataplane/mod.rs` *(new)* — a bridge coupling the blocking Wintun `TunDevice` to the async driver via a **bounded channel pair**. One dedicated blocking thread interleaves **uplink** (`read_frame` → `tokio::mpsc`) and **downlink** (`std::mpsc::sync_channel` → `write_frame`), blocking briefly on the downlink when the device is idle so injected packets stay low-latency. `open()` creates the adapter off-thread (so `connect` never stalls); `spawn_bridge()` runs the loop over an already-open device (mockable in tests).
+  - `pipeline.rs` — the steady-state driver gains **uplink/downlink pumps**: outbound IP packets are sealed and sent to the nominated peer; inbound `Data` frames are decrypted and injected onto the adapter. Payloads inside the encrypted `Data` frame now carry a **1-byte inner tag** (`PING`/`PONG`/`DATA`) so keepalive control and tunnelled IP share one channel (an IPv4 packet's `0x45` first byte never collides). Real tx/rx **throughput** is now measured and reported.
+  - `connection.rs` — `connect` opens the data plane only when a real adapter is available (**Windows + elevated**), assigning a **role-based virtual IP** for the point-to-point LAN (Initiator `10.77.0.1`, Responder `10.77.0.2`, `/24`, MTU 1420). Otherwise the link runs **control-only** (encrypted keepalive), unchanged from C4. The adapter's lifetime equals the Connected phase — it is joined and released on disconnect before the link reports Idle.
+- **Diagnostics:** a **data plane / control-only** badge in the Peer-connection panel (driven by the `data_plane` / `data_plane_off` notice); the throughput tiles and packet log now surface real tunnelled traffic, classified by protocol.
+
+### Changed
+- `engine/mod.rs` registers `pub mod dataplane`; `pipeline::run` now takes an `Option<TunConfig>` (the role-assigned data-plane config, `None` → control-only).
+- The C4 keepalive payload codec was generalized into the shared inner-frame codec (`PING`/`PONG`/`DATA`).
+- Versions aligned to `0.10.0` across `Cargo.toml`, `package.json`, `tauri.conf.json`.
+
+### Security
+- **One `CryptoSession`, one owner:** `seal` (uplink + keepalive) and `open` (downlink) both run in the single async driver task — no cross-thread sharing, no lock — so the C4 single-session guarantee and the 64-packet anti-replay window are preserved unchanged. The TUN bridge thread only touches the channels and the device, never the session.
+- **Backpressure cannot stall the link:** both channel directions are bounded and **drop-newest** on saturation (game traffic favours fresh over buffered); a slow consumer never back-pressures the async driver or the device.
+- **Data plane is gated on elevation:** without a real adapter (unelevated / non-Windows) the link degrades to a control-only encrypted keepalive with a clear notice — it never silently pretends to tunnel.
+
+### Verified
+- `cargo test` — **34/34 pass**, warning-free (5 new, 1 retired: data-plane bridge pumps both directions via a mock device; inner-codec `PING`/`PONG`/`DATA` round-trips + rejects unknown/short; **end-to-end** — a tunnelled IP packet survives `dp_encode → seal → Data frame → transport → open → decode_inner` across two handshake-established sessions, no adapter needed).
+- `tsc` clean.
+- **Pending manual verification (your run):** two-machine test — both elevated, exchange offer/answer, **Connect** → **Connected** showing the **data plane** badge, then `ping 10.77.0.2` from the `.1` side succeeds while the packet log + throughput tiles show real traffic; then a LAN game.
+
+---
+
+## [0.9.0] - 2026-06-17
+
+### Added
+- **Networking engine — Phase C4 (hole-punch-as-handshake).** The negotiated peer (C3) is now turned into a live, authenticated P2P link:
+  - `crypto/handshake.rs` — **`initiate_fanout`** builds **one** Noise IK message-1 and broadcasts the identical bytes to *every* peer candidate (each send punches that NAT path), retransmitting every 250 ms until the first valid message-2. Inbound handshake frames are fed one-at-a-time into the **single** `HandshakeState`; the first that validates is consumed by `into_transport_mode()`, and the winning datagram's source address is the **nominated endpoint**. **`respond_punch`** punches the initiator's candidates with `Ping` probes while awaiting message-1, authorizes the initiator's static key, replies message-2, and caches it for retransmit. Both honor an 8 s overall deadline and a `watch` cancellation channel.
+  - `pipeline.rs` *(new)* — the post-handshake **session driver**: promotes the nominated `CryptoSession`, then runs an **encrypted keepalive** (ping/pong sealed inside `Data` frames) to the peer for real RTT/jitter/loss over the authenticated channel, re-answers a duplicate message-1 with the cached message-2 (handles a lost reply), and streams telemetry through the existing sink. The C5 data plane layers onto this same driver.
+  - `connection.rs` — **`connect`/`disconnect`** orchestration with a `LinkState` (`idle`/`connecting`/`connected`/`failed`) guard that permits **one session per peer**; spawns `pipeline::run` for the negotiated `Role`, de-dupes candidates, and tears the task down on disconnect.
+- **`connect_peer` / `disconnect_peer` IPC commands** and a **Connect / Connecting… / Disconnect** control in the Diagnostics "Peer connection" panel, with a live `link` readout. The lifecycle badge shows **Connecting** across the ≤ 8 s handshake window, then **Connected** (or **Error** on timeout).
+
+### Changed
+- `transport/frame.rs`: `Handshake`/`Data` frames are now live (their `dead_code` allowances dropped); `crypto/session.rs` likewise — `seal`/`open` drive the C4 keepalive.
+- `engine/mod.rs` registers `pub mod pipeline`; `lib.rs` registers the 2 new commands.
+- Versions aligned to `0.9.0` across `Cargo.toml`, `package.json`, `tauri.conf.json`.
+
+### Security
+- **Single-session guarantee is structural, not a check:** there is exactly one `HandshakeState` per side; `into_transport_mode()` consumes it by value, so no later/duplicate response can spawn a second session. `snow`'s `read_message` is transactional (it checkpoints and restores the symmetric state on failure), so a spoofed or garbage handshake frame rolls back cleanly and cannot poison the real handshake.
+- **Initiator authorization preserved from C2:** the responder accepts only a message-1 whose static key matches the expected peer; an impostor who holds our public key produces a valid IK message-1 but is **discarded** (the responder rebuilds and keeps waiting for the genuine peer) rather than aborting the attempt — resisting a handshake-race DoS.
+- The keepalive runs **inside** the encrypted session (AEAD + 64-packet anti-replay), not in cleartext.
+- Symmetric-NAT ↔ symmetric-NAT relay/TURN fallback is intentionally deferred; an un-punchable pair reports a clean timeout + notice.
+
+### Verified
+- `cargo build` warning-free; `cargo test` — **30/30 pass** (4 new: fan-out nominates the live candidate and ignores a dead one with a working encrypted echo; responder waits out an unexpected initiator to a clean timeout; `cancel` aborts an in-flight handshake promptly; keepalive payload round-trip).
+- `tsc` clean; preview confirms the Connect / Connecting… / Disconnect controls render and gate correctly.
+- **Pending manual verification (your run):** two-machine test — exchange offer/answer, click **Connect** on both, reach **Connected** with matching fingerprints and **live RTT** between the two networks.
+
+---
+
+## [0.8.0] - 2026-06-14
+
+### Added
+- **Networking engine — Phase C3 (manual signaling).** New `engine/signaling/` module:
+  - `message.rs` — `SignalEnvelope { v, kind, sid, pk, cands }` + `WireCandidate` (compact field names).
+  - `blob.rs` — the paste-robust codec **`PCPV1.<KIND>.<base64url(json)>.<crc32>`**. `decode` validates magic/version, CRC32 (catches paste corruption before any crypto), kind/label agreement, 32-byte key length, and candidate-address parsing — with friendly typed errors.
+- **`engine/connection.rs`** — `ConnectionManager`: binds the shared UDP socket **once** and gathers candidates (the same NAT mapping C4 will punch toward); tracks role, session id, and the negotiated peer.
+- **Identity refactor** — extracted `crypto::identity::fingerprint_of` so a peer's public key renders the same `PC-XXXX-XXXX-XXXX-XXXX` address as our own.
+- **Signaling IPC + UI:** `create_offer` / `accept_offer` / `accept_answer` / `get_connection` commands, and a **"Peer connection"** panel in Diagnostics (create offer → copy; paste peer blob → produce answer / finalize; live role + negotiated-peer status).
+
+### Changed
+- `Cargo.toml`: added `crc32fast`; crate → `0.8.0`.
+- `lib.rs`: manages `ConnectionManager`; registers the 4 signaling commands.
+- Versions aligned to `0.8.0` across `Cargo.toml`, `package.json`, `tauri.conf.json`.
+
+### Security
+- The blob carries only public data (public key + candidate addresses); the CRC32 is integrity-against-corruption, **not** authenticity. Authenticity comes from the out-of-band channel, fingerprint verification, and the C4 IK handshake (which authorizes only the expected key) — documented in `blob.rs`.
+
+### Verified
+- `cargo check`/`build` warning-free; integrated `tauri build --no-bundle --debug` links the binary.
+- `cargo test` — **26/26 pass** (6 new blob tests: round-trip, checksum corruption, truncation/bad-prefix, kind/label mismatch, bad version, bad key/candidate).
+- `tsc` clean; preview confirms the "Peer connection" panel renders and the client-side blob validation rejects malformed input (zero console errors).
+- **Pending manual verification (your run):** two-machine offer/answer exchange showing **"Negotiated with PC-… · N candidates"** and matching fingerprints on both ends.
+
+---
+
+## [0.7.0] - 2026-06-14
+
+### Added
+- **Networking engine — Phase C2 (crypto & identity).** New `engine/crypto/` module:
+  - `identity.rs` — persistent static **X25519** identity (`identity.json`, versioned). Generated on first run via `snow`; the private key is written **owner-only (`0600`) on Unix** (Windows inherits the per-user AppData ACL) and never logged or shared. Derives `publicKeyB64` (canonical, for signaling) and a short fingerprint `peerAddress` (`PC-XXXX-XXXX`, SHA-256 of the public key) for human verification.
+  - `handshake.rs` — **Noise IK** (`Noise_IK_25519_ChaChaPoly_BLAKE2s`) over the shared UDP transport: 2-message, mutually authenticated `initiate`/`respond`. The initiator message is structured to double as the C4 hole-punch.
+  - `session.rs` — `CryptoSession`: AEAD seal/open with an explicit per-packet counter; the replay window is advanced only **after** authentication.
+  - `replay.rs` — 64-packet sliding-window anti-replay filter (`check`/`accept`).
+- **`Handshake`/`Data` wire frames** in `transport/frame.rs` (`encode_handshake`, `encode_data`/`decode_data`) — slotting into the existing C1 demux.
+- **Identity IPC + UI:** `get_identity` command and a **"This node"** Diagnostics readout showing the Peer Address with a copyable public key (sets up C3 manual signaling).
+
+### Changed
+- `Cargo.toml`: added `snow`, `base64`, `sha2`; crate → `0.7.0`.
+- `lib.rs`: `setup()` loads/generates the identity into the app config dir and shares it via managed state.
+- Versions aligned to `0.7.0` across `Cargo.toml`, `package.json`, `tauri.conf.json`.
+
+### Security
+- The crypto layer was reviewed by a multi-agent adversarial pass (independent reviewers per dimension — Noise usage, nonce/replay, key storage, fingerprint, IPC surface; the DoS/panics reviewer and the automated verifiers were cut short by a session limit, so the 7 raw findings were triaged manually). Fixes applied:
+  - **Responder authorization** — `handshake::respond` now verifies the initiator's static key against the expected peer (Noise IK transmits but does not authorize the initiator); rejects mismatches before replying. Covered by a new test.
+  - **Private-key zeroization** — the in-memory private key is held in a `zeroize::Zeroizing` buffer (wiped on drop).
+  - **Enforced `0600`** — `set_permissions` is applied after writing so the mode holds even if the key file pre-existed with looser permissions.
+  - **Corruption resilience** — an unreadable `identity.json` is backed up to `identity.corrupt` and regenerated instead of failing app launch; key lengths are validated on load.
+  - **Stronger fingerprint** — the Peer Address widened from 32-bit to **64-bit** (`PC-XXXX-XXXX-XXXX-XXXX`) for safer voice/chat verification; the full public key remains authoritative.
+  - **UI clarity** — the Diagnostics readout labels the value a "fingerprint" and points users to the full public key as the identifier to share.
+  - _Accepted (documented):_ on Windows the key file relies on the per-user AppData ACL (an explicit owner-only DACL is tracked as future hardening).
+
+### Verified
+- `cargo check`/`build` warning-free; integrated `tauri build --no-bundle --debug` links the binary.
+- `cargo test` — **19/19 pass**, including a full localhost **Noise IK handshake → encrypted echo → replay-rejected → tamper-rejected** test, identity persist/reload, peer-address determinism, and the anti-replay window (reorder/duplicate/too-old).
+- `tsc` clean; preview confirms no regression (identity readout correctly hidden without a Tauri runtime), zero console errors.
+- **Pending manual verification (your run):** stable Peer Address shown in Diagnostics and unchanged across restarts (persistence).
+
+---
+
+## [0.6.0] - 2026-06-14
+
+### Added
+- **Networking engine — Phase C1 (transport + STUN + RTT keepalive).**
+  - `engine/transport/socket.rs` — `UdpTransport`: one shared, `socket2`-tuned (`SO_REUSEADDR`) UDP socket, payload-agnostic (send/recv/local_addr only). The same bound port serves STUN, Ping/Pong, and future encrypted data so the NAT mapping is consistent.
+  - `engine/transport/frame.rs` — the demux: STUN identified by magic cookie (`0x2112A442` @ offset 4); otherwise a 1-byte `FrameKind` tag (`Ping`/`Pong`, `Handshake`/`Data` reserved). `classify()` + Ping/Pong (de)framing.
+  - `engine/transport/keepalive.rs` — `RttTracker`: Ping/Pong sequence correlation → EWMA RTT + jitter, with a loss-timeout window.
+  - `engine/nat/stun.rs` — minimal hand-rolled STUN binding client → `XOR-MAPPED-ADDRESS` (reflexive address); borrows the shared transport, retransmits.
+  - `engine/nat/candidate.rs` — host (primary local IPv4) + reflexive candidate gathering.
+  - `engine/transport/probe.rs` — the C1 probe task: bind → STUN → Ping/Pong (loopback by default, `probeTarget` for true network RTT) feeding live `rttMs`/`jitterMs`/`lossPct` + Ping/Pong packet-log lines into the telemetry spine.
+- **Config:** `transportProbe`, `stunServer` (default `stun.l.google.com:19302`), `bindPort`, `probeTarget`. `EngineNotice::info` for the discovered-candidates readout.
+- **Frontend:** a **mode selector** (Simulated · Transport probe · Real adapter) replacing the single Expert checkbox, plus a reflexive/candidates info readout in Diagnostics. Stale notices clear on return to Idle.
+
+### Changed
+- `Cargo.toml`: tokio `net` feature + `socket2`; crate → `0.6.0`.
+- `controller.rs` mode precedence: real-TUN → transport-probe → simulator.
+- Versions aligned to `0.6.0` across `Cargo.toml`, `package.json`, `tauri.conf.json`.
+
+### Verified
+- `cargo check`/`build` warning-free; integrated `tauri build --no-bundle --debug` links the binary.
+- `cargo test` — **13/13 pass** (new: STUN `XOR-MAPPED-ADDRESS` parse + txid rejection, frame demux STUN-vs-Ping/Pong, RTT-tracker math).
+- `tsc` clean; browser preview confirms the mode selector (3 options, subtitle reacts) and the simulated path with zero console errors.
+- **Pending manual verification (your run):** live reflexive discovery against public STUN + loopback/peer RTT — see the C1 recipe in the status report.
+
+---
+
+## [0.5.0] - 2026-06-14
+
+### Added
+- **Networking engine — Phase B (TUN/TAP management).** New `src-tauri/src/engine/tun/` module:
+  - `device.rs` — platform-neutral `TunDevice` trait + `TunConfig` (default virtual IP `10.77.0.1/24`, MTU 1420).
+  - `windows.rs` — `WintunDevice`: loads the bundled signed `wintun.dll`, creates the adapter, assigns the IPv4 via `netsh`, and exposes the session as a `TunDevice` (`#[cfg(windows)]`).
+  - `privilege.rs` — elevation detection (`TOKEN_ELEVATION` via `windows-sys`) and relaunch-elevated (`ShellExecuteW` `runas`); Tauri-agnostic.
+  - `packet.rs` — minimal IPv4/IPv6 header classification (proto + length) for the packet log, no extra deps.
+- **Real packet capture** (`engine/telemetry/capture.rs`): when Expert mode is enabled, frames are read off the adapter on a blocking thread, classified, and fed into the existing telemetry spine (live throughput + packet log; latency stays zero until the transport lands). Captured frames are dropped — no forwarding yet.
+- **Graceful elevation lifecycle:** new `EngineState::Starting` and `EngineState::NeedsElevation`; the controller gates real-adapter mode on elevation and emits a structured `engine://notice` with remediation instead of failing.
+- **Privilege IPC:** commands `get_privilege_status` and `request_elevation`; `engine://notice` event; `EngineConfig` gains `useRealTun` + `tun`.
+- **Frontend:** privilege/notice in the telemetry store, an Expert **"Real adapter (Admin)"** toggle, a **Needs Admin** banner with a one-click **Relaunch as Administrator**, and `Starting`/`needs-elevation` state styling.
+- **Bundled Wintun 0.14.1** (amd64/arm64/x86), signed by WireGuard LLC, under `src-tauri/resources/wintun/` (+ `NOTICE.txt`); wired into `tauri.conf.json` bundle resources.
+
+### Changed
+- `Cargo.toml`: added `[target.'cfg(windows)'.dependencies]` — `wintun`, `windows-sys`; crate version → `0.5.0`.
+- `controller.rs` branches between the simulator and the real capture loop; `state.rs`/`config.rs` extended.
+- Versions aligned to `0.5.0` across `Cargo.toml`, `package.json`, `tauri.conf.json`.
+
+### Verified
+- `cargo check`/`build` warning-free; integrated `tauri build --no-bundle --debug` links the binary.
+- `cargo test` — 6/6 pass: IPv4/IPv6 packet classification (UDP/ICMP/TCP, short/unknown rejection) + the seeded-simulator suite.
+- `tsc --noEmit` clean; browser preview confirms the simulated readout, the Expert toggle (subtitle switches to "real adapter (Expert)"), and graceful no-Tauri fallback with zero console errors.
+- **Pending manual verification (requires an elevated run):** real Wintun adapter creation + live capture — see the manual recipe in the status report.
+
+---
+
+## [0.4.0] - 2026-06-14
+
+### Added
+- **Networking engine — Phase A (telemetry spine).** New Rust modules under `src-tauri/src/engine/`:
+  - `controller.rs` — lifecycle (start/stop) over a `tokio` task hosted on Tauri's shared runtime, with `watch`-based shutdown; owns the shared live state.
+  - `config.rs` — `EngineConfig` (peer label, tick rate, `SimProfile`, optional PRNG `seed`).
+  - `state.rs` — `EngineState` lifecycle + thread-safe `SharedState` backing the pull commands.
+  - `error.rs` — `EngineError` serialized to the UI as a readable string.
+  - `telemetry/` — `TelemetrySnapshot` + bounded packet-log `RingBuffer`, the `TelemetrySink` trait (keeps the engine Tauri-agnostic), a **seedable** `Simulator` (reproducible runs with a seed, OS entropy otherwise), and the async emission loop.
+- **IPC bridge** (`src-tauri/src/commands/`): commands `start_engine`, `stop_engine`, `get_status`, `get_snapshot`, `get_packet_log`; events `telemetry://stats`, `telemetry://packet`, `engine://state`; `TauriSink` forwards telemetry via `AppHandle::emit`.
+- **Frontend consumer:** `types/telemetry.ts` (DTO mirrors), an **ephemeral** `telemetryStore` (not persisted), `lib/engine.ts` (typed `invoke`/`listen` wrappers), the `useEngineTelemetry` subscription hook, and a rebuilt **Diagnostics** page — connection-state badge (semantic colors), live RTT/jitter/loss/throughput tiles, and a terminal-style packet log.
+
+### Changed
+- `Cargo.toml`: added `tokio`, `thiserror`, `rand`; crate version → `0.4.0`.
+- `lib.rs`: registers the `EngineController` in managed state and the five new commands.
+- Versions aligned to `0.4.0` across `Cargo.toml`, `package.json`, `tauri.conf.json`.
+
+### Verified
+- `cargo check` / `cargo build` warning-free; integrated `tauri build --no-bundle --debug` links the binary with the new commands.
+- Unit tests (`cargo test`): seeded simulator runs are bit-for-bit reproducible; generated metrics stay within range.
+- `tsc --noEmit` clean; Diagnostics renders the Idle baseline in the browser preview (graceful no-Tauri fallback, zero console errors); Start handler swallows expected rejections.
+
+---
+
+## [0.3.1] - 2026-06-14
+
+### Added
+- **Persistent UI state** — the Zustand store now uses the `persist` middleware (`localStorage`, key `pcpv-app-store`, schema `version: 1`). The `theme`, `settingsOpen`, and `activeRoute` fields survive application restarts; only these serializable fields are written (`partialize`), never the action functions. Synchronous storage means the persisted theme is applied before first paint (no flash of the default palette).
+- **Last-page restore** — on launch `AppShell` restores the previously active route when the app opens on the default root (`/`); an explicit deep-link to a real path still wins.
+
+### Changed
+- `appStore.ts`: wrapped the store in `persist` + `createJSONStorage`.
+- `AppShell.tsx`: captures the rehydrated route at first render and navigates to it once on mount (guarded so it never overrides a deep-link).
+- Bumped `package.json` and `tauri.conf.json` to `0.3.1` to align the app version with the changelog.
+
+### Verified
+- Fresh load writes the default slice to `localStorage` (`{activeRoute, theme, settingsOpen}` + `version: 1`); no action functions serialized.
+- Write path: toggling the settings overlay and selecting a theme persist synchronously on each store action.
+- Rehydration: a seeded slice (`theme: aurora`, `settingsOpen: true`) restores on reload — theme applied via `data-theme`, switcher `aria-pressed`, overlay reopened.
+- Route restore: a seeded `diagnostics` route reopens the Diagnostics page (`#/diagnostics`, active rail, breadcrumb); deep-linking to `#/network` is not hijacked.
+- `tsc --noEmit` clean; no console errors across the reload cycles.
+
+---
+
+## [0.3.0] - 2026-06-14
+
+### Added
+- **Application Shell** — the structural frame for all feature screens:
+  - 60px icon sidebar (lucide-react) with active-state highlighting and a Settings button.
+  - Breadcrumb bar synced to the active route.
+  - Golden-ratio (φ ≈ 1.618) content grid; fixed 60px rail with zero layout shift across routes.
+  - Hash-based routing (React Router 7) with lazy-loaded, code-split page stubs (Dashboard, Network, Diagnostics) behind a `Suspense` → Skeleton fallback.
+  - Frosted-glass (Mica-style) **Settings Overlay** with `backdrop-filter` blur, sliding in from the right.
+  - **Theme engine** — 6 predefined themes (Midnight, Carbon, Nebula, Abyss, Aurora, Ember) applied via `data-theme`, overriding the semantic CSS tokens app-wide.
+  - **Zustand** store (`activeRoute`, `theme`, `settingsOpen`) as the single source of truth shared by the sidebar, breadcrumb, and overlay.
+- Engine IPC probe (`ping`) preserved on the Dashboard.
+
+### Changed
+- `App.tsx` now composes `ThemeProvider` + hash `RouterProvider` + `AppShell` (replacing the single-card baseline).
+- Added dependencies: `react-router-dom`, `zustand`, `lucide-react`, `clsx`, `tailwind-merge`.
+
+### Verified
+- Navigation across all three tabs (router + breadcrumb + active rail in sync); 60px rail constant; no horizontal overflow or layout shift.
+- All 6 themes produce 6 distinct surface palettes via live CSS variables.
+- Settings overlay open/close geometry (docked right at 720px / off-screen at 1100px) and frosted glass (`blur(24px) saturate(1.5)`, translucent surface).
+- Golden-ratio grid measured at 598.25 / 369.734 px = 1.618.
+- `ping` IPC wiring intact; integrated debug build succeeds.
+
+---
+
+## [0.2.0] - 2026-06-14
+
+### Added
+- Initialized the **Tauri 2.x + React + TypeScript + Vite + Tailwind v4** desktop application under `Source_Code/`.
+  - Frontend: `package.json` (pnpm), `vite.config.ts`, `tsconfig.json`, `index.html`, `src/` entry, and a Tailwind v4 CSS-first theme (`src/styles/index.css`) declaring the Cyan/Violet/Amber/Red semantic tokens.
+  - Backend (`src-tauri/`): `Cargo.toml`, `tauri.conf.json` (identifier `com.playerclub.privatevpn`, golden-ratio 1100×680 window), `build.rs`, `main.rs`/`lib.rs` with a `ping` IPC command, and a default window capability.
+- Generated the full application icon set (desktop `.ico`/`.icns`/PNG, iOS, Android, Windows Store) into `src-tauri/icons/` from a 1024×1024 square crop of the source art.
+- Verified an end-to-end build: frontend (`tsc` + Vite) and the Rust binary (`target/debug/player-club-private-vpn.exe`, ~12 MB).
+
+### Changed
+- `package.json`: enabled esbuild's build script via `pnpm.onlyBuiltDependencies`.
+- `tsconfig.json`: simplified to a single config (removed the composite project reference that violated TS6310).
+
+### Fixed
+- Rust build failure in the `brotli` crate (E0277, ~36 errors). Pinned `alloc-stdlib` → 0.2.2 and `brotli-decompressor` → 5.0.1 in `Cargo.lock` to unify the graph on `alloc-no-stdlib 2.0.4`; `alloc-no-stdlib 3.0.0` is incompatible with `brotli 8.0.3`.
+
+### Toolchain
+- Installed the Rust stable MSVC toolchain (1.96.0) and Visual Studio C++ Build Tools 2022 (MSVC linker); added `~/.cargo/bin` to the user PATH.
+
+---
+
+## [0.1.2] - 2026-06-14
+
+### Removed
+- Redundant `win/` folders under `Package_Program/` and `Package_Program_Installer/` (empty placeholders superseded by the canonical `Windows/` folders). Performed under the double-consent safety protocol.
+
+### Notes
+- Identified the application icon source: `[Not For upload]/Photo/Player_Club_Private_VPN_Icon.png` (5632×3072). To be used for icon configuration during Tauri initialization; requires cropping/padding to a square source (≥1024×1024) beforehand.
+
+---
+
+## [0.1.1] - 2026-06-14
+
+### Changed
+- Set target platform scope to **Desktop + Mobile**: Windows, macOS, Linux (desktop) and Android, iOS, iPadOS (mobile, via Tauri 2.x).
+- Adopted the existing capitalized platform-folder convention (`Windows/`, `MacOS/`, `Linux/`, `Android/`, `IOS/`, `iPadOS/`) as canonical under `Package_Program/` and `Package_Program_Installer/`.
+- Updated `README.md` project structure and added a **Target Platforms** matrix to the technology stack.
+
+---
+
+## [0.1.0] - 2026-06-14
+
+### Added
+- Initial repository scaffolding and project documentation.
+- Top-level structure: `Source_Code/`, `Package_Program/`, `Package_Program_Installer/`, `DOC/`.
+- `Source_Code/src-tauri/` Rust/Tauri backend layout: `engine/`, `commands/`, `config/`, `diagnostics/`, `game_detection/`, `utils/`, plus `capabilities/` and `icons/`.
+- `Source_Code/src/` React + TypeScript frontend layout: `components/{layout,diagnostics,settings,common}`, `pages/`, `hooks/`, `stores/`, `lib/`, `styles/`, `themes/`, `i18n/locales/`, `assets/`, `types/`, and `public/`.
+- Platform output folders for `Package_Program/` and `Package_Program_Installer/` (`win`, `macos`, `linux`).
+- `DOC/` documentation repository: `README.md`, `Change_Log.md`, and `User_Manual/`, `Wiki/`, `API/`, `assets/` sections.
+- Project `README.md` documenting overview, feature set, technology stack, architecture (Mermaid), structure, and development protocol.
+
+[Unreleased]: #unreleased
+[0.12.1]: #0121---2026-06-21
+[0.12.0]: #0120---2026-06-20
+[0.11.0]: #0110---2026-06-19
+[0.10.0]: #0100---2026-06-18
+[0.9.0]: #090---2026-06-17
+[0.8.0]: #080---2026-06-14
+[0.7.0]: #070---2026-06-14
+[0.6.0]: #060---2026-06-14
+[0.5.0]: #050---2026-06-14
+[0.4.0]: #040---2026-06-14
+[0.3.1]: #031---2026-06-14
+[0.3.0]: #030---2026-06-14
+[0.2.0]: #020---2026-06-14
+[0.1.2]: #012---2026-06-14
+[0.1.1]: #011---2026-06-14
+[0.1.0]: #010---2026-06-14

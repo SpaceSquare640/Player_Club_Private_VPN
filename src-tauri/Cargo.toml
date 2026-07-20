@@ -1,0 +1,62 @@
+[package]
+name = "player-club-private-vpn"
+version = "0.12.1"
+description = "Player Club Private VPN — a high-performance Gaming Virtual Network."
+authors = ["Player Club"]
+edition = "2021"
+rust-version = "1.77.2"
+
+# The library is shared between the desktop binary and the mobile entry points.
+[lib]
+name = "player_club_private_vpn_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Networking engine (Phase A: telemetry spine). The async loop is hosted on
+# Tauri's shared runtime; tokio provides the timer + watch-based shutdown.
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "net"] }
+thiserror = "1"
+# Seedable PRNG (StdRng) — reproducible telemetry runs when a seed is supplied,
+# OS entropy otherwise. See engine::telemetry::simulator.
+rand = "0.8"
+# Phase C1: low-level socket options (SO_REUSEADDR) on the shared UDP transport.
+socket2 = "0.5"
+# Phase C2: Noise IK handshake + AEAD session, identity encoding, fingerprints.
+snow = "0.9"
+base64 = "0.22"
+sha2 = "0.10"
+# Zero the in-memory private key on drop (defense in depth).
+zeroize = "1"
+# Phase C3: CRC32 checksum for paste-corruption detection on signaling blobs.
+crc32fast = "1"
+
+# --- Phase B: TUN/TAP (Windows only) ---------------------------------------
+# wintun loads the bundled, signed wintun.dll at runtime to create/manage the
+# virtual adapter. windows-sys provides the Win32 calls for elevation detection
+# (token) and relaunch-elevated (ShellExecuteW). IP assignment uses `netsh`.
+[target.'cfg(windows)'.dependencies]
+wintun = "0.5"
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Threading",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+# Dependency pin (enforced via Cargo.lock): alloc-stdlib = 0.2.2 and
+# brotli-decompressor = 5.0.1 keep the whole graph on alloc-no-stdlib 2.0.x.
+# alloc-no-stdlib 3.0.0 is incompatible with brotli 8.0.3 (which pins 2.0.4
+# directly) and triggers E0277 trait-bound errors. Do not run an unscoped
+# `cargo update` that bumps these without re-verifying the build.
+
+[features]
+# Enabled by tauri when building for production to strip the dev server.
+custom-protocol = ["tauri/custom-protocol"]
