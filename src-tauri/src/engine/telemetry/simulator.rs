@@ -110,6 +110,7 @@ impl Simulator {
             tx_kbps: round2(tx),
             rx_kbps: round2(rx),
             peers: self.peers,
+            ..Default::default()
         };
 
         let count = self.rng.gen_range(1..=3);

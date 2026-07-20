@@ -317,6 +317,9 @@ async fn drive(
     // Byte counters since the last stats emit, for live throughput.
     let mut tx_bytes = 0u64;
     let mut rx_bytes = 0u64;
+    // Cumulative for the lifetime of the link (not reset each tick).
+    let mut fec_recovered = 0u32;
+    let mut policy_blocked = 0u32;
     let mut last_emit = Instant::now();
 
     loop {
@@ -340,6 +343,8 @@ async fn drive(
                     tx_kbps: round2(tx_bytes as f32 * 8.0 / 1000.0 / secs),
                     rx_kbps: round2(rx_bytes as f32 * 8.0 / 1000.0 / secs),
                     peers: 1,
+                    fec_recovered,
+                    policy_blocked,
                 };
                 sink.stats(&snapshot);
                 tx_bytes = 0;
@@ -361,6 +366,7 @@ async fn drive(
                     // to the peer. Everything the OS put on the adapter that we do
                     // not admit is dropped here — native traffic never reaches us.
                     if !admits_packet(split_policy.as_ref(), &ip) {
+                        policy_blocked += 1;
                         pending.push(pkt(started, Direction::Tx, "DROP", ip.len(), "split-tunnel blocked".to_string()));
                     } else if let Some(enc) = fec_enc.as_mut() {
                         // FEC path: send the packet as FEC_DATA, then any parity
@@ -412,26 +418,36 @@ async fn drive(
                             // Downlink: a tunnelled IP packet — inject onto the adapter.
                             Some(Inner::Data(ip)) => {
                                 rx_bytes += ip.len() as u64;
-                                pending.push(inbound_entry(started, inject_downlink(ip, split_policy.as_ref(), downlink_tx), ip, format!("← {from}")));
+                                let outcome = inject_downlink(ip, split_policy.as_ref(), downlink_tx);
+                                if outcome == Injected::Blocked { policy_blocked += 1; }
+                                pending.push(inbound_entry(started, outcome, ip, format!("← {from}")));
                             }
                             // FEC-protected data: inject immediately, then feed the
                             // decoder (which may reconstruct a *different* missing one).
                             Some(Inner::FecData { group, index, ip }) => {
                                 rx_bytes += ip.len() as u64;
-                                pending.push(inbound_entry(started, inject_downlink(ip, split_policy.as_ref(), downlink_tx), ip, format!("g{group}/{index} ← {from}")));
+                                let outcome = inject_downlink(ip, split_policy.as_ref(), downlink_tx);
+                                if outcome == Injected::Blocked { policy_blocked += 1; }
+                                pending.push(inbound_entry(started, outcome, ip, format!("g{group}/{index} ← {from}")));
                                 // Feed the decoder regardless: FEC bookkeeping tracks the
                                 // transport stream, so a legitimate loss stays recoverable.
                                 let recovered = fec_dec.as_mut().map(|d| d.on_data(group, index, ip)).unwrap_or_default();
+                                fec_recovered += recovered.len() as u32;
                                 for rec in &recovered {
-                                    forward_recovered(rec, split_policy.as_ref(), downlink_tx, started, &mut pending);
+                                    if forward_recovered(rec, split_policy.as_ref(), downlink_tx, started, &mut pending) == Injected::Blocked {
+                                        policy_blocked += 1;
+                                    }
                                 }
                             }
                             // Parity: never injected; only feeds recovery. A single
                             // parity can complete a group that lost several packets.
                             Some(Inner::FecParity { group, k, r, index, q }) => {
                                 let recovered = fec_dec.as_mut().map(|d| d.on_parity(group, k, r, index, q)).unwrap_or_default();
+                                fec_recovered += recovered.len() as u32;
                                 for rec in &recovered {
-                                    forward_recovered(rec, split_policy.as_ref(), downlink_tx, started, &mut pending);
+                                    if forward_recovered(rec, split_policy.as_ref(), downlink_tx, started, &mut pending) == Injected::Blocked {
+                                        policy_blocked += 1;
+                                    }
                                 }
                             }
                             _ => {}
@@ -593,7 +609,7 @@ fn forward_recovered(
     downlink_tx: Option<&std_mpsc::SyncSender<Vec<u8>>>,
     started: Instant,
     pending: &mut LogBatch,
-) {
+) -> Injected {
     let outcome = inject_downlink(rec, policy, downlink_tx);
     pending.push(inbound_entry(
         started,
@@ -601,6 +617,7 @@ fn forward_recovered(
         rec,
         "recovered via FEC".to_string(),
     ));
+    outcome
 }
 
 /// Decode a decrypted inner payload into control or data.

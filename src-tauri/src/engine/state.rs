@@ -12,9 +12,10 @@ use super::telemetry::{PacketLogEntry, RingBuffer, TelemetrySnapshot};
 const PACKET_LOG_CAP: usize = 500;
 
 /// Engine lifecycle state. Mirrors the `engine://state` event payload.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum EngineState {
+    #[default]
     Idle,
     Connecting,
     /// Bringing up the real adapter (Wintun create + IP assignment).

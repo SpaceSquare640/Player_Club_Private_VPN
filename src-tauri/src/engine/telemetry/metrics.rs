@@ -6,7 +6,11 @@ use crate::engine::state::EngineState;
 
 /// A single telemetry sample. Field names are camelCase on the wire to match
 /// the TypeScript consumer.
-#[derive(Debug, Clone, Serialize)]
+///
+/// `Default` is derived so producers can fill only the fields they actually
+/// measure (`..Default::default()`); otherwise every new field forces an edit at
+/// each of the construction sites across the engine.
+#[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TelemetrySnapshot {
     pub state: EngineState,
@@ -17,19 +21,18 @@ pub struct TelemetrySnapshot {
     pub tx_kbps: f32,
     pub rx_kbps: f32,
     pub peers: u32,
+    /// Packets rebuilt by FEC since the link came up — **cumulative**, not a
+    /// rate. "This connection has recovered N packets" is the useful framing;
+    /// a per-second figure would round to zero on a healthy link.
+    pub fec_recovered: u32,
+    /// Packets the split-tunnel policy refused, in either direction, since the
+    /// link came up. Also cumulative.
+    pub policy_blocked: u32,
 }
 
 impl TelemetrySnapshot {
     /// The zeroed snapshot shown while the engine is Idle.
     pub fn idle() -> Self {
-        Self {
-            state: EngineState::Idle,
-            rtt_ms: 0.0,
-            jitter_ms: 0.0,
-            loss_pct: 0.0,
-            tx_kbps: 0.0,
-            rx_kbps: 0.0,
-            peers: 0,
-        }
+        Self::default()
     }
 }

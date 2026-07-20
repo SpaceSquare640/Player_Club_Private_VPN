@@ -19,6 +19,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.15.0] - 2026-06-24
+
+### Added
+- **Phase F.1 — the engine's work is now visible.** Two counters the engine had been keeping to itself are surfaced on the Diagnostics readout:
+  - **FEC recovered** — packets rebuilt from parity instead of being lost.
+  - **Blocked** — packets the split-tunnel policy refused, in *either* direction (egress, ingress, and FEC-recovered packets that fail the ingress check are all counted).
+  Both are **cumulative for the connection**, not rates: "this link has recovered 47 packets" is the useful framing, whereas a per-second figure rounds to zero on a healthy link — precisely when the number should be reassuring.
+
+### Changed
+- `TelemetrySnapshot` gains `fecRecovered` and `policyBlocked`, and now derives `Default`; producers that do not measure these fill them via `..Default::default()`. `EngineState` derives `Default` (`Idle`) to make that possible. This stops every future field addition from forcing an edit at each construction site across the engine.
+- The stat grid goes from four tiles to six (`2 → 3 → 6` columns as the window widens), and `StatTile` accepts an optional tooltip explaining what a number means.
+
+### Not done, deliberately
+- The **packet-log backfill** noted in [0.12.1] remains open. Fixing it means coupling the peer link to `EngineController`'s shared state, and it only affects a UI remount mid-session — the live event stream is unaffected. Architectural coupling for a rarely-hit path is not a good trade; it stays a documented limitation.
+- **Live split-tunnel toggles** are deferred: they need a control channel into the running pipeline, which is its own piece of work.
+
+### Verified
+- `cargo test` — **62/62 pass**, warning-free. `tsc` clean.
+- **Browser-verified**, not merely typechecked: the grid renders exactly six tiles with the right labels, units and tooltips; the layout collapses 6 → 2 columns at mobile width with **no horizontal overflow**; zero console errors.
+
+---
+
 ## [0.14.0] - 2026-06-23
 
 ### Added
@@ -436,6 +458,7 @@ Hardened after an adversarial multi-agent review of the new egress policy (findi
 - Project `README.md` documenting overview, feature set, technology stack, architecture (Mermaid), structure, and development protocol.
 
 [Unreleased]: #unreleased
+[0.15.0]: #0150---2026-06-24
 [0.14.0]: #0140---2026-06-23
 [0.13.0]: #0130---2026-06-22
 [0.12.1]: #0121---2026-06-21

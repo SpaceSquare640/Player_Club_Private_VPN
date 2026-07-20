@@ -32,6 +32,10 @@ export interface TelemetrySnapshot {
   txKbps: number;
   rxKbps: number;
   peers: number;
+  /** Packets rebuilt by FEC since the link came up (cumulative, not a rate). */
+  fecRecovered: number;
+  /** Packets the split-tunnel policy refused, either direction (cumulative). */
+  policyBlocked: number;
 }
 
 export type PacketDirection = "tx" | "rx";

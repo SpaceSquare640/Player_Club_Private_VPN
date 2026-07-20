@@ -63,7 +63,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Split tunneling — data-plane policy gating unicast/broadcast/multicast into the tunnel (E.1) | ✅ Done |
 | Full-path integration harness — two live pipelines over loopback with mock adapters (F.0) | ✅ Done |
 | Networking engine — OS route management for split tunnelling (E.2) | 🚧 In progress |
-| Diagnostics — live telemetry readout ✅ · topology, spectrum 🚧 | 🚧 In progress |
+| Diagnostics — live telemetry readout ✅ · FEC/policy counters ✅ · topology, spectrum 🚧 | 🚧 In progress |
 | Expert settings, JSON profiles, game detection | ⏳ Planned |
 | Multi-language (i18n) | ⏳ Planned |
 

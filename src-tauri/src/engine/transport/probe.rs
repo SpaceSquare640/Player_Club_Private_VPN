@@ -94,6 +94,7 @@ pub async fn run(
                     tx_kbps: 0.0,
                     rx_kbps: 0.0,
                     peers: 1,
+                    ..Default::default()
                 };
                 shared.set_snapshot(snapshot.clone());
                 if !pending.is_empty() {

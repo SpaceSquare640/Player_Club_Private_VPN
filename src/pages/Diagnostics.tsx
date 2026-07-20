@@ -49,15 +49,18 @@ function StatTile({
   value,
   unit,
   testid,
+  title,
 }: {
   label: string;
   value: string;
   unit: string;
   testid: string;
+  title?: string;
 }) {
   return (
     <div
       data-testid={testid}
+      title={title}
       className="rounded-xl border border-white/10 bg-surface-2/60 p-4"
     >
       <div className="text-xs uppercase tracking-wider text-ink-muted">{label}</div>
@@ -157,6 +160,8 @@ export default function Diagnostics() {
 
   const sm = STATE_STYLES[state];
   const fmt = (n: number | undefined, d = 1) => (n == null ? "—" : n.toFixed(d));
+  // Counters are whole packets — never show "12.0".
+  const count = (n: number | undefined) => (n == null ? "—" : String(n));
 
   // Peer-link controls: connect only with a negotiated peer, an idle/failed link,
   // and no telemetry-source session running (they share the event channels).
@@ -287,7 +292,10 @@ export default function Diagnostics() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="stat-grid">
+      <div
+        className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6"
+        data-testid="stat-grid"
+      >
         <StatTile testid="stat-rtt" label="Ping (RTT)" value={fmt(snapshot?.rttMs)} unit="ms" />
         <StatTile testid="stat-jitter" label="Jitter" value={fmt(snapshot?.jitterMs)} unit="ms" />
         <StatTile testid="stat-loss" label="Loss" value={fmt(snapshot?.lossPct, 2)} unit="%" />
@@ -296,6 +304,22 @@ export default function Diagnostics() {
           label="Throughput ↑/↓"
           value={`${fmt(snapshot?.txKbps, 0)}/${fmt(snapshot?.rxKbps, 0)}`}
           unit="kbps"
+        />
+        {/* Cumulative for the session — a per-second figure would read as 0 on a
+            healthy link, which is exactly when these numbers should reassure. */}
+        <StatTile
+          testid="stat-fec"
+          label="FEC recovered"
+          value={count(snapshot?.fecRecovered)}
+          unit="pkts"
+          title="Packets rebuilt from parity instead of being lost — cumulative for this connection"
+        />
+        <StatTile
+          testid="stat-blocked"
+          label="Blocked"
+          value={count(snapshot?.policyBlocked)}
+          unit="pkts"
+          title="Packets the split-tunnel policy refused, in either direction — cumulative for this connection"
         />
       </div>
 

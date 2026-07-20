@@ -93,6 +93,7 @@ fn capture_blocking(
                 tx_kbps: round2(tx_kbps),
                 rx_kbps: 0.0,
                 peers: 0,
+                ..Default::default()
             };
             shared.set_snapshot(snapshot.clone());
             if !pending.is_empty() {

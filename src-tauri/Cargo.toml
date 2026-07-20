@@ -1,6 +1,6 @@
 [package]
 name = "player-club-private-vpn"
-version = "0.14.0"
+version = "0.15.0"
 description = "Player Club Private VPN — a high-performance Gaming Virtual Network."
 authors = ["Player Club"]
 edition = "2021"
