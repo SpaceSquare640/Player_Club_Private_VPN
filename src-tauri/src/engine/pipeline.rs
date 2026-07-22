@@ -174,8 +174,7 @@ pub async fn run(
             )
             .await
         }
-        Role::Idle => Err(io::Error::new(
-            io::ErrorKind::Other,
+        Role::Idle => Err(io::Error::other(
             "no role negotiated — create or accept an offer first",
         )),
     };
@@ -504,7 +503,7 @@ fn ctrl_encode(kind: u8, seq: u64) -> [u8; 9] {
 /// [`run`]), but a leak-prevention filter must not depend on that coupling
 /// holding — an absent policy must never mean "send everything".
 fn admits_packet(policy: Option<&SplitPolicy>, frame: &[u8]) -> bool {
-    policy.map_or(false, |p| p.admits(frame))
+    policy.is_some_and(|p| p.admits(frame))
 }
 
 /// What actually happened to an inbound packet — distinguished so the packet log
@@ -527,7 +526,7 @@ fn inject_downlink(
     policy: Option<&SplitPolicy>,
     downlink_tx: Option<&std_mpsc::SyncSender<Vec<u8>>>,
 ) -> Injected {
-    if !policy.map_or(false, |p| p.admits_inbound(frame)) {
+    if !policy.is_some_and(|p| p.admits_inbound(frame)) {
         return Injected::Blocked;
     }
     match downlink_tx {
@@ -898,7 +897,7 @@ mod tests {
             Some(Inner::Ctrl(INNER_PING, seq)) => assert_eq!(seq, 0x0102_0304_0506_0708),
             _ => panic!("expected a ping control payload"),
         }
-        assert!(matches!(decode_inner(&[INNER_PONG]), None)); // too short
+        assert!(decode_inner(&[INNER_PONG]).is_none()); // too short
     }
 
     #[test]
@@ -968,8 +967,8 @@ mod tests {
 
     #[test]
     fn unknown_inner_kind_is_none() {
-        assert!(matches!(decode_inner(&[0x00, 1, 2]), None));
-        assert!(matches!(decode_inner(&[]), None));
+        assert!(decode_inner(&[0x00, 1, 2]).is_none());
+        assert!(decode_inner(&[]).is_none());
     }
 
     /// End-to-end (headless): a tunnelled IP packet survives the full data-plane

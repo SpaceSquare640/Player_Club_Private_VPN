@@ -308,8 +308,11 @@ fn unpad(shard: &[u8]) -> Option<Vec<u8>> {
 mod tests {
     use super::*;
 
+    /// The `FEC_DATA` frames a group produced: `(group, index, payload)`.
+    type DataFrames = Vec<(u32, u8, Vec<u8>)>;
+
     /// Encode one full group of `k` varying-length packets with `r` parity.
-    fn encode_group(k: u8, r: u8) -> (Vec<(u32, u8, Vec<u8>)>, Vec<RsParity>) {
+    fn encode_group(k: u8, r: u8) -> (DataFrames, Vec<RsParity>) {
         let mut enc = RsEncoder::new(k, r);
         let mut frames = Vec::new();
         let mut parity = Vec::new();

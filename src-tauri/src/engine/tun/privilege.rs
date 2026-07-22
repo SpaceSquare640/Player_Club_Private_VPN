@@ -82,15 +82,14 @@ pub fn relaunch_elevated() -> std::io::Result<()> {
             file.as_ptr(),
             std::ptr::null(),
             std::ptr::null(),
-            SW_SHOWNORMAL as i32,
+            SW_SHOWNORMAL,
         )
     };
 
     // ShellExecuteW returns an HINSTANCE; a value <= 32 indicates failure
     // (including the user declining the UAC prompt).
     if (result as isize) <= 32 {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
+        return Err(std::io::Error::other(
             "elevation request failed or was declined",
         ));
     }

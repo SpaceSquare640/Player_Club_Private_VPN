@@ -32,17 +32,17 @@ impl WintunDevice {
         })?;
 
         let wintun = unsafe { wintun::load_from_path(&dll) }
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("load wintun.dll: {e}")))?;
+            .map_err(|e| io::Error::other(format!("load wintun.dll: {e}")))?;
 
         let adapter = Adapter::create(&wintun, &cfg.name, "Player Club", None)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("create adapter: {e}")))?;
+            .map_err(|e| io::Error::other(format!("create adapter: {e}")))?;
 
         assign_ip(&cfg.name, cfg.virtual_ip, cfg.prefix_len)?;
 
         let session = Arc::new(
             adapter
                 .start_session(wintun::MAX_RING_CAPACITY)
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("start session: {e}")))?,
+                .map_err(|e| io::Error::other(format!("start session: {e}")))?,
         );
 
         Ok(Self {
@@ -67,7 +67,7 @@ impl TunDevice for WintunDevice {
                 Ok(Some(n))
             }
             Ok(None) => Ok(None),
-            Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
+            Err(e) => Err(io::Error::other(e.to_string())),
         }
     }
 
@@ -76,7 +76,7 @@ impl TunDevice for WintunDevice {
         let mut packet = self
             .session
             .allocate_send_packet(len)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+            .map_err(|e| io::Error::other(e.to_string()))?;
         packet.bytes_mut().copy_from_slice(frame);
         self.session.send_packet(packet);
         Ok(frame.len())
@@ -104,8 +104,7 @@ fn assign_ip(name: &str, ip: Ipv4Addr, prefix_len: u8) -> io::Result<()> {
         ])
         .status()?;
     if !status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
+        return Err(io::Error::other(
             format!("netsh set address failed (exit {:?})", status.code()),
         ));
     }

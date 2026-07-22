@@ -63,7 +63,7 @@ pub async fn open(cfg: TunConfig, shutdown: watch::Receiver<bool>) -> io::Result
     let mtu = cfg.mtu as usize;
     let dev = tokio::task::spawn_blocking(move || tun::open_device(&cfg))
         .await
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("open task join: {e}")))??;
+        .map_err(|e| io::Error::other(format!("open task join: {e}")))??;
     Ok(spawn_bridge(dev, shutdown, mtu))
 }
 

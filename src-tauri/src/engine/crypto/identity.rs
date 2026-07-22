@@ -124,7 +124,7 @@ pub fn fingerprint_of(public: &[u8]) -> String {
 }
 
 fn other<E: std::fmt::Display>(e: E) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, e.to_string())
+    io::Error::other(e.to_string())
 }
 
 /// Write a secret file, owner-only (`0600`) on Unix.

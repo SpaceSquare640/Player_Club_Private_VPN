@@ -44,9 +44,7 @@ pub struct DeviceInfo {
 /// available so the capture loop can check for shutdown between reads.
 pub trait TunDevice: Send {
     fn read_frame(&mut self, buf: &mut [u8]) -> io::Result<Option<usize>>;
-    /// Inject a frame back onto the adapter. Unused until forwarding lands in
-    /// Phase C (transport), but part of the device contract.
-    #[allow(dead_code)]
+    /// Inject a frame back onto the adapter (the data-plane downlink).
     fn write_frame(&mut self, frame: &[u8]) -> io::Result<usize>;
     #[allow(dead_code)]
     fn info(&self) -> DeviceInfo;

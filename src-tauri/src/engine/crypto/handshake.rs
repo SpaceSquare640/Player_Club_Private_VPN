@@ -5,9 +5,9 @@
 //! initiator message doubles as the NAT hole-punch (sent to all candidates);
 //! here it targets a single address.
 // The fan-out entry points (`initiate_fanout` / `respond_punch`) are driven by
-// the C4 connect flow; the single-target `initiate` / `respond` primitives are
-// retained as the directly-tested building blocks (dead outside tests).
-#![allow(dead_code)]
+// the C4 connect flow. The single-target `initiate` / `respond` primitives are
+// the directly-tested building blocks — `#[cfg(test)]` rather than a blanket
+// `allow(dead_code)`, so any *future* dead code here is still caught.
 
 use std::io;
 use std::net::SocketAddr;
@@ -24,6 +24,7 @@ use super::identity::Identity;
 use super::session::CryptoSession;
 use super::NOISE_PARAMS;
 
+#[cfg(test)]
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_NOISE_MSG: usize = 1024;
 
@@ -48,6 +49,8 @@ pub struct Handshaken {
 }
 
 /// Initiator: send message 1 to `target`, await message 2, return the session.
+/// The single-target primitive; production uses [`initiate_fanout`]. Test-only.
+#[cfg(test)]
 pub async fn initiate(
     transport: &UdpTransport,
     target: SocketAddr,
@@ -82,6 +85,7 @@ pub async fn initiate(
 /// signaling; the handshake is rejected if the connecting peer's static key
 /// does not match (IK transmits but does not by itself authorize the
 /// initiator). `None` accepts any initiator.
+#[cfg(test)]
 pub async fn respond(
     transport: &UdpTransport,
     identity: &Identity,
@@ -120,6 +124,7 @@ pub async fn respond(
 }
 
 /// Wait for the next Handshake frame, returning its noise payload and sender.
+#[cfg(test)]
 async fn recv_handshake(
     transport: &UdpTransport,
     buf: &mut [u8],
@@ -136,7 +141,7 @@ async fn recv_handshake(
 }
 
 fn noise_err<E: std::fmt::Display>(e: E) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, format!("noise: {e}"))
+    io::Error::other(format!("noise: {e}"))
 }
 
 /// Build a fresh Noise IK responder handshake state.

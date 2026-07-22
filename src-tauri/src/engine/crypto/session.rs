@@ -34,7 +34,7 @@ impl CryptoSession {
         let n = self
             .transport
             .write_message(plaintext, &mut out)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("seal: {e}")))?;
+            .map_err(|e| io::Error::other(format!("seal: {e}")))?;
         out.truncate(n);
         Ok((counter, out))
     }

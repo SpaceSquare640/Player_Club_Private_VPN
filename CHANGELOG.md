@@ -19,6 +19,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.15.1] - 2026-06-25
+
+Quality-consolidation pass after fifteen fast-moving releases. No behaviour change; the point was to make the compiler and linter enforce what was previously enforced by hand.
+
+### Changed
+- **`cargo clippy` now passes clean under `-D warnings`** — it had never been run before this. Fourteen idiomatic fixes were applied (`io::Error::other(..)` for `ErrorKind::Other` sites, `is_some_and`/`is_none_or` for `map_or`, `is_none()` for redundant `matches!`, an unnecessary same-type cast), plus a type alias for a complex FEC test signature.
+- **Dead code is now caught rather than masked.** The blanket `#![allow(dead_code)]` on `crypto/handshake.rs` was hiding four items — `initiate`, `respond`, `recv_handshake`, `HANDSHAKE_TIMEOUT` — that became dead in production when the C4 fan-out replaced the single-target handshake; they are used only by tests. They are now `#[cfg(test)]` (so they cost nothing in release), and the blanket allow is gone, so any *future* dead code in that module is a warning again.
+- Removed a **stale** `#[allow(dead_code)]` on `TunDevice::write_frame` — it has been live since the C5 data-plane bridge shipped.
+- Versions aligned to `0.15.1`.
+
+### Verified
+- `cargo clippy --all-targets -- -D warnings` — clean. `cargo test` — **62/62 pass**. `tsc` clean.
+
+### Note
+- `TunDevice::info` / `DeviceInfo` remain genuinely unused and keep an explicit `#[allow(dead_code)]` as intentionally-retained trait contract for a future diagnostics readout. Left in place rather than deleted, since removing production trait surface warrants a deliberate decision, not a drive-by cleanup.
+
+---
+
 ## [0.15.0] - 2026-06-24
 
 ### Added
@@ -458,6 +476,7 @@ Hardened after an adversarial multi-agent review of the new egress policy (findi
 - Project `README.md` documenting overview, feature set, technology stack, architecture (Mermaid), structure, and development protocol.
 
 [Unreleased]: #unreleased
+[0.15.1]: #0151---2026-06-25
 [0.15.0]: #0150---2026-06-24
 [0.14.0]: #0140---2026-06-23
 [0.13.0]: #0130---2026-06-22
