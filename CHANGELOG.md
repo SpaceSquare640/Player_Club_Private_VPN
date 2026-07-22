@@ -19,6 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.15.3] - 2026-06-26
+
+### Removed
+- **Four dead backend scaffold directories** — `src-tauri/src/{config,diagnostics,game_detection,utils}/`. Each held only a `.gitkeep`, none was ever declared as a module, and they *duplicated* the real structure under `engine/` (the actual config is `engine/config.rs`, telemetry is `engine/telemetry/`), so they were actively misleading. The real `engine/` layout is untouched.
+- **The duplicate `src/themes/` directory** — the six real themes live in `src/theme/` (singular); the empty plural sibling only invited confusion.
+- **`EngineConfig::peer_label`** — an unused config field (and its `default_peer_label` helper and the mirror `peerLabel` on the TypeScript side). Nothing consumed it.
+
+### Note
+Legitimate but currently-empty React scaffolding (`src/assets/`, `src/i18n/locales/`, `src/components/diagnostics/`, and similar) was **kept** — those are the conventional homes for planned work, and deleting standard project directories is churn, not cleanup.
+
+### Verified
+- `cargo clippy --all-targets -- -D warnings` — clean. `cargo test` — **62/62 pass**. `tsc` clean. No behaviour change (all removed items were unused).
+
+---
+
 ## [0.15.2] - 2026-06-25
 
 ### Fixed
@@ -491,6 +506,7 @@ Hardened after an adversarial multi-agent review of the new egress policy (findi
 - Project `README.md` documenting overview, feature set, technology stack, architecture (Mermaid), structure, and development protocol.
 
 [Unreleased]: #unreleased
+[0.15.3]: #0153---2026-06-26
 [0.15.2]: #0152---2026-06-25
 [0.15.1]: #0151---2026-06-25
 [0.15.0]: #0150---2026-06-24

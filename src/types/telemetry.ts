@@ -87,7 +87,6 @@ export interface TunConfig {
 }
 
 export interface EngineConfig {
-  peerLabel?: string;
   tickHz?: number;
   simProfile?: SimProfile;
   /** Omit (or null) for OS entropy; set for a reproducible run. */

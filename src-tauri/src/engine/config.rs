@@ -25,9 +25,6 @@ pub enum SimProfile {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EngineConfig {
-    /// Human-readable label for the simulated peer.
-    #[serde(default = "default_peer_label")]
-    pub peer_label: String,
     /// Stats emission rate in Hz (clamped to [1, 20] at use).
     #[serde(default = "default_tick_hz")]
     pub tick_hz: u8,
@@ -64,10 +61,6 @@ fn default_stun_server() -> String {
     "stun.l.google.com:19302".to_string()
 }
 
-fn default_peer_label() -> String {
-    "peer-01".to_string()
-}
-
 fn default_tick_hz() -> u8 {
     4
 }
@@ -75,7 +68,6 @@ fn default_tick_hz() -> u8 {
 impl Default for EngineConfig {
     fn default() -> Self {
         Self {
-            peer_label: default_peer_label(),
             tick_hz: default_tick_hz(),
             sim_profile: SimProfile::default(),
             seed: None,
