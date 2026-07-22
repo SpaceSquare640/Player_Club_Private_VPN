@@ -19,6 +19,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.0] - 2026-06-29
+
+### Added
+- **Settings content — Connection section (Phase B.3).** The Settings overlay gains its first real content beyond the theme switcher: **Forward broadcast** / **Forward multicast** toggles and an **FEC redundancy** selector (`r = 1` / `2` / `3`), persisted like the theme. These wire up the two engine knobs that were previously compile-time constants — flagged as half-wired in the earlier audit.
+- `ConnectionSettings` (Rust `engine/connection.rs` + mirrored TS `types/telemetry.ts`): `forwardBroadcast`, `forwardMulticast`, `fecParityShards`. Threaded end to end: Settings UI → persisted `appStore` → read once at `useConnection.onConnect` → `connectPeer(settings)` → `connect_peer` command → `ConnectionManager::connect` → `pipeline::run` → `SplitPolicy::from_tun(&cfg).forward_broadcast(..).forward_multicast(..)` and `RsEncoder::new(FEC_GROUP_SIZE, settings.fec_parity_shards)`.
+- `SplitPolicy` gains chainable `forward_broadcast(bool)` / `forward_multicast(bool)` builder setters (the existing `from_tun` constructor is untouched, so every prior test keeps working unmodified).
+
+### Changed
+- `pipeline::run` and `ConnectionManager::connect` / the `connect_peer` command now take a `ConnectionSettings` parameter. `ConnectionSettings::default()` reproduces the exact values that were previously hardcoded (`true`, `true`, `1`), pinned by a regression test — a caller (or a stale cached JS bundle) that omits it gets identical behaviour to before this phase.
+- Versions aligned to `0.18.0`.
+
+### Scope
+- Settings apply **at the next Connect only** — not retroactively to an already-live link, per the boundary recorded in [0.15.0] (live toggling needs a control channel into the running pipeline task; still deferred).
+- **Deliberately not touched:** Basic/Expert layered settings access, JSON profile import/export, and automatic game detection remain planned. Adding an Expert-mode gate just to house these three controls would have been scope creep for a feature (layered access) that deserves its own design pass.
+
+### Verified
+- `cargo test` — **66/66 pass** (4 new: two `SplitPolicy` builder-setter tests, a `ConnectionSettings::default()` regression guard, and an integration test proving a disabled broadcast toggle is enforced on the **live** loopback path, not just in the policy unit tests).
+- `pnpm test` — **42/42 pass** (7 new: `appStore` default/setter/persistence coverage for the three fields, and four `SettingsOverlay` component tests covering render, both toggles, and the redundancy selector).
+- `tsc` clean; `pnpm build` succeeds.
+- **Browser-verified beyond the test suite:** opened the Settings overlay, toggled broadcast off and set FEC redundancy to 2, confirmed the UI and `localStorage` reflected it, then **reloaded the page** and confirmed both survived — true persistence, not just in-memory state. Zero console errors throughout.
+
+---
+
 ## [0.17.0] - 2026-06-28
 
 ### Added
@@ -545,6 +568,7 @@ Hardened after an adversarial multi-agent review of the new egress policy (findi
 - Project `README.md` documenting overview, feature set, technology stack, architecture (Mermaid), structure, and development protocol.
 
 [Unreleased]: #unreleased
+[0.18.0]: #0180---2026-06-29
 [0.17.0]: #0170---2026-06-28
 [0.16.0]: #0160---2026-06-27
 [0.15.3]: #0153---2026-06-26

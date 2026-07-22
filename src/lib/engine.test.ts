@@ -18,7 +18,7 @@ import {
   startEngine,
   stopEngine,
 } from "./engine";
-import type { EngineState } from "../types/telemetry";
+import type { ConnectionSettings, EngineState } from "../types/telemetry";
 
 beforeEach(() => {
   invokeMock.mockReset();
@@ -85,9 +85,14 @@ describe("command contract", () => {
     });
   });
 
-  it("connect_peer and disconnect_peer take no arguments", async () => {
-    await connectPeer();
-    expect(invokeMock).toHaveBeenCalledWith("connect_peer");
+  it("connect_peer carries settings under `settings`; disconnect_peer takes no arguments", async () => {
+    const settings: ConnectionSettings = {
+      forwardBroadcast: false,
+      forwardMulticast: true,
+      fecParityShards: 2,
+    };
+    await connectPeer(settings);
+    expect(invokeMock).toHaveBeenCalledWith("connect_peer", { settings });
     await disconnectPeer();
     expect(invokeMock).toHaveBeenCalledWith("disconnect_peer");
   });

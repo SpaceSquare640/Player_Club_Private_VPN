@@ -42,7 +42,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 
 ## Project Status
 
-> **Alpha — actively building.** The desktop app runs end-to-end (Rust engine boots, frosted-glass shell renders, live telemetry streams to the Diagnostics view). An Expert "real adapter" mode (Windows/Wintun) creates a virtual interface and captures live packets. Two peers can exchange signaling blobs and establish a **direct, authenticated encrypted link** by hole-punching through their NATs (C4); real IP traffic now **tunnels between them over that link** through the virtual adapter (C5), with live RTT and throughput. **Forward Error Correction** (Reed-Solomon) rebuilds lost packets without retransmission — any `r` losses per group (D.1 · D.2), and a **split-tunnel policy** controls which LAN traffic — in-subnet unicast, broadcast, and multicast — the tunnel carries (E.1). OS route management is in progress. **Verification note:** the whole path — handshake, crypto, data plane, FEC and split-tunnel policy — is covered end to end by an automated harness (two live pipelines over loopback with mock adapters); **real NAT traversal has not yet been verified on two physical machines** and is the material open risk.
+> **Alpha — actively building.** The desktop app runs end-to-end (Rust engine boots, frosted-glass shell renders, live telemetry streams to the Diagnostics view). An Expert "real adapter" mode (Windows/Wintun) creates a virtual interface and captures live packets. Two peers can exchange signaling blobs and establish a **direct, authenticated encrypted link** by hole-punching through their NATs (C4); real IP traffic now **tunnels between them over that link** through the virtual adapter (C5), with live RTT and throughput. **Forward Error Correction** (Reed-Solomon) rebuilds lost packets without retransmission — any `r` losses per group (D.1 · D.2), and a **split-tunnel policy** controls which LAN traffic — in-subnet unicast, broadcast, and multicast — the tunnel carries (E.1), with broadcast/multicast forwarding and FEC redundancy now user-configurable from Settings (B.3). OS route management is in progress. **Verification note:** the whole path — handshake, crypto, data plane, FEC and split-tunnel policy — is covered end to end by an automated harness (two live pipelines over loopback with mock adapters); **real NAT traversal has not yet been verified on two physical machines** and is the material open risk.
 
 > **Real adapter (Expert, Windows):** creating the Wintun virtual interface requires Administrator privileges. When toggled on without elevation, the engine reports a `Needs Admin` state and offers a one-click relaunch. The signed `wintun.dll` is bundled from [wintun.net](https://www.wintun.net) (see `src-tauri/resources/wintun/NOTICE.txt`).
 
@@ -62,9 +62,12 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Forward Error Correction — Reed-Solomon over the data plane, recovers any `r` losses per group without retransmit (D.1 · D.2) | ✅ Done |
 | Split tunneling — data-plane policy gating unicast/broadcast/multicast into the tunnel (E.1) | ✅ Done |
 | Full-path integration harness — two live pipelines over loopback with mock adapters (F.0) | ✅ Done |
+| Frontend test foundation — vitest + testing-library, pure logic and store coverage (B.1) | ✅ Done |
+| Network page — peer-connection management moved off Diagnostics, first component tests (B.2) | ✅ Done |
+| Connection settings — split-tunnel broadcast/multicast + FEC redundancy wired to Settings UI (B.3) | ✅ Done |
 | Networking engine — OS route management for split tunnelling (E.2) | 🚧 In progress |
 | Diagnostics — live telemetry readout ✅ · FEC/policy counters ✅ · topology, spectrum 🚧 | 🚧 In progress |
-| Expert settings, JSON profiles, game detection | ⏳ Planned |
+| Settings — layered Basic/Expert access, JSON profile import/export, game detection | ⏳ Planned |
 | Multi-language (i18n) | ⏳ Planned |
 
 ---
@@ -80,12 +83,12 @@ communicates with the engine over Tauri's IPC command/event bridge.
 - ✅ **NAT traversal** — UDP hole-punching / STUN-style peer discovery for direct P2P links. *(Implemented; **not yet verified on two physical machines** — see Project Status.)*
 - ✅ **TUN/TAP adapter management** — programmatic creation and lifecycle of the virtual network interface (Windows/Wintun).
 - ✅ **Forward Error Correction (FEC)** — Reed-Solomon recovery of lost packets without retransmission.
-- ✅ **Split tunneling** — a data-plane policy gating which traffic the tunnel carries. *(Broadcast/multicast toggles exist in the engine but are not yet user-configurable.)*
+- ✅ **Split tunneling** — a data-plane policy gating which traffic the tunnel carries, with broadcast/multicast forwarding user-configurable from Settings.
 
 ### Application & UX
 - ✅ **60px icon sidebar** with **breadcrumb** pathing for clear navigation.
 - ✅ **1.618 golden-ratio** layout grid for balanced composition.
-- 🚧 **Frosted-glass (Mica) "Settings Overlay"** — the overlay shell exists; its settings content is not built out.
+- 🚧 **Frosted-glass (Mica) "Settings Overlay"** — theme switcher and a Connection section (split-tunnel forwarding, FEC redundancy) are built; layered Basic/Expert access and JSON profiles are not.
 - ✅ **Semantic color system** — Cyan (info / idle), Violet (active / primary), Amber (warning), Red (error / critical).
 - ✅ **Skeleton-screen** loading states for perceived performance.
 
@@ -96,6 +99,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 - ⏳ **Spectrum / bandwidth monitoring** with live throughput visualization.
 
 ### Settings
+- ✅ **Connection settings** — split-tunnel broadcast/multicast forwarding and FEC redundancy (`r`), applied at the next Connect.
 - ⏳ **Layered access** — Basic mode for everyone, Expert mode for power users.
 - ⏳ **JSON profile management** — import / export connection profiles.
 - ⏳ **Automatic game detection** for one-click configuration.

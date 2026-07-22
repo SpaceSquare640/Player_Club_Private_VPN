@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTelemetryStore } from "../stores/telemetryStore";
+import { useAppStore } from "../stores/appStore";
 import {
   acceptAnswer,
   acceptOffer,
@@ -8,7 +9,7 @@ import {
   disconnectPeer,
   getConnection,
 } from "../lib/engine";
-import type { ConnectionInfo, LinkState } from "../types/telemetry";
+import type { ConnectionInfo, ConnectionSettings, LinkState } from "../types/telemetry";
 
 export interface ConnectionController {
   conn: ConnectionInfo | null;
@@ -62,7 +63,11 @@ export function useConnection(): ConnectionController {
   const onConnect = async () => {
     setConnError(null);
     try {
-      await connectPeer();
+      // Read fresh at connect time (not subscribed) — these apply once, to this
+      // connection, not retroactively, so there is nothing to react to mid-link.
+      const { forwardBroadcast, forwardMulticast, fecParityShards } = useAppStore.getState();
+      const settings: ConnectionSettings = { forwardBroadcast, forwardMulticast, fecParityShards };
+      await connectPeer(settings);
       await refreshConn();
     } catch (e) {
       setConnError(String(e));

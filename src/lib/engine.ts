@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   ConnectionInfo,
+  ConnectionSettings,
   EngineConfig,
   EngineMode,
   EngineNotice,
@@ -96,9 +97,12 @@ export function getConnection(): Promise<ConnectionInfo> {
 
 // --- Peer connection (C4) --------------------------------------------------
 
-/** Begin the hole-punch handshake to the negotiated peer. */
-export function connectPeer(): Promise<void> {
-  return invoke("connect_peer");
+/**
+ * Begin the hole-punch handshake to the negotiated peer. `settings` (split-tunnel
+ * forwarding + FEC redundancy, Phase B.3) applies once, for this connection.
+ */
+export function connectPeer(settings: ConnectionSettings): Promise<void> {
+  return invoke("connect_peer", { settings });
 }
 
 /** Tear down the live peer link. */

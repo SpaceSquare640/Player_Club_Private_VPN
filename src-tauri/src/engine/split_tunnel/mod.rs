@@ -145,6 +145,20 @@ impl SplitPolicy {
         }
         false
     }
+
+    /// Override whether broadcast traffic is tunnelled (Phase B.3, user-facing).
+    /// Chainable — call after [`from_tun`], which defaults both toggles to `true`.
+    pub fn forward_broadcast(mut self, on: bool) -> Self {
+        self.forward_broadcast = on;
+        self
+    }
+
+    /// Override whether multicast traffic is tunnelled (Phase B.3, user-facing).
+    /// Chainable — call after [`from_tun`], which defaults both toggles to `true`.
+    pub fn forward_multicast(mut self, on: bool) -> Self {
+        self.forward_multicast = on;
+        self
+    }
 }
 
 fn toggle(on: bool) -> Decision {
@@ -369,6 +383,26 @@ mod tests {
         assert!(!p.admits_inbound(&frame(peer, [224, 0, 0, 251])));
         // Unicast to us is unaffected by the group toggles.
         assert!(p.admits_inbound(&frame(peer, [10, 77, 0, 1])));
+    }
+
+    /// The public builder setter (what the connect-time UI settings call) must
+    /// actually flip the outcome, not just the field the earlier field-mutation
+    /// tests above poked directly.
+    #[test]
+    fn forward_broadcast_setter_disables_broadcast_forwarding() {
+        let p = policy().forward_broadcast(false);
+        assert_eq!(p.classify(Ipv4Addr::new(10, 77, 0, 255)), Decision::Drop);
+        assert_eq!(p.classify(Ipv4Addr::BROADCAST), Decision::Drop);
+        // Multicast is unaffected by the broadcast setter.
+        assert_eq!(p.classify(Ipv4Addr::new(224, 0, 0, 251)), Decision::Tunnel);
+    }
+
+    #[test]
+    fn forward_multicast_setter_disables_multicast_forwarding() {
+        let p = policy().forward_multicast(false);
+        assert_eq!(p.classify(Ipv4Addr::new(224, 0, 0, 251)), Decision::Drop);
+        // Broadcast is unaffected by the multicast setter.
+        assert_eq!(p.classify(Ipv4Addr::new(10, 77, 0, 255)), Decision::Tunnel);
     }
 
     #[test]

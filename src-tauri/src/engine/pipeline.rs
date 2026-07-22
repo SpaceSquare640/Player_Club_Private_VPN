@@ -32,7 +32,7 @@ use tokio::sync::mpsc as tokio_mpsc;
 use tokio::sync::watch;
 use tokio::time;
 
-use crate::engine::connection::{LinkState, Role};
+use crate::engine::connection::{ConnectionSettings, LinkState, Role};
 use crate::engine::crypto::handshake::{self, Handshaken};
 use crate::engine::crypto::identity::{fingerprint_of, Identity};
 use crate::engine::crypto::session::CryptoSession;
@@ -62,11 +62,11 @@ const INNER_DATA: u8 = 3; // tunnelled packet:   `[3][ip bytes…]`
 const INNER_FEC_DATA: u8 = 4; // FEC data packet: `[4][group:4][index:1][ip…]`
 const INNER_FEC_PARITY: u8 = 5; // FEC parity: `[5][group:4][k:1][r:1][idx:1][shard…]`
 
-/// FEC geometry: `FEC_GROUP_SIZE` data packets protected by `FEC_PARITY_SHARDS`
-/// parity shards, so any `FEC_PARITY_SHARDS` losses in a group are recoverable
-/// (Phase D.2). `r = 1` reproduces the D.1 XOR behaviour at 1/k overhead.
+/// FEC group size: `FEC_GROUP_SIZE` data packets protected by `r` parity shards,
+/// so any `r` losses in a group are recoverable (Phase D.2). `r` is user-facing
+/// (Phase B.3, [`ConnectionSettings::fec_parity_shards`]) — `r = 1` reproduces
+/// the D.1 XOR behaviour at 1/k overhead; `k` itself is not exposed.
 const FEC_GROUP_SIZE: u8 = 8;
-const FEC_PARITY_SHARDS: u8 = 1;
 const FEC_FLUSH: std::time::Duration = std::time::Duration::from_millis(30);
 /// Recent groups the decoder retains for reordering / late parity.
 const FEC_GROUP_CAP: usize = 64;
@@ -144,6 +144,7 @@ pub async fn run(
     peer_public: Vec<u8>,
     peer_candidates: Vec<SocketAddr>,
     dataplane_src: DataPlaneSource,
+    settings: ConnectionSettings,
     sink: Box<dyn TelemetrySink>,
     link: Arc<Mutex<LinkState>>,
     mut cancel: watch::Receiver<bool>,
@@ -222,13 +223,16 @@ pub async fn run(
     let (dataplane, split_policy) = match dataplane_src {
         DataPlaneSource::Adapter(cfg) => {
             let vip = cfg.virtual_ip;
-            let policy = SplitPolicy::from_tun(&cfg);
+            let policy = SplitPolicy::from_tun(&cfg)
+                .forward_broadcast(settings.forward_broadcast)
+                .forward_multicast(settings.forward_multicast);
             match dataplane::open(cfg, cancel.clone()).await {
                 Ok(dp) => {
+                    let r = settings.fec_parity_shards;
                     sink.notice(&EngineNotice::info(
                         "data_plane",
                         format!(
-                            "Data plane active on {vip} — tunnelling to {peer_fp} · FEC on (RS k={FEC_GROUP_SIZE}/r={FEC_PARITY_SHARDS})"
+                            "Data plane active on {vip} — tunnelling to {peer_fp} · FEC on (RS k={FEC_GROUP_SIZE}/r={r})"
                         ),
                     ));
                     (Some(dp), Some(policy))
@@ -244,7 +248,9 @@ pub async fn run(
         }
         #[cfg(test)]
         DataPlaneSource::Device(dev, cfg) => {
-            let policy = SplitPolicy::from_tun(&cfg);
+            let policy = SplitPolicy::from_tun(&cfg)
+                .forward_broadcast(settings.forward_broadcast)
+                .forward_multicast(settings.forward_multicast);
             let dp = dataplane::spawn_bridge(dev, cancel.clone(), cfg.mtu as usize);
             (Some(dp), Some(policy))
         }
@@ -260,7 +266,7 @@ pub async fn run(
 
     // FEC protects data-plane traffic only; a control-only link has none.
     let has_dataplane = uplink_rx.is_some();
-    let fec_enc = has_dataplane.then(|| RsEncoder::new(FEC_GROUP_SIZE, FEC_PARITY_SHARDS));
+    let fec_enc = has_dataplane.then(|| RsEncoder::new(FEC_GROUP_SIZE, settings.fec_parity_shards));
     let fec_dec = has_dataplane.then(|| RsDecoder::new(FEC_GROUP_CAP));
 
     drive(
@@ -752,8 +758,10 @@ mod integration {
         b_task: tokio::task::JoinHandle<()>,
     }
 
-    /// Bring up a connected pair over loopback, each with a mock adapter.
-    async fn connect_pair() -> Pair {
+    /// Bring up a connected pair over loopback, each with a mock adapter. Each
+    /// side's `ConnectionSettings` governs only its own egress policy and its
+    /// own ingress policy — the two sides need not agree.
+    async fn connect_pair(a_settings: ConnectionSettings, b_settings: ConnectionSettings) -> Pair {
         let a_id = Arc::new(Identity::generate().unwrap());
         let b_id = Arc::new(Identity::generate().unwrap());
         let a_pub = STANDARD.decode(a_id.public_b64()).unwrap();
@@ -779,6 +787,7 @@ mod integration {
             b_pub,
             vec![dead, b_addr],
             DataPlaneSource::Device(a_tun.device(), tun_cfg(1)),
+            a_settings,
             Box::new(NullSink),
             a_link.clone(),
             a_rx,
@@ -790,6 +799,7 @@ mod integration {
             a_pub,
             vec![a_addr],
             DataPlaneSource::Device(b_tun.device(), tun_cfg(2)),
+            b_settings,
             Box::new(NullSink),
             b_link.clone(),
             b_rx,
@@ -809,7 +819,7 @@ mod integration {
     /// candidate, and both sides reach Connected.
     #[tokio::test]
     async fn two_pipelines_complete_the_handshake() {
-        let p = connect_pair().await;
+        let p = connect_pair(ConnectionSettings::default(), ConnectionSettings::default()).await;
         assert_eq!(*p.a_link.lock().unwrap(), LinkState::Connected);
         assert_eq!(*p.b_link.lock().unwrap(), LinkState::Connected);
         let _ = p.a_cancel.send(true);
@@ -823,7 +833,7 @@ mod integration {
     /// stack in both processes.
     #[tokio::test]
     async fn a_packet_crosses_the_tunnel_intact() {
-        let p = connect_pair().await;
+        let p = connect_pair(ConnectionSettings::default(), ConnectionSettings::default()).await;
 
         let packet = ipv4([10, 77, 0, 1], [10, 77, 0, 2], b"hello over the tunnel");
         p.a_tun.send_from_host(packet.clone());
@@ -848,7 +858,7 @@ mod integration {
     /// outside the virtual subnet never reaches the peer.
     #[tokio::test]
     async fn policy_blocks_a_packet_bound_outside_the_virtual_lan() {
-        let p = connect_pair().await;
+        let p = connect_pair(ConnectionSettings::default(), ConnectionSettings::default()).await;
 
         p.a_tun
             .send_from_host(ipv4([10, 77, 0, 1], [8, 8, 8, 8], b"should never leave"));
@@ -873,10 +883,44 @@ mod integration {
         let _ = p.b_task.await;
     }
 
+    /// Phase B.3: user-facing `ConnectionSettings` actually reach the live path,
+    /// not just `SplitPolicy` in isolation. A's `forward_broadcast: false` must
+    /// block a broadcast packet at egress before it ever reaches B — proving
+    /// `pipeline::run` threads the setting from its parameter into the policy it
+    /// builds, rather than the (previously hardcoded) default.
+    #[tokio::test]
+    async fn settings_disable_broadcast_forwarding_on_the_live_path() {
+        let a_settings = ConnectionSettings {
+            forward_broadcast: false,
+            ..ConnectionSettings::default()
+        };
+        let p = connect_pair(a_settings, ConnectionSettings::default()).await;
+
+        p.a_tun
+            .send_from_host(ipv4([10, 77, 0, 1], [10, 77, 0, 255], b"broadcast, blocked"));
+        let allowed = ipv4([10, 77, 0, 1], [10, 77, 0, 2], b"unicast, allowed");
+        p.a_tun.send_from_host(allowed.clone());
+
+        let b = p.b_tun.clone();
+        until(10, "the allowed unicast packet to arrive", move || {
+            !b.injected().is_empty()
+        })
+        .await;
+
+        let got = p.b_tun.injected();
+        assert_eq!(got.len(), 1, "the broadcast packet must never have crossed");
+        assert_eq!(got[0], allowed);
+
+        let _ = p.a_cancel.send(true);
+        let _ = p.b_cancel.send(true);
+        let _ = p.a_task.await;
+        let _ = p.b_task.await;
+    }
+
     /// Disconnecting tears the link down cleanly on both sides.
     #[tokio::test]
     async fn cancel_returns_both_sides_to_idle() {
-        let p = connect_pair().await;
+        let p = connect_pair(ConnectionSettings::default(), ConnectionSettings::default()).await;
         let _ = p.a_cancel.send(true);
         let _ = p.b_cancel.send(true);
         let _ = p.a_task.await;

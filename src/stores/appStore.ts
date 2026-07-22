@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { DEFAULT_THEME, type ThemeId } from "../theme/themes";
+import { DEFAULT_CONNECTION_SETTINGS } from "../types/telemetry";
 
 export type RouteId = "dashboard" | "network" | "diagnostics";
 
@@ -11,10 +12,22 @@ interface AppState {
   theme: ThemeId;
   /** Whether the Settings overlay is open. */
   settingsOpen: boolean;
+  /**
+   * Connect-time settings (Phase B.3) — split-tunnel broadcast/multicast
+   * forwarding and FEC redundancy. Read by `useConnection.onConnect` and applied
+   * once per connection; changing them here does not affect an already-live link.
+   */
+  forwardBroadcast: boolean;
+  forwardMulticast: boolean;
+  /** FEC parity shards per group of 8 (1 = the historical default). */
+  fecParityShards: number;
 
   setActiveRoute: (route: RouteId) => void;
   setTheme: (theme: ThemeId) => void;
   toggleSettings: (open?: boolean) => void;
+  setForwardBroadcast: (on: boolean) => void;
+  setForwardMulticast: (on: boolean) => void;
+  setFecParityShards: (n: number) => void;
 }
 
 /** localStorage key under which the persisted UI slice is stored. */
@@ -27,6 +40,9 @@ const STORAGE_KEY = "pcpv-app-store";
  * State is persisted to `localStorage` (synchronous, so the theme is hydrated
  * before first paint — no flash of the default palette). Only the serializable
  * UI fields are persisted via `partialize`; action functions are never written.
+ * A persisted blob from before the connection-settings fields existed simply
+ * lacks those keys — zustand's persist merge fills them from the initial state
+ * below, so no migration step is needed.
  */
 export const useAppStore = create<AppState>()(
   persist(
@@ -34,11 +50,17 @@ export const useAppStore = create<AppState>()(
       activeRoute: "dashboard",
       theme: DEFAULT_THEME,
       settingsOpen: false,
+      forwardBroadcast: DEFAULT_CONNECTION_SETTINGS.forwardBroadcast,
+      forwardMulticast: DEFAULT_CONNECTION_SETTINGS.forwardMulticast,
+      fecParityShards: DEFAULT_CONNECTION_SETTINGS.fecParityShards,
 
       setActiveRoute: (route) => set({ activeRoute: route }),
       setTheme: (theme) => set({ theme }),
       toggleSettings: (open) =>
         set((state) => ({ settingsOpen: open ?? !state.settingsOpen })),
+      setForwardBroadcast: (on) => set({ forwardBroadcast: on }),
+      setForwardMulticast: (on) => set({ forwardMulticast: on }),
+      setFecParityShards: (n) => set({ fecParityShards: n }),
     }),
     {
       name: STORAGE_KEY,
@@ -48,6 +70,9 @@ export const useAppStore = create<AppState>()(
         activeRoute: state.activeRoute,
         theme: state.theme,
         settingsOpen: state.settingsOpen,
+        forwardBroadcast: state.forwardBroadcast,
+        forwardMulticast: state.forwardMulticast,
+        fecParityShards: state.fecParityShards,
       }),
     },
   ),

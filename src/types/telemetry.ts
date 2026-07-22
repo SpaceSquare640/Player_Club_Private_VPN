@@ -105,3 +105,24 @@ export interface EngineConfig {
 
 /** UI engine modes mapped to config flags in `lib/engine.ts`. */
 export type EngineMode = "simulated" | "probe" | "real";
+
+/**
+ * User-configurable connection-time settings (Phase B.3). Applied once, when
+ * `connectPeer` is called — not retroactively to an already-live link (live
+ * toggling needs a control channel into the running pipeline; deferred).
+ */
+export interface ConnectionSettings {
+  /** Forward broadcast traffic (LAN discovery) into the tunnel. Default `true`. */
+  forwardBroadcast: boolean;
+  /** Forward multicast traffic (LAN discovery) into the tunnel. Default `true`. */
+  forwardMulticast: boolean;
+  /** FEC parity shards per group of 8 — recovers up to this many losses per group. Default `1`. */
+  fecParityShards: number;
+}
+
+/** Matches the values that were hardcoded before Phase B.3. */
+export const DEFAULT_CONNECTION_SETTINGS: ConnectionSettings = {
+  forwardBroadcast: true,
+  forwardMulticast: true,
+  fecParityShards: 1,
+};

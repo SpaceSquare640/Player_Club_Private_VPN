@@ -8,7 +8,7 @@ use std::io;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::async_runtime::{self, JoinHandle};
 use tokio::sync::watch;
 
@@ -37,6 +37,46 @@ fn dataplane_source_for(role: Role) -> pipeline::DataPlaneSource {
         virtual_ip,
         ..TunConfig::default()
     })
+}
+
+/// User-configurable connection-time settings (Phase B.3). Applied once, at
+/// [`ConnectionManager::connect`] — **not** retroactively to an already-live
+/// link. Live toggling would need a control channel into the running pipeline
+/// task and is deferred (see the [0.15.0] changelog entry).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionSettings {
+    /// Forward broadcast traffic (LAN discovery) into the tunnel.
+    #[serde(default = "default_true")]
+    pub forward_broadcast: bool,
+    /// Forward multicast traffic (LAN discovery) into the tunnel.
+    #[serde(default = "default_true")]
+    pub forward_multicast: bool,
+    /// FEC parity shards per group of 8 data packets — recovers up to this many
+    /// losses per group, at a `shards/8` bandwidth cost. `RsEncoder::new` clamps
+    /// this to `1..=16` regardless of what is supplied here.
+    #[serde(default = "default_fec_parity_shards")]
+    pub fec_parity_shards: u8,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_fec_parity_shards() -> u8 {
+    1
+}
+
+impl Default for ConnectionSettings {
+    /// Matches the values that were hardcoded before Phase B.3 — so a caller
+    /// that does not set these gets the exact prior behaviour.
+    fn default() -> Self {
+        Self {
+            forward_broadcast: true,
+            forward_multicast: true,
+            fec_parity_shards: 1,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -186,6 +226,7 @@ impl ConnectionManager {
         &self,
         identity: Arc<Identity>,
         sink: Box<dyn TelemetrySink>,
+        settings: ConnectionSettings,
     ) -> Result<(), String> {
         // One session per peer: refuse if a link is already coming up / live.
         if matches!(self.link_state(), LinkState::Connecting | LinkState::Connected) {
@@ -233,6 +274,7 @@ impl ConnectionManager {
             peer_public,
             peer_candidates,
             dataplane_source_for(role),
+            settings,
             sink,
             link,
             cancel_rx,
@@ -264,5 +306,23 @@ impl ConnectionManager {
                 candidate_count: p.candidates.len(),
             }),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A regression guard: before Phase B.3 these values were hardcoded
+    /// (`forward_broadcast`/`forward_multicast` always `true` in
+    /// `SplitPolicy::from_tun`, `r` always `1` in `pipeline.rs`). A caller that
+    /// omits `settings` — or a stale JS blob missing these fields — must
+    /// reproduce that exact prior behaviour, not silently change it.
+    #[test]
+    fn connection_settings_default_matches_pre_b3_hardcoded_behaviour() {
+        let s = ConnectionSettings::default();
+        assert!(s.forward_broadcast);
+        assert!(s.forward_multicast);
+        assert_eq!(s.fec_parity_shards, 1);
     }
 }
