@@ -1,4 +1,5 @@
-import { defineConfig } from "vite";
+/// <reference types="vitest/config" />
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
@@ -22,5 +23,14 @@ export default defineConfig(async () => ({
       // Don't watch the Rust backend — Cargo handles that.
       ignored: ["**/src-tauri/**"],
     },
+  },
+
+  // Unit tests (vitest). happy-dom supplies localStorage/DOM for the stores.
+  test: {
+    environment: "happy-dom",
+    globals: true,
+    setupFiles: ["./src/test/setup.ts"],
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    css: false,
   },
 }));

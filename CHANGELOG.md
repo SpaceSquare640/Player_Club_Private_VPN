@@ -19,6 +19,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.16.0] - 2026-06-27
+
+### Added
+- **Frontend test foundation (Phase B.1).** The React app had **zero** tests against the engine's 62; this establishes the harness and covers the pure logic:
+  - **Tooling** — `vitest` + `happy-dom`, a `test` block in `vite.config.ts`, `pnpm test` / `pnpm test:watch` scripts, and a setup file that also registers `@testing-library/jest-dom` matchers for the component tests to come in B.2.
+  - **`lib/engine.test.ts`** — `configForMode` (each UI mode → the right backend flags), `isEngineActive` (which states count as active), and the **IPC command contract**: every wrapper invokes the right command name, and the signaling wrappers map the JS `blob` argument to `blobStr` (which Tauri maps to Rust's `blob_str`) — a mismatch there would silently break signaling.
+  - **`lib/cn.test.ts`** — class merging and Tailwind conflict resolution.
+  - **`stores/telemetryStore.test.ts`** — state transitions, batch accumulation, and the 200-entry log bound (trims oldest, keeps newest).
+  - **`stores/appStore.test.ts`** — route/theme/settings actions and `localStorage` persistence.
+  - **30 tests, all passing.**
+
+### Fixed
+- happy-dom v20 ships a non-functional global `localStorage` here; the test setup installs a deterministic in-memory `Storage` so the persisted store is testable.
+
+### Verified
+- `pnpm test` — **30/30 pass**. `tsc` clean (test files typecheck; `noEmit` keeps them out of the build). `pnpm build` succeeds with test files correctly absent from the bundle. `cargo test` — **62/62**, unaffected.
+
+### Scope
+- B.1 covers pure logic and stores. Full React component-render tests wait for **B.2**, alongside the Network page they will exercise.
+
+---
+
 ## [0.15.3] - 2026-06-26
 
 ### Removed
@@ -506,6 +528,7 @@ Hardened after an adversarial multi-agent review of the new egress policy (findi
 - Project `README.md` documenting overview, feature set, technology stack, architecture (Mermaid), structure, and development protocol.
 
 [Unreleased]: #unreleased
+[0.16.0]: #0160---2026-06-27
 [0.15.3]: #0153---2026-06-26
 [0.15.2]: #0152---2026-06-25
 [0.15.1]: #0151---2026-06-25
