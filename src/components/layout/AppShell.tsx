@@ -5,6 +5,7 @@ import Breadcrumb from "./Breadcrumb";
 import SettingsOverlay from "../settings/SettingsOverlay";
 import { Skeleton } from "../common/Skeleton";
 import { useAppStore, type RouteId } from "../../stores/appStore";
+import { useEngineTelemetry } from "../../hooks/useEngineTelemetry";
 
 const ROUTE_PATHS: Record<RouteId, string> = {
   dashboard: "/",
@@ -27,6 +28,12 @@ export default function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const setActiveRoute = useAppStore((s) => s.setActiveRoute);
+
+  // App-wide telemetry subscription: the engine event streams (state, stats,
+  // packets, notices) and identity/privilege must stay live regardless of which
+  // page is showing — the Network page drives connections while Diagnostics only
+  // observes, so the subscription cannot be tied to either page's lifetime.
+  useEngineTelemetry();
 
   // Captured once at first render — the persisted route, before the location
   // sync effect below reconciles the store to the URL.

@@ -19,6 +19,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.17.0] - 2026-06-28
+
+### Added
+- **Network page (Phase B.2).** Peer-connection management — this node's identity, manual-signaling blob exchange, and Connect / Disconnect — now lives on the **Network** page (previously a "coming soon" stub). Diagnostics is slimmed to a pure telemetry *readout*: manage the connection on Network, observe it on Diagnostics.
+- **First React component tests** (the part B.1 deferred): the Network page renders identity and the connection panel; Create offer surfaces the blob; a pasted offer is processed into an answer (asserting the `blob → blobStr` mapping end to end through the component); and Connect is disabled until a peer is negotiated, then enabled. **35 frontend tests total.**
+
+### Changed
+- **The telemetry subscription is now app-wide.** `useEngineTelemetry` was mounted only on Diagnostics, so navigating away tore down the engine event streams — and with connections now driven from a *different* page, that would have meant the Network page never sees `connecting → connected` progress. It is hoisted to `AppShell` and runs once for the app's lifetime.
+- Connection state and actions extracted into a `useConnection` hook; the identity readout and the connection panel into `components/network/` components — mirroring the existing `useEngineTelemetry` pattern and making them unit-testable.
+- Versions aligned to `0.17.0`.
+
+### Verified
+- `pnpm test` — **35/35 pass** (5 new component tests). `tsc` clean. `pnpm build` succeeds.
+- **Browser-verified:** Network renders the connection panel and controls; Diagnostics no longer carries the peer-connection or identity blocks (they moved); navigation between pages works with **zero console errors**. `cargo test` — **62/62**, unaffected.
+
+---
+
 ## [0.16.0] - 2026-06-27
 
 ### Added
@@ -528,6 +545,7 @@ Hardened after an adversarial multi-agent review of the new egress policy (findi
 - Project `README.md` documenting overview, feature set, technology stack, architecture (Mermaid), structure, and development protocol.
 
 [Unreleased]: #unreleased
+[0.17.0]: #0170---2026-06-28
 [0.16.0]: #0160---2026-06-27
 [0.15.3]: #0153---2026-06-26
 [0.15.2]: #0152---2026-06-25
