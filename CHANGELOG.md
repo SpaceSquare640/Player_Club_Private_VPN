@@ -19,6 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.15.2] - 2026-06-25
+
+### Fixed
+- **README accuracy.** The *Key Features*, *Architecture* and *Settings* sections read as though everything was delivered, while the *Project Status* table (correctly) marked most of it planned. Every Key Features bullet is now tagged **✅ built / 🚧 in progress / ⏳ planned**, with the status table named as authoritative; the Architecture diagram is captioned as the *target* shape (Game Detection and the Config/Profile Store are planned); and the NAT-traversal entry now states plainly that it is implemented but **not yet verified on two physical machines**. No code change.
+
+### Known gaps (recorded, not yet built)
+For visibility — beyond the standing **real-NAT-traversal** risk:
+- **Frontend lags the engine.** The Network page is a "coming soon" stub; `components/diagnostics/` is empty (no topology map or spectrum monitor yet); the Settings overlay is a shell with no content.
+- **Whole planned pillars have no code:** layered Basic/Expert settings, JSON profile import/export, automatic game detection, and i18n.
+- **Half-wired engine knobs:** the FEC parity count (`r`) and the split-tunnel broadcast/multicast toggles exist but are compile-time constants, not user-configurable.
+- **Deferred by earlier decisions:** packet-log backfill for a peer session ([0.12.1]), live split-tunnel toggles ([0.15.0]), OS route management (E.2), and relay/TURN fallback.
+- **Mobile targets** (Android / iOS / iPadOS) are listed as intended but have never been built or tested.
+
+---
+
 ## [0.15.1] - 2026-06-25
 
 Quality-consolidation pass after fifteen fast-moving releases. No behaviour change; the point was to make the compiler and linter enforce what was previously enforced by hand.
@@ -476,6 +491,7 @@ Hardened after an adversarial multi-agent review of the new egress policy (findi
 - Project `README.md` documenting overview, feature set, technology stack, architecture (Mermaid), structure, and development protocol.
 
 [Unreleased]: #unreleased
+[0.15.2]: #0152---2026-06-25
 [0.15.1]: #0151---2026-06-25
 [0.15.0]: #0150---2026-06-24
 [0.14.0]: #0140---2026-06-23

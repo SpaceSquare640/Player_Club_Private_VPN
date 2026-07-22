@@ -71,32 +71,38 @@ communicates with the engine over Tauri's IPC command/event bridge.
 
 ## Key Features
 
+> This is the **intended** feature set — the product vision. Each item is tagged
+> with its current state: **✅ built**, **🚧 in progress**, **⏳ planned**. The
+> [Project Status](#project-status) table above is the authoritative record of
+> what actually runs today.
+
 ### Networking Engine (Rust)
-- **NAT traversal** — UDP hole-punching / STUN-style peer discovery for direct P2P links.
-- **TUN/TAP adapter management** — programmatic creation and lifecycle of the virtual network interface.
-- **Forward Error Correction (FEC)** — recover from packet loss without retransmission for lower, steadier latency.
-- **Split tunneling** — route only selected (game) traffic through the virtual network.
+- ✅ **NAT traversal** — UDP hole-punching / STUN-style peer discovery for direct P2P links. *(Implemented; **not yet verified on two physical machines** — see Project Status.)*
+- ✅ **TUN/TAP adapter management** — programmatic creation and lifecycle of the virtual network interface (Windows/Wintun).
+- ✅ **Forward Error Correction (FEC)** — Reed-Solomon recovery of lost packets without retransmission.
+- ✅ **Split tunneling** — a data-plane policy gating which traffic the tunnel carries. *(Broadcast/multicast toggles exist in the engine but are not yet user-configurable.)*
 
 ### Application & UX
-- **60px icon sidebar** with **breadcrumb** pathing for clear navigation.
-- **1.618 golden-ratio** layout grid for balanced composition.
-- **Frosted-glass (Mica) "Settings Overlay"** for an in-context settings surface.
-- **Semantic color system** — Cyan (info / idle), Violet (active / primary), Amber (warning), Red (error / critical).
-- **Skeleton-screen** loading states for perceived performance.
+- ✅ **60px icon sidebar** with **breadcrumb** pathing for clear navigation.
+- ✅ **1.618 golden-ratio** layout grid for balanced composition.
+- 🚧 **Frosted-glass (Mica) "Settings Overlay"** — the overlay shell exists; its settings content is not built out.
+- ✅ **Semantic color system** — Cyan (info / idle), Violet (active / primary), Amber (warning), Red (error / critical).
+- ✅ **Skeleton-screen** loading states for perceived performance.
 
 ### Diagnostics
-- **Interactive topology map** of connected peers and routes.
-- **Spectrum / bandwidth monitoring** with live throughput visualization.
-- **Terminal-style packet logs** for low-level inspection.
+- ✅ **Live telemetry readout** — RTT / jitter / loss / throughput, FEC-recovered and policy-blocked counters.
+- ✅ **Terminal-style packet logs** for low-level inspection.
+- ⏳ **Interactive topology map** of connected peers and routes.
+- ⏳ **Spectrum / bandwidth monitoring** with live throughput visualization.
 
 ### Settings
-- **Layered access** — Basic mode for everyone, Expert mode for power users.
-- **JSON profile management** — import / export connection profiles.
-- **Automatic game detection** for one-click configuration.
+- ⏳ **Layered access** — Basic mode for everyone, Expert mode for power users.
+- ⏳ **JSON profile management** — import / export connection profiles.
+- ⏳ **Automatic game detection** for one-click configuration.
 
 ### Personalization
-- **Multi-language** support (i18n).
-- **6 predefined professional visual themes.**
+- ✅ **6 predefined visual themes** (Midnight, Carbon, Nebula, Abyss, Aurora, Ember).
+- ⏳ **Multi-language** support (i18n).
 
 ---
 
@@ -122,6 +128,10 @@ communicates with the engine over Tauri's IPC command/event bridge.
 ---
 
 ## Architecture
+
+> **Target architecture.** The NAT / TUN / FEC / split-tunnel blocks and the IPC
+> layer are built; **Game Detection** and the **Config / Profile Store** are
+> planned and shown here for the intended shape.
 
 ```mermaid
 flowchart TB
