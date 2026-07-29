@@ -1,14 +1,16 @@
 import { ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useAppStore, type RouteId } from "../../stores/appStore";
 
-const LABELS: Record<RouteId, string> = {
-  dashboard: "Dashboard",
-  network: "Network",
-  diagnostics: "Diagnostics",
+const LABEL_KEYS: Record<RouteId, string> = {
+  dashboard: "nav.dashboard",
+  network: "nav.network",
+  diagnostics: "nav.diagnostics",
 };
 
 /** Breadcrumb trail driven by the store's active route. */
 export default function Breadcrumb() {
+  const { t } = useTranslation();
   const activeRoute = useAppStore((s) => s.activeRoute);
 
   return (
@@ -16,7 +18,7 @@ export default function Breadcrumb() {
       <span className="text-ink-muted">Player Club</span>
       <ChevronRight size={14} className="text-ink-muted/60" />
       <span data-testid="breadcrumb-current" className="font-medium text-ink">
-        {LABELS[activeRoute]}
+        {t(LABEL_KEYS[activeRoute])}
       </span>
     </header>
   );

@@ -1,4 +1,12 @@
 import "@testing-library/jest-dom/vitest";
+import i18n from "../i18n";
+
+// Initialize once for every test file. Forcing "en" here means every existing
+// component test's string assertions keep matching the exact copy already in
+// the codebase — the English JSON values are the same literals those tests
+// were written against, so this migration is a non-visual-regression refactor
+// by construction, not something that needed rewriting every assertion.
+await i18n.changeLanguage("en");
 
 // happy-dom v20 ships a file-backed `localStorage` that is not a functional
 // `Storage` in this environment (its methods are undefined). The persisted app

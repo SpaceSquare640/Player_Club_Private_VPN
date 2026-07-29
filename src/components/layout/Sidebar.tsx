@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   Activity,
   LayoutDashboard,
@@ -11,19 +12,20 @@ import { cn } from "../../lib/cn";
 
 interface NavItem {
   id: RouteId;
-  label: string;
+  labelKey: string;
   path: string;
   Icon: LucideIcon;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: "dashboard", label: "Dashboard", path: "/", Icon: LayoutDashboard },
-  { id: "network", label: "Network", path: "/network", Icon: NetworkIcon },
-  { id: "diagnostics", label: "Diagnostics", path: "/diagnostics", Icon: Activity },
+  { id: "dashboard", labelKey: "nav.dashboard", path: "/", Icon: LayoutDashboard },
+  { id: "network", labelKey: "nav.network", path: "/network", Icon: NetworkIcon },
+  { id: "diagnostics", labelKey: "nav.diagnostics", path: "/diagnostics", Icon: Activity },
 ];
 
 /** Fixed 60px icon rail. Active item glows violet (semantic "active"). */
 export default function Sidebar() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const activeRoute = useAppStore((s) => s.activeRoute);
   const toggleSettings = useAppStore((s) => s.toggleSettings);
@@ -34,8 +36,9 @@ export default function Sidebar() {
         PC
       </div>
 
-      {NAV_ITEMS.map(({ id, label, path, Icon }) => {
+      {NAV_ITEMS.map(({ id, labelKey, path, Icon }) => {
         const active = activeRoute === id;
+        const label = t(labelKey);
         return (
           <button
             key={id}
@@ -63,8 +66,8 @@ export default function Sidebar() {
 
       <button
         type="button"
-        title="Settings"
-        aria-label="Settings"
+        title={t("nav.settings")}
+        aria-label={t("nav.settings")}
         data-testid="nav-settings"
         onClick={() => toggleSettings()}
         className="mt-auto flex h-10 w-10 items-center justify-center rounded-xl text-ink-muted transition-colors hover:bg-white/5 hover:text-ink"

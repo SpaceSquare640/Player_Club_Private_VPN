@@ -1,35 +1,46 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useTelemetryStore } from "../stores/telemetryStore";
 import { configForMode, requestElevation, startEngine, stopEngine } from "../lib/engine";
 import { cn } from "../lib/cn";
 import type { EngineMode, EngineState } from "../types/telemetry";
 
-const MODE_LABELS: Record<EngineMode, string> = {
-  simulated: "Simulated",
-  probe: "Transport probe",
-  real: "Real adapter",
+const MODE_LABEL_KEYS: Record<EngineMode, string> = {
+  simulated: "diagnostics.mode.simulated",
+  probe: "diagnostics.mode.probe",
+  real: "diagnostics.mode.real",
 };
 
-/** Semantic styling per lifecycle state (Cyan idle, Amber transient, …). */
-const STATE_STYLES: Record<EngineState, { label: string; dot: string; text: string }> = {
-  idle: { label: "Idle", dot: "bg-brand-cyan", text: "text-brand-cyan" },
+/**
+ * Semantic styling per lifecycle state (Cyan idle, Amber transient, …). Labels
+ * are translation *keys*, not literal strings — this is a module-level const,
+ * evaluated once at import time, so it cannot hold text that needs to change
+ * when the user switches language. `t(STATE_STYLES[state].labelKey)` resolves
+ * it at render time instead.
+ */
+const STATE_STYLES: Record<EngineState, { labelKey: string; dot: string; text: string }> = {
+  idle: { labelKey: "diagnostics.state.idle", dot: "bg-brand-cyan", text: "text-brand-cyan" },
   connecting: {
-    label: "Connecting",
+    labelKey: "diagnostics.state.connecting",
     dot: "bg-brand-amber animate-pulse",
     text: "text-brand-amber",
   },
   starting: {
-    label: "Starting",
+    labelKey: "diagnostics.state.starting",
     dot: "bg-brand-amber animate-pulse",
     text: "text-brand-amber",
   },
-  connected: { label: "Connected", dot: "bg-brand-violet", text: "text-brand-violet" },
+  connected: {
+    labelKey: "diagnostics.state.connected",
+    dot: "bg-brand-violet",
+    text: "text-brand-violet",
+  },
   "needs-elevation": {
-    label: "Needs Admin",
+    labelKey: "diagnostics.state.needs-elevation",
     dot: "bg-brand-amber",
     text: "text-brand-amber",
   },
-  error: { label: "Error", dot: "bg-brand-red", text: "text-brand-red" },
+  error: { labelKey: "diagnostics.state.error", dot: "bg-brand-red", text: "text-brand-red" },
 };
 
 function StatTile({
@@ -68,6 +79,7 @@ function StatTile({
  * arrive with the dedicated Diagnostics module.
  */
 export default function Diagnostics() {
+  const { t } = useTranslation();
   const running = useTelemetryStore((s) => s.running);
   const state = useTelemetryStore((s) => s.state);
   const snapshot = useTelemetryStore((s) => s.snapshot);
@@ -89,7 +101,10 @@ export default function Diagnostics() {
 
   const needsElevation = state === "needs-elevation";
   // Informational notices (e.g. discovered candidates, data-plane status) shown
-  // as a readout when not surfaced by the elevation/error banners.
+  // as a readout when not surfaced by the elevation/error banners. Engine-
+  // originated text (`notice.message`) stays in English — see the i18n scope
+  // note in the changelog: it needs a structured code+params refactor on the
+  // Rust side, not just a React-layer key swap.
   const infoNotice =
     notice && state !== "needs-elevation" && state !== "error" ? notice : null;
 
@@ -97,27 +112,29 @@ export default function Diagnostics() {
     <section data-testid="page-diagnostics" className="flex h-full flex-col gap-5">
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-ink">Diagnostics</h1>
+          <h1 className="text-xl font-semibold text-ink">{t("diagnostics.title")}</h1>
           <p className="text-sm text-ink-muted">
-            Live engine telemetry — {MODE_LABELS[mode].toLowerCase()}.
+            {t("diagnostics.subtitle", { mode: t(MODE_LABEL_KEYS[mode]).toLowerCase() })}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-2 text-sm" data-testid="engine-state">
             <span className={cn("h-2.5 w-2.5 rounded-full", sm.dot)} />
-            <span className={sm.text}>{sm.label}</span>
+            <span className={sm.text}>{t(sm.labelKey)}</span>
           </span>
           {!running && (
             <select
               data-testid="mode-select"
               value={mode}
               onChange={(e) => setMode(e.target.value as EngineMode)}
-              title="Telemetry source"
+              title={t("diagnostics.modeSelectTitle")}
               className="rounded-lg border border-white/15 bg-surface-2 px-2 py-1.5 text-xs text-ink-muted"
             >
-              <option value="simulated">{MODE_LABELS.simulated}</option>
-              <option value="probe">{MODE_LABELS.probe}</option>
-              <option value="real">{MODE_LABELS.real} (Admin)</option>
+              <option value="simulated">{t(MODE_LABEL_KEYS.simulated)}</option>
+              <option value="probe">{t(MODE_LABEL_KEYS.probe)}</option>
+              <option value="real">
+                {t(MODE_LABEL_KEYS.real)} {t("diagnostics.mode.realAdminSuffix")}
+              </option>
             </select>
           )}
           {running ? (
@@ -127,7 +144,7 @@ export default function Diagnostics() {
               onClick={stop}
               className="rounded-lg border border-brand-red/40 px-3 py-1.5 text-sm text-brand-red transition-colors hover:bg-brand-red/10"
             >
-              Stop
+              {t("diagnostics.stop")}
             </button>
           ) : (
             <button
@@ -136,7 +153,7 @@ export default function Diagnostics() {
               onClick={start}
               className="rounded-lg border border-brand-violet/40 px-3 py-1.5 text-sm text-brand-violet transition-colors hover:bg-brand-violet/10"
             >
-              Start
+              {t("diagnostics.start")}
             </button>
           )}
         </div>
@@ -148,8 +165,7 @@ export default function Diagnostics() {
           className="flex items-center justify-between gap-4 rounded-xl border border-brand-amber/40 bg-brand-amber/10 px-4 py-3"
         >
           <p className="text-sm text-brand-amber">
-            {notice?.message ??
-              "Administrator privileges are required to create the virtual network adapter."}
+            {notice?.message ?? t("diagnostics.elevationDefaultMessage")}
           </p>
           <button
             type="button"
@@ -157,7 +173,7 @@ export default function Diagnostics() {
             onClick={relaunch}
             className="shrink-0 rounded-lg border border-brand-amber/50 px-3 py-1.5 text-sm text-brand-amber transition-colors hover:bg-brand-amber/15"
           >
-            Relaunch as Administrator
+            {t("diagnostics.relaunchAsAdmin")}
           </button>
         </div>
       )}
@@ -184,12 +200,27 @@ export default function Diagnostics() {
         className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6"
         data-testid="stat-grid"
       >
-        <StatTile testid="stat-rtt" label="Ping (RTT)" value={fmt(snapshot?.rttMs)} unit="ms" />
-        <StatTile testid="stat-jitter" label="Jitter" value={fmt(snapshot?.jitterMs)} unit="ms" />
-        <StatTile testid="stat-loss" label="Loss" value={fmt(snapshot?.lossPct, 2)} unit="%" />
+        <StatTile
+          testid="stat-rtt"
+          label={t("diagnostics.statRttLabel")}
+          value={fmt(snapshot?.rttMs)}
+          unit="ms"
+        />
+        <StatTile
+          testid="stat-jitter"
+          label={t("diagnostics.statJitterLabel")}
+          value={fmt(snapshot?.jitterMs)}
+          unit="ms"
+        />
+        <StatTile
+          testid="stat-loss"
+          label={t("diagnostics.statLossLabel")}
+          value={fmt(snapshot?.lossPct, 2)}
+          unit="%"
+        />
         <StatTile
           testid="stat-throughput"
-          label="Throughput ↑/↓"
+          label={t("diagnostics.statThroughputLabel")}
           value={`${fmt(snapshot?.txKbps, 0)}/${fmt(snapshot?.rxKbps, 0)}`}
           unit="kbps"
         />
@@ -197,27 +228,27 @@ export default function Diagnostics() {
             healthy link, which is exactly when these numbers should reassure. */}
         <StatTile
           testid="stat-fec"
-          label="FEC recovered"
+          label={t("diagnostics.statFecLabel")}
           value={count(snapshot?.fecRecovered)}
           unit="pkts"
-          title="Packets rebuilt from parity instead of being lost — cumulative for this connection"
+          title={t("diagnostics.statFecTitle")}
         />
         <StatTile
           testid="stat-blocked"
-          label="Blocked"
+          label={t("diagnostics.statBlockedLabel")}
           value={count(snapshot?.policyBlocked)}
           unit="pkts"
-          title="Packets the split-tunnel policy refused, in either direction — cumulative for this connection"
+          title={t("diagnostics.statBlockedTitle")}
         />
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-white/10 bg-black/40">
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
           <span className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-            Packet Log
+            {t("diagnostics.packetLog")}
           </span>
           <span className="text-xs tabular-nums text-ink-muted">
-            {packets.length} entries
+            {t("diagnostics.entriesCount", { count: packets.length })}
           </span>
         </div>
         <div
@@ -225,9 +256,7 @@ export default function Diagnostics() {
           className="min-h-0 flex-1 overflow-auto p-3 font-mono text-xs leading-relaxed"
         >
           {packets.length === 0 ? (
-            <div className="text-ink-muted">
-              No packets yet. Press Start, or connect to a peer on the Network page.
-            </div>
+            <div className="text-ink-muted">{t("diagnostics.noPacketsYet")}</div>
           ) : (
             packets.map((p, i) => (
               <div key={`${p.tMs}-${i}`} className="flex gap-3 whitespace-nowrap">

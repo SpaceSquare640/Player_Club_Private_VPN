@@ -11,6 +11,7 @@ beforeEach(() => {
     activeRoute: "dashboard",
     theme: DEFAULT_THEME,
     settingsOpen: false,
+    language: "en",
     forwardBroadcast: DEFAULT_CONNECTION_SETTINGS.forwardBroadcast,
     forwardMulticast: DEFAULT_CONNECTION_SETTINGS.forwardMulticast,
     fecParityShards: DEFAULT_CONNECTION_SETTINGS.fecParityShards,
@@ -76,5 +77,13 @@ describe("appStore", () => {
     expect(parsed.state.forwardBroadcast).toBe(false);
     expect(parsed.state.forwardMulticast).toBe(true);
     expect(parsed.state.fecParityShards).toBe(3);
+  });
+
+  // i18n — language preference (persisted like the theme).
+  it("setLanguage updates state and persists", () => {
+    useAppStore.getState().setLanguage("zh-Hant");
+    expect(useAppStore.getState().language).toBe("zh-Hant");
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) as string);
+    expect(parsed.state.language).toBe("zh-Hant");
   });
 });

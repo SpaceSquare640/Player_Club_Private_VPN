@@ -19,6 +19,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.19.0] - 2026-06-30
+
+### Added
+- **Multi-language support (English + Traditional Chinese).** Every static UI string across the app — nav, breadcrumb, Dashboard, Network, Diagnostics, Settings, and both Network/PeerConnection sub-components — now renders through `react-i18next`. A **Language** section in Settings (English / 繁體中文) switches live, with no reload, and persists in `appStore` alongside the theme.
+- `src/i18n/` — `i18next` initialized with both locales bundled statically (no `i18next-http-backend`; a desktop app ships every language, so there is nothing to fetch at runtime) and no language-detector plugin (`appStore` picks a default from `navigator.language` — a three-line check — then persists the user's explicit choice, mirroring how the theme already works).
+- `appStore.language: "en" | "zh-Hant"`, synced to i18next by a `useEffect` in `AppShell` — the same app-wide-side-effect pattern `useEngineTelemetry` already established in Phase B.2.
+- **Key-parity regression test** (`i18n/index.test.ts`): asserts the English and Traditional Chinese JSON files expose exactly the same key set, and that neither has an empty value. This is the guard that actually matters going forward — it catches "added an English string, forgot to translate it" at test time instead of at runtime as a raw key falling back onto the screen.
+
+### Changed
+- `Diagnostics.tsx`'s `STATE_STYLES` / `MODE_LABELS` — module-level `Record`s that held literal English strings — now hold **translation keys**, resolved via `t()` inside the component at render time. A module-level const is evaluated once at import; it cannot hold text that needs to change when the user switches language, so this restructuring was necessary, not cosmetic.
+- `Network.tsx`'s closing sentence (which embeds a styled `<span>` around "Diagnostics") uses `<Trans>` rather than three concatenated translation keys, so each locale keeps its own natural word order around the embedded element instead of being forced into English sentence structure.
+- New dependencies **`i18next`** and **`react-i18next`** (both MIT), attributed in `THIRD-PARTY-NOTICES.md`.
+- Versions aligned to `0.19.0`.
+
+### Scope
+- **This phase covers only static React-layer UI copy.** `EngineNotice.message` and Tauri command error strings are constructed in Rust with `format!()` and sent as finished English sentences — localizing them needs the backend to send structured codes + parameters instead (the `EngineNotice.code` field already exists and the UI already branches on it for some notices), which is a materially different, Rust-side change disproportionate to this phase. They remain English, as does the raw `conn.link` / `conn.role` state-machine text in `PeerConnectionPanel` (technical identifiers, not prose).
+- **Simplified Chinese was scoped out**, not because it is hard, but to keep this phase to the languages already committed to — the key set is now frozen and translated once, so adding a third locale later is a JSON file, not a redesign.
+
+### Verified
+- `pnpm test` — **47/47 pass** (5 new: `appStore` language default/setter/persistence; the two key-parity/empty-value tests; a `SettingsOverlay` test proving language selection updates the store; and — the test that actually matters — proving `i18n.changeLanguage` re-renders **already-mounted** components with new visible text, not just a store value).
+- `tsc` clean; `pnpm build` succeeds; `cargo test` — **66/66**, unaffected (no Rust changes).
+- **Browser-verified beyond the test suite:** the preview browser's own locale is Chinese, so the app **auto-detected zh-Hant on first load** — a real confirmation of the detection path, not a simulated one. Switched to English via Settings and confirmed every page (Dashboard, Network with its `<Trans>` sentence, Diagnostics including the state-label restructuring and the `{{count}}`-interpolated packet-log text) updated live with no reload. **Reloaded the page and confirmed the English choice persisted** — together with the B.2 route-restore feature correctly returning to the last-viewed page, in English. Zero console errors throughout.
+
+---
+
 ## [0.18.0] - 2026-06-29
 
 ### Added
@@ -568,6 +593,7 @@ Hardened after an adversarial multi-agent review of the new egress policy (findi
 - Project `README.md` documenting overview, feature set, technology stack, architecture (Mermaid), structure, and development protocol.
 
 [Unreleased]: #unreleased
+[0.19.0]: #0190---2026-06-30
 [0.18.0]: #0180---2026-06-29
 [0.17.0]: #0170---2026-06-28
 [0.16.0]: #0160---2026-06-27

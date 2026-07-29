@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useTelemetryStore } from "../../stores/telemetryStore";
 import { useConnection } from "../../hooks/useConnection";
 import { cn } from "../../lib/cn";
@@ -6,8 +7,13 @@ import { cn } from "../../lib/cn";
  * Manual-signaling + peer-link management: create an offer, exchange blobs with a
  * peer, then Connect / Disconnect. The live link state and the data-plane badge
  * come from the app-wide telemetry subscription via the connection hook.
+ *
+ * `conn.link` / `conn.role` are the raw engine state-machine identifiers (e.g.
+ * "connected", "initiator") — left untranslated, like the engine notices, since
+ * they are technical identifiers rather than prose.
  */
 export default function PeerConnectionPanel() {
+  const { t } = useTranslation();
   const notice = useTelemetryStore((s) => s.notice);
   const {
     conn,
@@ -25,6 +31,25 @@ export default function PeerConnectionPanel() {
     onProcessPeerBlob,
   } = useConnection();
 
+  const connStatus = conn
+    ? conn.peer
+      ? t("peerConnection.statusWithPeer", {
+          link: conn.link,
+          role: conn.role,
+          peer: conn.peer.peerAddress,
+          count: conn.peer.candidateCount,
+        })
+      : t("peerConnection.statusNoPeer", { link: conn.link, role: conn.role })
+    : t("peerConnection.statusEmpty");
+
+  const connectTitle = !conn?.peer
+    ? t("peerConnection.connectTitleNoPeer")
+    : running
+      ? t("peerConnection.connectTitleRunning")
+      : link === "failed"
+        ? t("peerConnection.connectTitleFailed")
+        : t("peerConnection.connectTitleReady");
+
   return (
     <div
       data-testid="peer-connection"
@@ -32,17 +57,11 @@ export default function PeerConnectionPanel() {
     >
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-          Peer Connection · manual signaling
+          {t("peerConnection.heading")}
         </span>
         <div className="flex items-center gap-3">
           <span data-testid="conn-status" className="text-ink-muted">
-            {conn
-              ? `link: ${conn.link} · role: ${conn.role}${
-                  conn.peer
-                    ? ` · peer ${conn.peer.peerAddress} (${conn.peer.candidateCount} cand)`
-                    : ""
-                }`
-              : "—"}
+            {connStatus}
           </span>
           {link === "connected" &&
             (notice?.code === "data_plane" || notice?.code === "data_plane_off") && (
@@ -56,7 +75,9 @@ export default function PeerConnectionPanel() {
                     : "bg-brand-amber/15 text-brand-amber",
                 )}
               >
-                {notice.code === "data_plane" ? "data plane" : "control-only"}
+                {notice.code === "data_plane"
+                  ? t("peerConnection.dataPlaneBadge")
+                  : t("peerConnection.controlOnlyBadge")}
               </span>
             )}
           {link === "connected" ? (
@@ -66,18 +87,18 @@ export default function PeerConnectionPanel() {
               onClick={onDisconnect}
               className="rounded-lg border border-brand-red/40 px-3 py-1.5 text-brand-red transition-colors hover:bg-brand-red/10"
             >
-              Disconnect
+              {t("peerConnection.disconnect")}
             </button>
           ) : link === "connecting" ? (
             <button
               type="button"
               data-testid="connecting-btn"
               onClick={onDisconnect}
-              title="Handshake in progress (≤8s). Click to cancel."
+              title={t("peerConnection.connectingTitle")}
               className="flex items-center gap-2 rounded-lg border border-brand-amber/40 px-3 py-1.5 text-brand-amber transition-colors hover:bg-brand-amber/10"
             >
               <span className="h-2 w-2 animate-pulse rounded-full bg-brand-amber" />
-              Connecting…
+              {t("peerConnection.connecting")}
             </button>
           ) : (
             <button
@@ -85,15 +106,7 @@ export default function PeerConnectionPanel() {
               data-testid="connect-btn"
               onClick={onConnect}
               disabled={!canConnect}
-              title={
-                !conn?.peer
-                  ? "Exchange an offer/answer with a peer first"
-                  : running
-                    ? "Stop the telemetry-source session before connecting to a peer"
-                    : link === "failed"
-                      ? "Previous handshake failed — retry"
-                      : "Punch through to the peer and establish the encrypted link"
-              }
+              title={connectTitle}
               className={cn(
                 "rounded-lg border px-3 py-1.5 transition-colors",
                 canConnect
@@ -101,7 +114,7 @@ export default function PeerConnectionPanel() {
                   : "cursor-not-allowed border-white/10 text-ink-muted opacity-50",
               )}
             >
-              {link === "failed" ? "Retry connect" : "Connect"}
+              {link === "failed" ? t("peerConnection.retryConnect") : t("peerConnection.connect")}
             </button>
           )}
         </div>
@@ -115,7 +128,7 @@ export default function PeerConnectionPanel() {
             onClick={onCreateOffer}
             className="rounded-lg border border-brand-violet/40 px-3 py-1.5 text-brand-violet transition-colors hover:bg-brand-violet/10"
           >
-            Create offer
+            {t("peerConnection.createOffer")}
           </button>
           {offerBlob && (
             <div className="mt-2">
@@ -130,7 +143,7 @@ export default function PeerConnectionPanel() {
                 onClick={() => void navigator.clipboard?.writeText(offerBlob)}
                 className="mt-1 rounded border border-white/15 px-2 py-1 text-ink-muted transition-colors hover:text-ink"
               >
-                Copy offer
+                {t("peerConnection.copyOffer")}
               </button>
             </div>
           )}
@@ -141,7 +154,7 @@ export default function PeerConnectionPanel() {
             data-testid="peer-input"
             value={peerInput}
             onChange={(e) => setPeerInput(e.target.value)}
-            placeholder="Paste your peer's offer or answer blob…"
+            placeholder={t("peerConnection.peerInputPlaceholder")}
             className="h-16 w-full resize-none rounded bg-black/40 p-2 font-mono text-[11px] text-ink placeholder:text-ink-muted"
           />
           <button
@@ -150,11 +163,11 @@ export default function PeerConnectionPanel() {
             onClick={onProcessPeerBlob}
             className="mt-1 rounded-lg border border-brand-cyan/40 px-3 py-1.5 text-brand-cyan transition-colors hover:bg-brand-cyan/10"
           >
-            Process
+            {t("peerConnection.process")}
           </button>
           {answerBlob && (
             <div className="mt-2">
-              <div className="text-ink-muted">Send this answer back to your peer:</div>
+              <div className="text-ink-muted">{t("peerConnection.sendAnswerBack")}</div>
               <textarea
                 data-testid="answer-blob"
                 readOnly
@@ -166,7 +179,7 @@ export default function PeerConnectionPanel() {
                 onClick={() => void navigator.clipboard?.writeText(answerBlob)}
                 className="mt-1 rounded border border-white/15 px-2 py-1 text-ink-muted transition-colors hover:text-ink"
               >
-                Copy answer
+                {t("peerConnection.copyAnswer")}
               </button>
             </div>
           )}

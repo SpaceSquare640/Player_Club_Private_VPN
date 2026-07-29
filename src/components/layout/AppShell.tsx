@@ -6,6 +6,7 @@ import SettingsOverlay from "../settings/SettingsOverlay";
 import { Skeleton } from "../common/Skeleton";
 import { useAppStore, type RouteId } from "../../stores/appStore";
 import { useEngineTelemetry } from "../../hooks/useEngineTelemetry";
+import i18n from "../../i18n";
 
 const ROUTE_PATHS: Record<RouteId, string> = {
   dashboard: "/",
@@ -28,12 +29,19 @@ export default function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const setActiveRoute = useAppStore((s) => s.setActiveRoute);
+  const language = useAppStore((s) => s.language);
 
   // App-wide telemetry subscription: the engine event streams (state, stats,
   // packets, notices) and identity/privilege must stay live regardless of which
   // page is showing — the Network page drives connections while Diagnostics only
   // observes, so the subscription cannot be tied to either page's lifetime.
   useEngineTelemetry();
+
+  // Same pattern for language: sync the persisted/detected choice into i18next
+  // once, here, rather than in every page that happens to render first.
+  useEffect(() => {
+    void i18n.changeLanguage(language);
+  }, [language]);
 
   // Captured once at first render — the persisted route, before the location
   // sync effect below reconciles the store to the URL.

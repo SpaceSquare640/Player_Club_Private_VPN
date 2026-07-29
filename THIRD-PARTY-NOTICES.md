@@ -67,7 +67,8 @@ time, each under its own licence as declared by its publisher:
   [`package.json`](package.json) and pinned in
   [`pnpm-lock.yaml`](pnpm-lock.yaml). Notable direct dependencies include
   `react`, `react-dom`, `react-router-dom`, `zustand`, `@tauri-apps/api`,
-  `tailwindcss`, and `vite`.
+  `tailwindcss`, `vite`, and — for localization (Phase i18n) — `i18next` and
+  `react-i18next` (both MIT).
 
 To enumerate the full transitive licence set, use a tooling pass such as
 `cargo license` / `cargo about` for the Rust graph and `pnpm licenses list` for

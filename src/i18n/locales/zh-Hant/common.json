@@ -1,0 +1,112 @@
+{
+  "nav": {
+    "dashboard": "儀表板",
+    "network": "網路",
+    "diagnostics": "診斷",
+    "settings": "設定"
+  },
+  "theme": {
+    "midnight": "午夜",
+    "carbon": "碳灰",
+    "nebula": "星雲",
+    "abyss": "深淵",
+    "aurora": "極光",
+    "ember": "餘燼"
+  },
+  "dashboard": {
+    "title": "儀表板",
+    "subtitle": "虛擬網路總覽。",
+    "engine": "引擎",
+    "pingEngine": "Ping 引擎",
+    "status": "狀態",
+    "idle": "閒置",
+    "peersConnected": "已連線 {{count}} 個對等節點"
+  },
+  "network": {
+    "title": "網路",
+    "subtitle": "透過網際網路與對等節點建立直接的加密連線。",
+    "footer": "先透過其他管道交換 offer/answer 字串,再雙方按下「連線」。連線後,即時 RTT、吞吐量與封包記錄會顯示在<1>診斷</1>頁面。"
+  },
+  "nodeIdentity": {
+    "label": "本節點 · 指紋",
+    "fingerprintTitle": "供語音/文字通訊驗證用的短指紋。要連線時,請分享你的完整公鑰(複製公鑰)——那才是具權威性的識別碼。",
+    "copyButton": "複製公鑰",
+    "copyButtonTitle": "複製完整公鑰——分享給對等節點的權威識別碼"
+  },
+  "peerConnection": {
+    "heading": "對等連線 · 手動信令",
+    "statusEmpty": "—",
+    "statusWithPeer": "連線狀態:{{link}} · 角色:{{role}} · 對等節點 {{peer}}({{count}} 個候選)",
+    "statusNoPeer": "連線狀態:{{link}} · 角色:{{role}}",
+    "dataPlaneBadge": "資料平面",
+    "controlOnlyBadge": "僅控制通道",
+    "disconnect": "中斷連線",
+    "connecting": "連線中…",
+    "connectingTitle": "握手進行中(≤8 秒)。點擊以取消。",
+    "connect": "連線",
+    "retryConnect": "重試連線",
+    "connectTitleNoPeer": "請先與對等節點交換 offer/answer",
+    "connectTitleRunning": "請先停止遙測來源工作階段,再連線到對等節點",
+    "connectTitleFailed": "先前的握手失敗——請重試",
+    "connectTitleReady": "穿透對等節點的 NAT,建立加密連線",
+    "createOffer": "建立 Offer",
+    "copyOffer": "複製 Offer",
+    "peerInputPlaceholder": "貼上對等節點的 offer 或 answer 字串…",
+    "process": "處理",
+    "sendAnswerBack": "請將這個 answer 傳回給對方:",
+    "copyAnswer": "複製 Answer"
+  },
+  "diagnostics": {
+    "title": "診斷",
+    "subtitle": "即時引擎遙測 — {{mode}}。",
+    "mode": {
+      "simulated": "模擬",
+      "probe": "傳輸探測",
+      "real": "真實網卡",
+      "realAdminSuffix": "(需管理員)"
+    },
+    "modeSelectTitle": "遙測來源",
+    "stop": "停止",
+    "start": "啟動",
+    "state": {
+      "idle": "閒置",
+      "connecting": "連線中",
+      "starting": "啟動中",
+      "connected": "已連線",
+      "needs-elevation": "需要管理員權限",
+      "error": "錯誤"
+    },
+    "elevationDefaultMessage": "建立虛擬網路卡需要系統管理員權限。",
+    "relaunchAsAdmin": "以系統管理員身分重新啟動",
+    "statRttLabel": "Ping (RTT)",
+    "statJitterLabel": "抖動",
+    "statLossLabel": "封包遺失率",
+    "statThroughputLabel": "吞吐量 ↑/↓",
+    "statFecLabel": "FEC 已復原",
+    "statFecTitle": "由 parity 重建、原本會遺失的封包數——本次連線累計值",
+    "statBlockedLabel": "已攔截",
+    "statBlockedTitle": "split-tunnel 策略拒絕的封包數(雙向合計)——本次連線累計值",
+    "packetLog": "封包記錄",
+    "entriesCount": "{{count}} 筆",
+    "noPacketsYet": "尚無封包。請按下「啟動」,或到「網路」頁面連線到對等節點。"
+  },
+  "settings": {
+    "title": "設定",
+    "closeAriaLabel": "關閉設定",
+    "themeHeading": "主題",
+    "connectionHeading": "連線",
+    "connectionSubtitle": "將於下次按下「連線」時套用——不會影響已存在的連線。",
+    "forwardBroadcast": "轉發廣播",
+    "forwardBroadcastTitle": "將廣播流量(例如區域網路遊戲探索)導入隧道",
+    "forwardMulticast": "轉發多播",
+    "forwardMulticastTitle": "將多播流量(例如 mDNS 探索)導入隧道",
+    "on": "開啟",
+    "off": "關閉",
+    "fecRedundancyHeading": "FEC 冗餘度",
+    "fecRedundancyValue": "r = {{n}}",
+    "fecRedundancySubtitle": "每 8 個封包一組,最多可復原 r 個遺失封包,但會增加頻寬用量。",
+    "languageHeading": "語言",
+    "languageEnglish": "English",
+    "languageZhHant": "繁體中文"
+  }
+}
