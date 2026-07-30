@@ -2,6 +2,17 @@
 //!
 //! Loads the bundled, signed `wintun.dll`, creates an adapter, assigns the
 //! virtual IPv4 address via `netsh`, and exposes the session as a `TunDevice`.
+//!
+//! Phase E.2 adds best-effort Windows network integration: a freshly-created
+//! virtual adapter is often classified `Public` by Windows, which silently
+//! blocks the very traffic this app exists to carry (see the "ping fails"
+//! entry in `DOC/Two_Machine_Verification.md`). [`configure_network_integration`]
+//! sets it to `Private` and adds an inbound allow rule scoped to exactly this
+//! interface. This is OS hygiene, not routing: it does not touch what traffic
+//! reaches the adapter (that remains `split_tunnel`'s job) or install any route
+//! beyond the adapter's own subnet — steering additional prefixes through a
+//! peer (site-to-site LAN sharing) is a materially different, higher-risk
+//! feature that was deliberately scoped out (see the E.2 planning notes).
 
 use std::io;
 use std::net::Ipv4Addr;
@@ -38,6 +49,10 @@ impl WintunDevice {
             .map_err(|e| io::Error::other(format!("create adapter: {e}")))?;
 
         assign_ip(&cfg.name, cfg.virtual_ip, cfg.prefix_len)?;
+
+        // Best-effort (E.2): never abort adapter creation over this — see the
+        // doc comment on `configure_network_integration`.
+        let _ = configure_network_integration(&cfg.name);
 
         let session = Arc::new(
             adapter
@@ -87,6 +102,19 @@ impl TunDevice for WintunDevice {
     }
 }
 
+impl Drop for WintunDevice {
+    /// Remove the firewall rule `configure_network_integration` added. This
+    /// runs before the field-order teardown below it (`session`, `_adapter`,
+    /// `_wintun`) — removing the rule does not depend on any of them still
+    /// being alive, so the ordering is inconsequential here. Best-effort: a
+    /// `Drop` cannot propagate an error, and one is not warranted — leaving a
+    /// stale allow-rule for an adapter that no longer exists is inert, not
+    /// a security regression.
+    fn drop(&mut self) {
+        let _ = remove_network_integration(&self.info.name);
+    }
+}
+
 /// Assign the IPv4 address via `netsh` (requires elevation, already verified
 /// before the device is opened).
 fn assign_ip(name: &str, ip: Ipv4Addr, prefix_len: u8) -> io::Result<()> {
@@ -109,6 +137,65 @@ fn assign_ip(name: &str, ip: Ipv4Addr, prefix_len: u8) -> io::Result<()> {
         ));
     }
     Ok(())
+}
+
+/// Firewall rule display name for a given adapter — deterministic, so teardown
+/// can find and remove exactly the rule this adapter's creation added.
+fn firewall_rule_name(adapter_name: &str) -> String {
+    format!("PlayerClubVPN-{adapter_name}")
+}
+
+/// PowerShell single-quoted string literal (doubling embedded quotes). Used to
+/// embed the adapter name inside a `-Command` script rather than relying on
+/// `Command::args` joining, which PowerShell re-tokenizes internally as its own
+/// syntax — a literal is unambiguous regardless of what the name contains.
+fn ps_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "''"))
+}
+
+fn run_powershell(script: &str) -> io::Result<()> {
+    let status = Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", script])
+        .status()?;
+    if !status.success() {
+        return Err(io::Error::other(format!(
+            "powershell command failed (exit {:?}): {script}",
+            status.code()
+        )));
+    }
+    Ok(())
+}
+
+/// Best-effort Windows network integration (Phase E.2): classify the adapter's
+/// network as `Private` (a fresh virtual adapter often defaults to `Public`,
+/// which silently drops the traffic this app exists to carry) and add an
+/// inbound allow rule scoped to exactly this interface via its `-InterfaceAlias`
+/// (`netsh advfirewall` cannot scope by a specific interface name — only by
+/// `interfacetype`, which would also match the host's real Ethernet/Wi-Fi
+/// adapters — so this uses the `NetSecurity`/`NetConnection` PowerShell
+/// cmdlets instead). Neither call is correctness-critical: what may reach the
+/// adapter is `split_tunnel`'s job, done before any packet gets here, so a
+/// failure here degrades to "Windows Firewall might also need a manual nudge"
+/// rather than a broken adapter — callers ignore the `Result`.
+fn configure_network_integration(adapter_name: &str) -> io::Result<()> {
+    run_powershell(&format!(
+        "Set-NetConnectionProfile -InterfaceAlias {} -NetworkCategory Private",
+        ps_quote(adapter_name)
+    ))?;
+    run_powershell(&format!(
+        "New-NetFirewallRule -DisplayName {} -InterfaceAlias {} -Direction Inbound -Action Allow -Profile Private | Out-Null",
+        ps_quote(&firewall_rule_name(adapter_name)),
+        ps_quote(adapter_name),
+    ))
+}
+
+/// Remove the rule `configure_network_integration` added. Best-effort, like
+/// its counterpart — see `Drop for WintunDevice`.
+fn remove_network_integration(adapter_name: &str) -> io::Result<()> {
+    run_powershell(&format!(
+        "Remove-NetFirewallRule -DisplayName {} -ErrorAction SilentlyContinue",
+        ps_quote(&firewall_rule_name(adapter_name)),
+    ))
 }
 
 fn prefix_to_mask(prefix_len: u8) -> Ipv4Addr {
@@ -148,4 +235,30 @@ fn locate_wintun_dll() -> Option<PathBuf> {
     candidates.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(&rel));
 
     candidates.into_iter().find(|p| p.exists())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ps_quote_wraps_in_single_quotes() {
+        assert_eq!(ps_quote("PlayerClubVPN"), "'PlayerClubVPN'");
+    }
+
+    /// PowerShell's own escaping rule for a single-quoted string literal is to
+    /// double each embedded `'`. Getting this wrong would let a crafted or
+    /// unusual adapter name break out of the literal and inject PowerShell.
+    #[test]
+    fn ps_quote_escapes_embedded_single_quotes() {
+        assert_eq!(ps_quote("it's"), "'it''s'");
+        assert_eq!(ps_quote("'; Remove-Item C:\\ -Recurse; '"), "'''; Remove-Item C:\\ -Recurse; '''");
+    }
+
+    #[test]
+    fn firewall_rule_name_is_deterministic_and_prefixed() {
+        assert_eq!(firewall_rule_name("PlayerClubVPN"), "PlayerClubVPN-PlayerClubVPN");
+        // Same input always produces the same name, so teardown can find it.
+        assert_eq!(firewall_rule_name("x"), firewall_rule_name("x"));
+    }
 }

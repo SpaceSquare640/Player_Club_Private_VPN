@@ -19,6 +19,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.20.0] - 2026-07-01
+
+### Added
+- **Windows network integration (Phase E.2).** `WintunDevice::open` now, best-effort, classifies the fresh adapter's network as **Private** and adds an inbound firewall allow-rule **scoped to exactly that interface** — automating the fix that `DOC/Two_Machine_Verification.md` had previously documented as a manual step (a new virtual adapter often defaults to `Public`, which silently drops the very traffic this app exists to carry).
+- Uses the `NetSecurity`/`NetConnection` PowerShell cmdlets (`Set-NetConnectionProfile -InterfaceAlias`, `New-NetFirewallRule -InterfaceAlias`) rather than `netsh advfirewall`, which cannot scope a rule to one specific interface by name — only by `interfacetype` (e.g. `Lan`), which would also match the host's real Ethernet/Wi-Fi adapters.
+- The rule is removed on teardown via `impl Drop for WintunDevice` (the first `Drop` impl in the engine), so it runs however the device stops existing rather than needing every disconnect path to remember to call it.
+
+### Scope — a genuine fork, decided explicitly
+"OS route management" was ambiguous between two very different features, and the fork was surfaced and decided before writing any code:
+- **Built now: Windows network/firewall hygiene** (this entry) — no routing, no change to what traffic reaches the adapter (still entirely `split_tunnel`'s job), no change to the two-node trust model. Safe, and — unusually for this project — **verifiable on a single machine**.
+- **Deferred: site-to-site LAN sharing** — letting a peer advertise routes to its *own* real LAN (e.g. `192.168.1.0/24`) so traffic beyond the tunnel's own `/24` gets forwarded through them. This would require the peer to run IP forwarding + NAT (a substantial Windows-side feature on its own), and would break the two-node assumption `split_tunnel/mod.rs`'s own doc comment names explicitly — its ingress policy would need to move from hardcoded endpoints to a peer-scoped, explicitly-approved CIDR allow-list, with real thought given to a malicious or compromised peer advertising an unexpectedly broad route. Verifying it end-to-end needs **three** physical hosts (both peers plus a device on one peer's real LAN) — a harder bar than the standing, still-unmet two-machine NAT-traversal verification. Deferred for the same reason relay/TURN fallback is: building unverifiable code on top of already-unverified code compounds risk rather than reducing it.
+
+### Fixed
+- Both PowerShell calls are best-effort: a failure never blocks bringing up the data plane. What may reach the adapter is decided by `split_tunnel` before any packet gets this far, so a failure here degrades to "Windows Firewall might still need a manual nudge" (the fallback instructions remain in the verification checklist), not a broken connection.
+
+### Verified
+- `cargo test` — **69/69 pass** (3 new: PowerShell single-quote escaping — including a string containing `'; Remove-Item C:\ -Recurse; '`, to make the point concretely — round-trips exactly; the deterministic, prefixed firewall-rule naming that lets teardown find what setup created).
+- **This phase could not be fully verified from here — elevation is genuinely required, and this session is not elevated (confirmed directly).** What *was* verified: the exact PowerShell command strings the Rust code constructs were dry-run with `-WhatIf` against a real (non-elevated) PowerShell — both `Set-NetConnectionProfile` and `New-NetFirewallRule` correctly resolved cmdlet and parameter names and correctly un-escaped a deliberately quote-containing adapter name back to its literal form (the error text echoed the exact literal back), failing only on "no such interface exists" — the expected outcome for a fabricated name. This confirms the syntax and escaping are correct; it does **not** confirm the happy path against a real elevated Wintun adapter, which needs your own elevated run to complete.
+
+---
+
 ## [0.19.0] - 2026-06-30
 
 ### Added
@@ -593,6 +614,7 @@ Hardened after an adversarial multi-agent review of the new egress policy (findi
 - Project `README.md` documenting overview, feature set, technology stack, architecture (Mermaid), structure, and development protocol.
 
 [Unreleased]: #unreleased
+[0.20.0]: #0200---2026-07-01
 [0.19.0]: #0190---2026-06-30
 [0.18.0]: #0180---2026-06-29
 [0.17.0]: #0170---2026-06-28
