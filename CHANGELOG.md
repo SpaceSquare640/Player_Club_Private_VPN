@@ -17,6 +17,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.27.0] - 2026-08-06
+
+### Added
+- **Networked signaling server (Phase G.1)** — the first piece of Hamachi/Radmin-style multi-member virtual networking: `engine::signaling::server::SignalingServer` listens on a WebSocket port, gatekeeps connections by network name + SHA-256-hashed password (plaintext never stored or logged), and maintains/broadcasts a live member roster (`MemberInfo { pubkey, fingerprint }`) as members join and leave.
+- `engine::signaling::protocol` — the wire format (`ClientMessage::Join`, `ServerMessage::{JoinAccepted, JoinRejected, MemberJoined, MemberLeft}`), versioned (`PROTOCOL_VERSION`) and kept deliberately separate from the existing `message::SignalEnvelope` (manual paste-based offer/answer) — the two signaling paths are independent until Phase G.3 bridges them.
+- New dependencies: `tokio-tungstenite` + `futures-util` (both MIT/Apache-2.0) for the WebSocket transport.
+
+### Architecture
+- **User-hosted, not centrally hosted.** Whoever creates a network runs the signaling server themselves — this project has no funding for hosted infrastructure, so unlike Hamachi/Radmin's central servers, the "host" is just another player's own machine. The signaling server only ever relays membership and (starting G.3) offer/answer handshake data; actual game traffic stays P2P over the already-existing NAT hole-punch (C4) and encrypted data plane (C5) — nothing about the transport or crypto layers changes.
+- Deliberately scoped to roster management only. No offer/answer relay yet (G.3), no client-side connect logic yet (G.2), no UI yet (G.4). A host behind NAT without port forwarding is a known, documented limitation of this architecture — see Project Status.
+
+### Verified
+- `cargo test --lib`: 77/77 passing (8 new — join accepted with empty/non-empty roster, wrong password rejected, wrong network name rejected, duplicate pubkey rejected, join/leave broadcasts land on the right peers, live roster snapshot, password hashing is deterministic and never the plaintext). Real WebSocket client connections via `tokio_tungstenite::connect_async` against a server bound to `127.0.0.1:0`, not mocked.
+- `cargo check --lib`: zero warnings (explicit `#![allow(dead_code)]` on the two new modules, since neither is wired into any Tauri command yet — that lands in G.2/G.4).
+- No frontend changes in this phase.
+
 ## [0.26.0] - 2026-08-06
 
 ### Added

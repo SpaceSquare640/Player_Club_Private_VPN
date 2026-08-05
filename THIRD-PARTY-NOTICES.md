@@ -65,6 +65,8 @@ time, each under its own licence as declared by its publisher:
   `zeroize`, `crc32fast`, `reed-solomon-erasure`, and — on Windows — `wintun` and `windows-sys`.
   Connection-profile import/export (JSON) uses `tauri-plugin-dialog` and
   `tauri-plugin-fs` (both MIT/Apache-2.0, part of the official Tauri project).
+  The networked signaling server (Phase G) uses `tokio-tungstenite` and
+  `futures-util` (both MIT/Apache-2.0) for the WebSocket transport.
 - **JavaScript / TypeScript packages** — declared in
   [`package.json`](package.json) and pinned in
   [`pnpm-lock.yaml`](pnpm-lock.yaml). Notable direct dependencies include

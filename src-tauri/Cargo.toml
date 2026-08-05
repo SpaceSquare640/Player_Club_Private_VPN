@@ -1,6 +1,6 @@
 [package]
 name = "player-club-private-vpn"
-version = "0.26.0"
+version = "0.27.0"
 description = "Player Club Private VPN — a high-performance Gaming Virtual Network."
 authors = ["Player Club"]
 edition = "2021"
@@ -43,6 +43,8 @@ crc32fast = "1"
 reed-solomon-erasure = "6"
 tauri-plugin-dialog = "2.7.2"
 tauri-plugin-fs = "2.5.1"
+tokio-tungstenite = "0.29.0"
+futures-util = "0.3.33"
 
 # --- Phase B: TUN/TAP (Windows only) ---------------------------------------
 # wintun loads the bundled, signed wintun.dll at runtime to create/manage the

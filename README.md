@@ -72,6 +72,8 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Settings — layered Basic/Expert access (Connection section gated, display-only) | ✅ Done |
 | Settings — JSON profile import/export (connection settings only) | ✅ Done |
 | Dedicated Minecraft page — settings summary + one-click preset (manual, not process detection) | ✅ Done |
+| Networked signaling server — WebSocket host, network name/password gate, live member roster (G.1) | ✅ Done |
+| Networked signaling client, auto offer/answer relay, virtual-network UI (G.2–G.4) | ⏳ Planned |
 
 ---
 
@@ -87,6 +89,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 - ✅ **TUN/TAP adapter management** — programmatic creation and lifecycle of the virtual network interface (Windows/Wintun), including automatic Windows network-category and firewall integration (E.2).
 - ✅ **Forward Error Correction (FEC)** — Reed-Solomon recovery of lost packets without retransmission.
 - ✅ **Split tunneling** — a data-plane policy gating which traffic the tunnel carries, with broadcast/multicast forwarding user-configurable from Settings.
+- ✅ **Networked signaling server (Phase G.1)** — an embedded WebSocket server anyone can start to host a Hamachi/Radmin-style virtual network: name + password gate, live member roster broadcast on join/leave. Zero hosted infrastructure — whoever creates the network runs the server; actual traffic stays P2P over the existing NAT hole-punch + encrypted data plane. Not yet wired to any UI or to automatic offer/answer relay — see Project Status.
 
 ### Application & UX
 - ✅ **60px icon sidebar** with **breadcrumb** pathing for clear navigation.
