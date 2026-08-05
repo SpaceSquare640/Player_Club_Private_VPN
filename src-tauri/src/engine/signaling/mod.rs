@@ -7,6 +7,7 @@
 //!   phases; G.1 only establishes the member roster.
 
 pub mod blob;
+pub mod client;
 pub mod message;
 pub mod protocol;
 pub mod server;

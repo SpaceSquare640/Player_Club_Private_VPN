@@ -17,6 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.28.0] - 2026-08-06
+
+### Added
+- **Networked signaling client (Phase G.2)** — `engine::signaling::client::SignalingClient` connects to a `SignalingServer` (G.1), sends `Join`, and on acceptance starts tracking the roster in the background: `members()` returns a live snapshot, and a `mpsc::UnboundedReceiver<MemberEvent>` surfaces `Joined`/`Left` events in real time as the host broadcasts them.
+- `SignalingClientError` maps every `JoinRejectReason` to its own variant (`WrongPassword`, `WrongNetworkName`, `UnsupportedVersion`, `AlreadyJoined`) plus connection-level failures (`Connect`, `ClosedBeforeJoin`, `MalformedMessage`), so a caller can react to *why* a join failed instead of a single opaque error.
+
+### Scope
+- Still roster tracking only — the client observes membership, nothing more. Automatically relaying offer/answer over this same connection (so joining a network establishes P2P links without manually pasting a blob) is Phase G.3. No UI yet (G.4).
+
+### Verified
+- `cargo test --lib`: 83/83 passing (6 new, all against a real `SignalingServer` instance, not mocked): joins an empty network, rejects wrong password/network name without constructing a client, sees an existing member in its initial roster, observes a later join as both a live event and a roster update, observes a departure the same way.
+- `cargo check --lib`: zero warnings (same `#![allow(dead_code)]` posture as G.1 — not wired into a Tauri command yet).
+- No frontend changes in this phase.
+
 ## [0.27.0] - 2026-08-06
 
 ### Added
