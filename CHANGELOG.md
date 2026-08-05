@@ -14,10 +14,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Diagnostics:** a dedicated "FEC recovered" stat tile (recoveries currently surface in the packet log) and split-tunnel broadcast/multicast toggles in Settings.
 - **Diagnostics:** interactive topology map and spectrum monitoring (the live telemetry readout shipped in 0.4.0).
 - **Elevation:** privileged helper-service backend (replacing the relaunch-elevated path behind the existing seam).
-- **Settings:** Basic/Expert layered access, JSON profile management, automatic game detection.
-- **Personalization:** multi-language (i18n) support.
+- **Settings:** automatic game detection.
 
 ---
+
+## [0.23.0] - 2026-08-05
+
+### Added
+- **Settings: JSON connection-profile import/export.** Expert-mode Connection section gains **Export Profile** / **Import Profile** buttons that save or load the current split-tunnel forwarding + FEC redundancy settings as a versioned JSON file, via native OS save/open dialogs.
+- `src/lib/profile.ts` — `serializeConnectionProfile`/`parseConnectionProfile`, a pure, dependency-free codec independent of the dialog/fs plumbing.
+- `tauri-plugin-dialog` and `tauri-plugin-fs` (Rust) + `@tauri-apps/plugin-dialog` and `@tauri-apps/plugin-fs` (npm), registered in `lib.rs`'s builder. New capability grants in `capabilities/default.json`: `dialog:default`, and `fs:allow-write-text-file`/`fs:allow-read-text-file` scoped to `**` — a wildcard is appropriate here specifically because every path reaching those commands was just explicitly chosen by the user through a native file dialog, not supplied by any other code path.
+
+### Format
+- File shape: `{ "formatVersion": 1, "forwardBroadcast": bool, "forwardMulticast": bool, "fecParityShards": number }`. `formatVersion` lets a future field addition detect and reject old/new-incompatible files instead of silently misreading them.
+- Import validation is strict, not lenient: wrong version, non-boolean fields, a non-integer `fecParityShards`, or a value outside `1..=16` (mirroring the Rust `RsEncoder`'s `MAX_R` clamp in `fec/rs.rs`) are all rejected with a specific inline error — never silently coerced or clamped. A rejected import leaves the store untouched.
+
+### Scope
+- Only `ConnectionSettings` (forwarding + FEC) is covered — theme, language, and Expert-mode visibility are local UI preferences, not "connection profile" data, and are deliberately excluded.
+- Automatic game detection remains planned, unrelated scope.
+
+### Verified
+- `pnpm test`: 90/90 passing (15 new — 9 codec unit tests in `profile.test.ts`, 6 component tests in `SettingsOverlay.test.tsx` mocking `@tauri-apps/plugin-dialog`/`plugin-fs`, covering export, cancel-on-export, valid import, malformed-file rejection, and cancel-on-import).
+- `tsc --noEmit` clean; `pnpm build` succeeds.
+- `cargo check --lib` and `cargo test --lib`: 69/69 passing, unaffected (this phase adds plugin registration only, no engine logic changed).
+- **Not verified in this session:** an actual native save/open dialog round-trip end-to-end, since this environment's dev-server preview cannot host a real Tauri window (no OS-level dialog surface to drive). The dialog/fs plugin calls are exercised through mocks that assert the exact arguments passed (path, JSON payload); the underlying plugins themselves are the official, actively-maintained Tauri v2 plugins.
 
 ## [0.22.0] - 2026-07-03
 

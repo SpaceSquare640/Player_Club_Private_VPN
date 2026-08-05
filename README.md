@@ -70,7 +70,8 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Site-to-site LAN sharing (peer-advertised routes + remote IP forwarding) | ⏳ Deferred — unverifiable without 3 physical hosts; see CHANGELOG |
 | Diagnostics — live telemetry readout ✅ · FEC/policy counters ✅ · two-node topology view ✅ · spectrum chart ✅ | ✅ Done |
 | Settings — layered Basic/Expert access (Connection section gated, display-only) | ✅ Done |
-| Settings — JSON profile import/export, game detection | ⏳ Planned |
+| Settings — JSON profile import/export (connection settings only) | ✅ Done |
+| Settings — automatic game detection | ⏳ Planned |
 | Additional languages (e.g. Simplified Chinese) | ⏳ Planned |
 
 ---
@@ -91,7 +92,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 ### Application & UX
 - ✅ **60px icon sidebar** with **breadcrumb** pathing for clear navigation.
 - ✅ **1.618 golden-ratio** layout grid for balanced composition.
-- ✅ **Frosted-glass (Mica) "Settings Overlay"** — theme switcher, language, and a Basic/Expert-gated Connection section (split-tunnel forwarding, FEC redundancy) are built; JSON profiles are not.
+- ✅ **Frosted-glass (Mica) "Settings Overlay"** — theme switcher, language, a Basic/Expert-gated Connection section (split-tunnel forwarding, FEC redundancy), and JSON connection-profile import/export via native save/open dialogs.
 - ✅ **Semantic color system** — Cyan (info / idle), Violet (active / primary), Amber (warning), Red (error / critical).
 - ✅ **Skeleton-screen** loading states for perceived performance.
 
@@ -104,7 +105,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 ### Settings
 - ✅ **Connection settings** — split-tunnel broadcast/multicast forwarding and FEC redundancy (`r`), applied at the next Connect.
 - ✅ **Layered access** — Basic mode shows Theme + Language; an Expert toggle reveals Connection settings. Purely a display filter — a setting stays in effect whether or not its section is currently shown.
-- ⏳ **JSON profile management** — import / export connection profiles.
+- ✅ **JSON profile import/export** — save or load the current connection settings (broadcast/multicast forwarding, FEC redundancy) as a versioned JSON file via native save/open dialogs; malformed or incompatible files are rejected with an inline error, never silently coerced.
 - ⏳ **Automatic game detection** for one-click configuration.
 
 ### Personalization

@@ -1,13 +1,35 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import SettingsOverlay from "./SettingsOverlay";
 import { useAppStore } from "../../stores/appStore";
 import { DEFAULT_THEME } from "../../theme/themes";
 import { DEFAULT_CONNECTION_SETTINGS } from "../../types/telemetry";
 import i18n from "../../i18n";
 
+const { saveMock, openMock } = vi.hoisted(() => ({
+  saveMock: vi.fn(),
+  openMock: vi.fn(),
+}));
+const { writeTextFileMock, readTextFileMock } = vi.hoisted(() => ({
+  writeTextFileMock: vi.fn(),
+  readTextFileMock: vi.fn(),
+}));
+
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  save: saveMock,
+  open: openMock,
+}));
+vi.mock("@tauri-apps/plugin-fs", () => ({
+  writeTextFile: writeTextFileMock,
+  readTextFile: readTextFileMock,
+}));
+
 beforeEach(() => {
   localStorage.clear();
+  saveMock.mockReset();
+  openMock.mockReset();
+  writeTextFileMock.mockReset();
+  readTextFileMock.mockReset();
   useAppStore.setState({
     activeRoute: "dashboard",
     theme: DEFAULT_THEME,
@@ -127,5 +149,79 @@ describe("SettingsOverlay — Basic/Expert layering", () => {
     fireEvent.click(screen.getByTestId("settings-expert-mode"));
     expect(screen.queryByTestId("settings-connection")).not.toBeInTheDocument();
     expect(useAppStore.getState().fecParityShards).toBe(2); // unchanged by hiding it
+  });
+});
+
+describe("SettingsOverlay — JSON profile import/export", () => {
+  beforeEach(() => {
+    useAppStore.setState({ expertMode: true });
+  });
+
+  it("exports the current connection settings to the chosen path", async () => {
+    saveMock.mockResolvedValue("C:/fake/profile.json");
+    render(<SettingsOverlay />);
+
+    fireEvent.click(screen.getByTestId("settings-export-profile"));
+
+    await waitFor(() => expect(writeTextFileMock).toHaveBeenCalledTimes(1));
+    const [path, json] = writeTextFileMock.mock.calls[0];
+    expect(path).toBe("C:/fake/profile.json");
+    expect(JSON.parse(json)).toEqual({
+      formatVersion: 1,
+      forwardBroadcast: true,
+      forwardMulticast: true,
+      fecParityShards: 1,
+    });
+  });
+
+  it("does not write anything if the save dialog is cancelled", async () => {
+    saveMock.mockResolvedValue(null);
+    render(<SettingsOverlay />);
+
+    fireEvent.click(screen.getByTestId("settings-export-profile"));
+
+    await waitFor(() => expect(saveMock).toHaveBeenCalledTimes(1));
+    expect(writeTextFileMock).not.toHaveBeenCalled();
+  });
+
+  it("imports a valid profile and applies it to the store", async () => {
+    openMock.mockResolvedValue("C:/fake/profile.json");
+    readTextFileMock.mockResolvedValue(
+      JSON.stringify({
+        formatVersion: 1,
+        forwardBroadcast: false,
+        forwardMulticast: false,
+        fecParityShards: 3,
+      }),
+    );
+    render(<SettingsOverlay />);
+
+    fireEvent.click(screen.getByTestId("settings-import-profile"));
+
+    await waitFor(() => expect(useAppStore.getState().fecParityShards).toBe(3));
+    expect(useAppStore.getState().forwardBroadcast).toBe(false);
+    expect(useAppStore.getState().forwardMulticast).toBe(false);
+    expect(screen.queryByTestId("settings-import-error")).not.toBeInTheDocument();
+  });
+
+  it("shows an inline error and leaves the store untouched for a malformed profile", async () => {
+    openMock.mockResolvedValue("C:/fake/profile.json");
+    readTextFileMock.mockResolvedValue(JSON.stringify({ formatVersion: 99 }));
+    render(<SettingsOverlay />);
+
+    fireEvent.click(screen.getByTestId("settings-import-profile"));
+
+    await waitFor(() => expect(screen.getByTestId("settings-import-error")).toBeInTheDocument());
+    expect(useAppStore.getState().fecParityShards).toBe(DEFAULT_CONNECTION_SETTINGS.fecParityShards);
+  });
+
+  it("does not read anything if the open dialog is cancelled", async () => {
+    openMock.mockResolvedValue(null);
+    render(<SettingsOverlay />);
+
+    fireEvent.click(screen.getByTestId("settings-import-profile"));
+
+    await waitFor(() => expect(openMock).toHaveBeenCalledTimes(1));
+    expect(readTextFileMock).not.toHaveBeenCalled();
   });
 });

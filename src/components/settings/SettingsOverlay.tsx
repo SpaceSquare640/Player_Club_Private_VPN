@@ -1,9 +1,13 @@
+import { useState } from "react";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { save, open as openDialog } from "@tauri-apps/plugin-dialog";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { useAppStore } from "../../stores/appStore";
 import { THEMES } from "../../theme/themes";
 import { cn } from "../../lib/cn";
 import type { SupportedLanguage } from "../../i18n";
+import { parseConnectionProfile, serializeConnectionProfile } from "../../lib/profile";
 
 /**
  * Frosted-glass (Mica-style) Settings overlay. Slides in from the right and
@@ -32,6 +36,38 @@ export default function SettingsOverlay() {
   const setForwardMulticast = useAppStore((s) => s.setForwardMulticast);
   const fecParityShards = useAppStore((s) => s.fecParityShards);
   const setFecParityShards = useAppStore((s) => s.setFecParityShards);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  const handleExportProfile = async () => {
+    setImportError(null);
+    const path = await save({
+      title: t("settings.exportProfileDialogTitle"),
+      defaultPath: "player-club-vpn-profile.json",
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (!path) return;
+    const json = serializeConnectionProfile({ forwardBroadcast, forwardMulticast, fecParityShards });
+    await writeTextFile(path, json);
+  };
+
+  const handleImportProfile = async () => {
+    setImportError(null);
+    const path = await openDialog({
+      title: t("settings.importProfileDialogTitle"),
+      multiple: false,
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (!path || Array.isArray(path)) return;
+    const raw = await readTextFile(path);
+    const result = parseConnectionProfile(raw);
+    if (!result.ok) {
+      setImportError(t(`settings.importError.${result.error}`));
+      return;
+    }
+    setForwardBroadcast(result.settings.forwardBroadcast);
+    setForwardMulticast(result.settings.forwardMulticast);
+    setFecParityShards(result.settings.fecParityShards);
+  };
 
   return (
     <div
@@ -222,6 +258,32 @@ export default function SettingsOverlay() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  data-testid="settings-export-profile"
+                  onClick={handleExportProfile}
+                  className="flex-1 rounded-lg border border-white/10 px-3 py-2 text-sm text-ink-muted transition-colors hover:border-white/25 hover:text-ink"
+                >
+                  {t("settings.exportProfile")}
+                </button>
+                <button
+                  type="button"
+                  data-testid="settings-import-profile"
+                  onClick={handleImportProfile}
+                  className="flex-1 rounded-lg border border-white/10 px-3 py-2 text-sm text-ink-muted transition-colors hover:border-white/25 hover:text-ink"
+                >
+                  {t("settings.importProfile")}
+                </button>
+              </div>
+              {importError && (
+                <p data-testid="settings-import-error" className="text-xs text-red-400">
+                  {importError}
+                </p>
+              )}
             </div>
           </section>
         )}

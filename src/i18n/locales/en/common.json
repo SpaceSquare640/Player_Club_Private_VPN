@@ -122,6 +122,18 @@
     "languageEnglish": "English",
     "languageZhHant": "繁體中文",
     "expertMode": "Expert settings",
-    "expertModeTitle": "Show advanced settings (split-tunnel forwarding, FEC redundancy). Off by default; hidden settings stay in effect either way."
+    "expertModeTitle": "Show advanced settings (split-tunnel forwarding, FEC redundancy). Off by default; hidden settings stay in effect either way.",
+    "exportProfile": "Export Profile",
+    "exportProfileDialogTitle": "Save connection profile",
+    "importProfile": "Import Profile",
+    "importProfileDialogTitle": "Load connection profile",
+    "importError": {
+      "invalid-json": "That file isn't valid JSON.",
+      "not-an-object": "That file doesn't contain a connection profile.",
+      "unsupported-version": "This profile was saved by an incompatible app version.",
+      "invalid-forward-broadcast": "The forward-broadcast value in this profile is invalid.",
+      "invalid-forward-multicast": "The forward-multicast value in this profile is invalid.",
+      "invalid-fec-parity-shards": "The FEC redundancy value in this profile is invalid."
+    }
   }
 }

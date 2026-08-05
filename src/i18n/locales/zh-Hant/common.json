@@ -122,6 +122,18 @@
     "languageEnglish": "English",
     "languageZhHant": "繁體中文",
     "expertMode": "進階設定",
-    "expertModeTitle": "顯示進階設定(split-tunnel 轉發、FEC 冗餘度)。預設關閉;隱藏的設定值不論是否顯示都照常生效。"
+    "expertModeTitle": "顯示進階設定(split-tunnel 轉發、FEC 冗餘度)。預設關閉;隱藏的設定值不論是否顯示都照常生效。",
+    "exportProfile": "匯出設定檔",
+    "exportProfileDialogTitle": "儲存連線設定檔",
+    "importProfile": "匯入設定檔",
+    "importProfileDialogTitle": "載入連線設定檔",
+    "importError": {
+      "invalid-json": "此檔案不是有效的 JSON。",
+      "not-an-object": "此檔案不包含連線設定檔內容。",
+      "unsupported-version": "此設定檔由不相容的應用程式版本儲存。",
+      "invalid-forward-broadcast": "此設定檔中的廣播轉發數值無效。",
+      "invalid-forward-multicast": "此設定檔中的多播轉發數值無效。",
+      "invalid-fec-parity-shards": "此設定檔中的 FEC 冗餘度數值無效。"
+    }
   }
 }
