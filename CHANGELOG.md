@@ -19,6 +19,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.22.0] - 2026-07-03
+
+### Added
+- **Settings: layered Basic/Expert access.** The Connection section (split-tunnel broadcast/multicast forwarding, FEC redundancy) is now gated behind an **Expert settings** toggle, off by default — a first-time user sees only Theme and Language. Theme and Language are never gated; they are basic personalization, not an "expert" concern.
+- `appStore.expertMode: boolean` (default `false`), persisted like every other preference here.
+
+### Scope
+- **Purely a display filter, never a functional gate.** Hiding the Connection section does not reset or stop applying whatever it was set to — a changed FEC redundancy or forwarding toggle stays in effect at the next Connect whether or not its section is currently visible. This is the conventional "advanced settings" pattern (progressive disclosure of already-effective settings), not a feature switch.
+- **JSON profile import/export and automatic game detection remain planned**, deliberately not bundled into this phase. Checked before writing any code: the app has no `dialog`/`fs` Tauri plugin installed and `capabilities/default.json` grants only `core:default` — profile import/export needs new plugin dependencies and explicit capability permissions, a materially larger and separate piece of work.
+
+### Verified
+- `pnpm test` — **75/75 pass** (5 new: `expertMode`'s default/setter/persistence, the Connection section hidden by default, revealed by the toggle, and — the guarantee that matters — a changed setting surviving the section being hidden again).
+- `tsc` clean; `pnpm build` succeeds; `cargo test` unaffected (no Rust changes).
+- **Browser-verified the full round trip**, not just the component tests: opened Settings, confirmed the Connection section absent by default, switched Expert mode on, set FEC redundancy to `2`, switched Expert mode back off, and confirmed via `localStorage` that `fecParityShards` was still `2` even with the section hidden. Zero console errors throughout.
+
+---
+
 ## [0.21.0] - 2026-07-02
 
 ### Added
@@ -630,6 +647,7 @@ Hardened after an adversarial multi-agent review of the new egress policy (findi
 - Project `README.md` documenting overview, feature set, technology stack, architecture (Mermaid), structure, and development protocol.
 
 [Unreleased]: #unreleased
+[0.22.0]: #0220---2026-07-03
 [0.21.0]: #0210---2026-07-02
 [0.20.0]: #0200---2026-07-01
 [0.19.0]: #0190---2026-06-30

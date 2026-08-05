@@ -69,7 +69,8 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Windows network integration — adapter set to Private, scoped firewall allow-rule, best-effort (E.2) | ✅ Done |
 | Site-to-site LAN sharing (peer-advertised routes + remote IP forwarding) | ⏳ Deferred — unverifiable without 3 physical hosts; see CHANGELOG |
 | Diagnostics — live telemetry readout ✅ · FEC/policy counters ✅ · two-node topology view ✅ · spectrum chart ✅ | ✅ Done |
-| Settings — layered Basic/Expert access, JSON profile import/export, game detection | ⏳ Planned |
+| Settings — layered Basic/Expert access (Connection section gated, display-only) | ✅ Done |
+| Settings — JSON profile import/export, game detection | ⏳ Planned |
 | Additional languages (e.g. Simplified Chinese) | ⏳ Planned |
 
 ---
@@ -90,7 +91,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 ### Application & UX
 - ✅ **60px icon sidebar** with **breadcrumb** pathing for clear navigation.
 - ✅ **1.618 golden-ratio** layout grid for balanced composition.
-- 🚧 **Frosted-glass (Mica) "Settings Overlay"** — theme switcher and a Connection section (split-tunnel forwarding, FEC redundancy) are built; layered Basic/Expert access and JSON profiles are not.
+- ✅ **Frosted-glass (Mica) "Settings Overlay"** — theme switcher, language, and a Basic/Expert-gated Connection section (split-tunnel forwarding, FEC redundancy) are built; JSON profiles are not.
 - ✅ **Semantic color system** — Cyan (info / idle), Violet (active / primary), Amber (warning), Red (error / critical).
 - ✅ **Skeleton-screen** loading states for perceived performance.
 
@@ -102,7 +103,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 
 ### Settings
 - ✅ **Connection settings** — split-tunnel broadcast/multicast forwarding and FEC redundancy (`r`), applied at the next Connect.
-- ⏳ **Layered access** — Basic mode for everyone, Expert mode for power users.
+- ✅ **Layered access** — Basic mode shows Theme + Language; an Expert toggle reveals Connection settings. Purely a display filter — a setting stays in effect whether or not its section is currently shown.
 - ⏳ **JSON profile management** — import / export connection profiles.
 - ⏳ **Automatic game detection** for one-click configuration.
 

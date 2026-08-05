@@ -13,6 +13,11 @@ beforeEach(() => {
     theme: DEFAULT_THEME,
     settingsOpen: true,
     language: "en",
+    // The Connection section (Basic/Expert layering) is opt-in and defaults to
+    // hidden; most tests in this file are about that section's own content, so
+    // it is enabled here by default and the visibility behaviour itself gets
+    // its own describe block below with an explicit override.
+    expertMode: true,
     forwardBroadcast: DEFAULT_CONNECTION_SETTINGS.forwardBroadcast,
     forwardMulticast: DEFAULT_CONNECTION_SETTINGS.forwardMulticast,
     fecParityShards: DEFAULT_CONNECTION_SETTINGS.fecParityShards,
@@ -85,5 +90,42 @@ describe("SettingsOverlay — language switching (i18n)", () => {
     expect(screen.queryByText("Theme")).not.toBeInTheDocument();
 
     await i18n.changeLanguage("en"); // restore for subsequent tests/files
+  });
+});
+
+describe("SettingsOverlay — Basic/Expert layering", () => {
+  it("hides the Connection section by default (expertMode: false)", () => {
+    useAppStore.setState({ expertMode: false });
+    render(<SettingsOverlay />);
+    expect(screen.queryByTestId("settings-connection")).not.toBeInTheDocument();
+    expect(screen.getByTestId("settings-expert-mode")).toHaveAttribute("aria-pressed", "false");
+    // Basic personalization is never gated — it isn't an "expert" concern.
+    expect(screen.getByTestId("settings-language")).toBeInTheDocument();
+  });
+
+  it("reveals the Connection section when Expert mode is switched on", () => {
+    useAppStore.setState({ expertMode: false });
+    render(<SettingsOverlay />);
+    expect(screen.queryByTestId("settings-connection")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("settings-expert-mode"));
+
+    expect(useAppStore.getState().expertMode).toBe(true);
+    expect(screen.getByTestId("settings-connection")).toBeInTheDocument();
+  });
+
+  // The core guarantee: hiding the section is display-only. A setting changed
+  // while Expert mode was on must still be in effect after switching it back
+  // off — toggling the section's visibility must never reset or ignore it.
+  it("keeps a changed setting in effect after the section is hidden again", () => {
+    useAppStore.setState({ expertMode: true });
+    render(<SettingsOverlay />);
+
+    fireEvent.click(screen.getByTestId("settings-fec-2"));
+    expect(useAppStore.getState().fecParityShards).toBe(2);
+
+    fireEvent.click(screen.getByTestId("settings-expert-mode"));
+    expect(screen.queryByTestId("settings-connection")).not.toBeInTheDocument();
+    expect(useAppStore.getState().fecParityShards).toBe(2); // unchanged by hiding it
   });
 });

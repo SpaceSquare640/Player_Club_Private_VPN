@@ -24,6 +24,8 @@ export default function SettingsOverlay() {
   const setTheme = useAppStore((s) => s.setTheme);
   const language = useAppStore((s) => s.language);
   const setLanguage = useAppStore((s) => s.setLanguage);
+  const expertMode = useAppStore((s) => s.expertMode);
+  const setExpertMode = useAppStore((s) => s.setExpertMode);
   const forwardBroadcast = useAppStore((s) => s.forwardBroadcast);
   const forwardMulticast = useAppStore((s) => s.forwardMulticast);
   const setForwardBroadcast = useAppStore((s) => s.setForwardBroadcast);
@@ -122,81 +124,107 @@ export default function SettingsOverlay() {
           </div>
         </section>
 
-        <section className="mt-6" data-testid="settings-connection">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-            {t("settings.connectionHeading")}
-          </h3>
-          <p className="mt-1 text-xs text-ink-muted">{t("settings.connectionSubtitle")}</p>
-
-          <div className="mt-3 flex flex-col gap-2">
-            <button
-              type="button"
-              data-testid="settings-forward-broadcast"
-              aria-pressed={forwardBroadcast}
-              onClick={() => setForwardBroadcast(!forwardBroadcast)}
-              title={t("settings.forwardBroadcastTitle")}
-              className={cn(
-                "flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors",
-                forwardBroadcast
-                  ? "border-brand-violet text-ink"
-                  : "border-white/10 text-ink-muted hover:border-white/25 hover:text-ink",
-              )}
-            >
-              {t("settings.forwardBroadcast")}
-              <span className={forwardBroadcast ? "text-brand-violet" : "text-ink-muted"}>
-                {forwardBroadcast ? t("settings.on") : t("settings.off")}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              data-testid="settings-forward-multicast"
-              aria-pressed={forwardMulticast}
-              onClick={() => setForwardMulticast(!forwardMulticast)}
-              title={t("settings.forwardMulticastTitle")}
-              className={cn(
-                "flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors",
-                forwardMulticast
-                  ? "border-brand-violet text-ink"
-                  : "border-white/10 text-ink-muted hover:border-white/25 hover:text-ink",
-              )}
-            >
-              {t("settings.forwardMulticast")}
-              <span className={forwardMulticast ? "text-brand-violet" : "text-ink-muted"}>
-                {forwardMulticast ? t("settings.on") : t("settings.off")}
-              </span>
-            </button>
-          </div>
-
-          <div className="mt-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-ink">{t("settings.fecRedundancyHeading")}</span>
-              <span className="text-xs text-ink-muted">
-                {t("settings.fecRedundancyValue", { n: fecParityShards })}
-              </span>
-            </div>
-            <p className="mt-1 text-xs text-ink-muted">{t("settings.fecRedundancySubtitle")}</p>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              {FEC_OPTIONS.map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  data-testid={`settings-fec-${n}`}
-                  aria-pressed={fecParityShards === n}
-                  onClick={() => setFecParityShards(n)}
-                  className={cn(
-                    "rounded-lg border px-3 py-2 text-sm transition-colors",
-                    fecParityShards === n
-                      ? "border-brand-violet text-ink"
-                      : "border-white/10 text-ink-muted hover:border-white/25 hover:text-ink",
-                  )}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          </div>
+        <section className="mt-6">
+          <button
+            type="button"
+            data-testid="settings-expert-mode"
+            aria-pressed={expertMode}
+            onClick={() => setExpertMode(!expertMode)}
+            title={t("settings.expertModeTitle")}
+            className={cn(
+              "flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors",
+              expertMode
+                ? "border-brand-violet text-ink"
+                : "border-white/10 text-ink-muted hover:border-white/25 hover:text-ink",
+            )}
+          >
+            {t("settings.expertMode")}
+            <span className={expertMode ? "text-brand-violet" : "text-ink-muted"}>
+              {expertMode ? t("settings.on") : t("settings.off")}
+            </span>
+          </button>
         </section>
+
+        {/* Advanced settings — display-only filter. Hidden values remain in
+            effect (see `appStore.expertMode`'s doc comment); this section is
+            never unmounted-and-reset, only conditionally rendered. */}
+        {expertMode && (
+          <section className="mt-6" data-testid="settings-connection">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
+              {t("settings.connectionHeading")}
+            </h3>
+            <p className="mt-1 text-xs text-ink-muted">{t("settings.connectionSubtitle")}</p>
+
+            <div className="mt-3 flex flex-col gap-2">
+              <button
+                type="button"
+                data-testid="settings-forward-broadcast"
+                aria-pressed={forwardBroadcast}
+                onClick={() => setForwardBroadcast(!forwardBroadcast)}
+                title={t("settings.forwardBroadcastTitle")}
+                className={cn(
+                  "flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors",
+                  forwardBroadcast
+                    ? "border-brand-violet text-ink"
+                    : "border-white/10 text-ink-muted hover:border-white/25 hover:text-ink",
+                )}
+              >
+                {t("settings.forwardBroadcast")}
+                <span className={forwardBroadcast ? "text-brand-violet" : "text-ink-muted"}>
+                  {forwardBroadcast ? t("settings.on") : t("settings.off")}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="settings-forward-multicast"
+                aria-pressed={forwardMulticast}
+                onClick={() => setForwardMulticast(!forwardMulticast)}
+                title={t("settings.forwardMulticastTitle")}
+                className={cn(
+                  "flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors",
+                  forwardMulticast
+                    ? "border-brand-violet text-ink"
+                    : "border-white/10 text-ink-muted hover:border-white/25 hover:text-ink",
+                )}
+              >
+                {t("settings.forwardMulticast")}
+                <span className={forwardMulticast ? "text-brand-violet" : "text-ink-muted"}>
+                  {forwardMulticast ? t("settings.on") : t("settings.off")}
+                </span>
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-ink">{t("settings.fecRedundancyHeading")}</span>
+                <span className="text-xs text-ink-muted">
+                  {t("settings.fecRedundancyValue", { n: fecParityShards })}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-ink-muted">{t("settings.fecRedundancySubtitle")}</p>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {FEC_OPTIONS.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    data-testid={`settings-fec-${n}`}
+                    aria-pressed={fecParityShards === n}
+                    onClick={() => setFecParityShards(n)}
+                    className={cn(
+                      "rounded-lg border px-3 py-2 text-sm transition-colors",
+                      fecParityShards === n
+                        ? "border-brand-violet text-ink"
+                        : "border-white/10 text-ink-muted hover:border-white/25 hover:text-ink",
+                    )}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
       </aside>
     </div>
   );

@@ -12,6 +12,7 @@ beforeEach(() => {
     theme: DEFAULT_THEME,
     settingsOpen: false,
     language: "en",
+    expertMode: false,
     forwardBroadcast: DEFAULT_CONNECTION_SETTINGS.forwardBroadcast,
     forwardMulticast: DEFAULT_CONNECTION_SETTINGS.forwardMulticast,
     fecParityShards: DEFAULT_CONNECTION_SETTINGS.fecParityShards,
@@ -85,5 +86,18 @@ describe("appStore", () => {
     expect(useAppStore.getState().language).toBe("zh-Hant");
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) as string);
     expect(parsed.state.language).toBe("zh-Hant");
+  });
+
+  // Basic/Expert layering — a display filter for the Settings UI, persisted
+  // like every other preference here.
+  it("defaults expertMode to false", () => {
+    expect(useAppStore.getState().expertMode).toBe(false);
+  });
+
+  it("setExpertMode updates state and persists", () => {
+    useAppStore.getState().setExpertMode(true);
+    expect(useAppStore.getState().expertMode).toBe(true);
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) as string);
+    expect(parsed.state.expertMode).toBe(true);
   });
 });

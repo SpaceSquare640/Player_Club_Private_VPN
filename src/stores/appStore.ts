@@ -27,6 +27,13 @@ interface AppState {
   /** UI language. Synced to i18next by `components/layout/AppShell.tsx`. */
   language: SupportedLanguage;
   /**
+   * Show advanced settings (currently: the Connection section) in the Settings
+   * overlay. Purely a *display* filter — hidden settings remain in effect and
+   * are still applied at the next Connect; toggling this off never resets or
+   * ignores them.
+   */
+  expertMode: boolean;
+  /**
    * Connect-time settings (Phase B.3) — split-tunnel broadcast/multicast
    * forwarding and FEC redundancy. Read by `useConnection.onConnect` and applied
    * once per connection; changing them here does not affect an already-live link.
@@ -40,6 +47,7 @@ interface AppState {
   setTheme: (theme: ThemeId) => void;
   toggleSettings: (open?: boolean) => void;
   setLanguage: (language: SupportedLanguage) => void;
+  setExpertMode: (on: boolean) => void;
   setForwardBroadcast: (on: boolean) => void;
   setForwardMulticast: (on: boolean) => void;
   setFecParityShards: (n: number) => void;
@@ -66,6 +74,7 @@ export const useAppStore = create<AppState>()(
       theme: DEFAULT_THEME,
       settingsOpen: false,
       language: detectDefaultLanguage(),
+      expertMode: false,
       forwardBroadcast: DEFAULT_CONNECTION_SETTINGS.forwardBroadcast,
       forwardMulticast: DEFAULT_CONNECTION_SETTINGS.forwardMulticast,
       fecParityShards: DEFAULT_CONNECTION_SETTINGS.fecParityShards,
@@ -75,6 +84,7 @@ export const useAppStore = create<AppState>()(
       toggleSettings: (open) =>
         set((state) => ({ settingsOpen: open ?? !state.settingsOpen })),
       setLanguage: (language) => set({ language }),
+      setExpertMode: (on) => set({ expertMode: on }),
       setForwardBroadcast: (on) => set({ forwardBroadcast: on }),
       setForwardMulticast: (on) => set({ forwardMulticast: on }),
       setFecParityShards: (n) => set({ fecParityShards: n }),
@@ -88,6 +98,7 @@ export const useAppStore = create<AppState>()(
         theme: state.theme,
         settingsOpen: state.settingsOpen,
         language: state.language,
+        expertMode: state.expertMode,
         forwardBroadcast: state.forwardBroadcast,
         forwardMulticast: state.forwardMulticast,
         fecParityShards: state.fecParityShards,

@@ -120,6 +120,8 @@
     "fecRedundancySubtitle": "每 8 個封包一組,最多可復原 r 個遺失封包,但會增加頻寬用量。",
     "languageHeading": "語言",
     "languageEnglish": "English",
-    "languageZhHant": "繁體中文"
+    "languageZhHant": "繁體中文",
+    "expertMode": "進階設定",
+    "expertModeTitle": "顯示進階設定(split-tunnel 轉發、FEC 冗餘度)。預設關閉;隱藏的設定值不論是否顯示都照常生效。"
   }
 }
