@@ -17,6 +17,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.30.0] - 2026-08-06
+
+### Added
+- **Multi-peer `ConnectionManager` (Phase G.3b)** — `connect_to`/`disconnect_peer`/`link_state_of`/`peer_link_states` track an independent link per peer, keyed by `PeerKey` (the base64 public key). Two different peers can now be `Connecting`/`Connected` at the same time without one rejecting the other — the mesh prerequisite for a Hamachi-style network with more than two members.
+
+### Changed
+- `Inner`'s single `link: Arc<Mutex<LinkState>>` / `active: Mutex<Option<Active>>` fields became `peers: Mutex<HashMap<PeerKey, PeerLink>>`. Entries are removed on disconnect rather than kept around `Idle` — a missing key and an `Idle` key mean the same thing to every reader.
+- **The legacy single-peer API is unchanged in behavior and signature.** `connect()`/`disconnect()`/`link_state()` (no arguments) now derive their target peer's key from the pending-negotiation slot (`begin_offer`/`begin_answer`/`set_peer`) and delegate to the new per-peer methods — same external behavior as before Phase G.3b, just backed by the general map instead of a single slot. Neither `commands/connection_cmds.rs` nor any frontend code changed.
+
+### Scope
+- Still no orchestration: nothing here decides *when* to call `connect_to` for a given peer, or reacts to a roster event (G.2) or an incoming relay (G.3) by automatically connecting. That's the next phase, tentatively G.3c, once the roster/relay/multi-peer pieces built across G.1–G.3b are wired together. No UI yet (G.4).
+
+### Verified
+- `cargo test --lib`: 91/91 passing (5 new): two different peers can be `Connecting` simultaneously, reconnecting to an already-connecting peer is rejected (same "one session per peer" guarantee as before, now scoped per-key instead of globally), disconnecting one peer leaves another's state untouched, an untracked key reads as `Idle`, and `peer_link_states` lists every tracked peer. These test the bookkeeping directly via `connect_to` with unreachable candidates — the handshake protocol itself is already covered end-to-end by `pipeline.rs`'s integration tests, not re-tested here.
+- `cargo check --lib`: zero warnings (one new method not yet called from a Tauri command carries an explicit, documented `#[allow(dead_code)]`, same posture as G.1/G.2's still-unwired modules).
+- No frontend changes in this phase.
+
 ## [0.29.0] - 2026-08-06
 
 ### Added

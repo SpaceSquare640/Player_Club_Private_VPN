@@ -4,10 +4,13 @@
 //! The socket is bound once and its local candidates are gathered once, so the
 //! NAT mapping STUN observed is the exact one peers will punch toward.
 
+use std::collections::HashMap;
 use std::io;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
 
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use tauri::async_runtime::{self, JoinHandle};
 use tokio::sync::watch;
@@ -121,29 +124,56 @@ struct Active {
 }
 
 /// The remote peer negotiated via signaling, ready for C4 to connect.
+#[derive(Clone)]
 pub struct NegotiatedPeer {
     pub public_key: Vec<u8>,
     pub candidates: Vec<SocketAddr>,
+}
+
+/// Identifies a peer link independent of how it was negotiated — the base64
+/// encoding of the peer's public key (same string `Identity::public_b64`
+/// produces for our own key). Stable across reconnect attempts, unlike a
+/// signaling session id, which is per-negotiation.
+pub type PeerKey = String;
+
+fn peer_key(public_key: &[u8]) -> PeerKey {
+    STANDARD.encode(public_key)
+}
+
+/// One peer's live link (Phase G.3b): its lifecycle state, shared with the
+/// running pipeline task, and the task's own handle. Entries are removed on
+/// disconnect rather than kept around as `Idle` — a missing key and an
+/// `Idle` key mean the same thing to every reader here.
+struct PeerLink {
+    link: Arc<Mutex<LinkState>>,
+    active: Option<Active>,
 }
 
 #[derive(Default)]
 struct Inner {
     socket: Option<UdpTransport>,
     local_candidates: Vec<Candidate>,
+    /// The peer currently being negotiated via manual signaling (C3) — set by
+    /// `begin_offer`/`begin_answer`/`set_peer`. Distinct from `peers` below:
+    /// this is "who am I currently exchanging an offer/answer with," which
+    /// remains a single slot because the manual paste UI only ever handles
+    /// one negotiation at a time. Once negotiated, the legacy no-argument
+    /// `connect`/`disconnect`/`link_state` derive their target peer key from
+    /// this slot, so they keep working unchanged even though the underlying
+    /// link bookkeeping below is now multi-peer.
     sid: Option<String>,
     role: Role,
     peer: Option<NegotiatedPeer>,
 }
 
-/// Shared connection state (managed by Tauri).
+/// Shared connection state (managed by Tauri). Tracks a live link per peer
+/// (Phase G.3b), keyed by [`PeerKey`], so more than one connection can be
+/// `Connecting`/`Connected` at once — a prerequisite for a Hamachi-style
+/// virtual network with more than two members.
 #[derive(Default)]
 pub struct ConnectionManager {
     inner: Mutex<Inner>,
-    /// Live link lifecycle, shared with the running pipeline task (which writes
-    /// the Connecting → Connected/Failed/Idle transitions) and read by snapshots.
-    link: Arc<Mutex<LinkState>>,
-    /// The in-flight/established link task, if any.
-    active: Mutex<Option<Active>>,
+    peers: Mutex<HashMap<PeerKey, PeerLink>>,
 }
 
 #[derive(Serialize)]
@@ -208,33 +238,53 @@ impl ConnectionManager {
         self.inner.lock().unwrap().sid.clone()
     }
 
-    /// The current live-link state.
+    /// The pending-negotiation peer's key, if `set_peer` has been called.
+    fn current_peer_key(&self) -> Option<PeerKey> {
+        self.inner.lock().unwrap().peer.as_ref().map(|p| peer_key(&p.public_key))
+    }
+
+    /// The current live-link state of the pending-negotiation peer (legacy
+    /// single-peer accessor; see [`current_peer_key`](Self::current_peer_key)).
+    /// A peer that was never connected, or has since disconnected, is `Idle`.
     pub fn link_state(&self) -> LinkState {
-        *self.link.lock().unwrap()
+        match self.current_peer_key() {
+            Some(key) => self.link_state_of(&key),
+            None => LinkState::Idle,
+        }
+    }
+
+    /// The live-link state of a specific peer (Phase G.3b). `Idle` for any
+    /// key with no tracked entry — a missing entry and an explicit `Idle`
+    /// mean the same thing here.
+    pub fn link_state_of(&self, key: &PeerKey) -> LinkState {
+        self.peers.lock().unwrap().get(key).map(|p| *p.link.lock().unwrap()).unwrap_or_default()
+    }
+
+    /// Every peer with a tracked link, and its current state — the basis for
+    /// a future "list every connection" snapshot (G.4 UI). Not yet called
+    /// from any Tauri command, hence the explicit allow.
+    #[allow(dead_code)]
+    pub fn peer_link_states(&self) -> Vec<(PeerKey, LinkState)> {
+        self.peers.lock().unwrap().iter().map(|(k, v)| (k.clone(), *v.link.lock().unwrap())).collect()
     }
 
     /// Begin connecting to the negotiated peer (C4 hole-punch-as-handshake).
     ///
-    /// Spawns a single [`pipeline::run`] task for our [`Role`] and hands it a
-    /// `watch` cancellation channel. Rejected if a link is already `Connecting`
-    /// or `Connected` (one session per peer); a prior `Idle`/`Failed` task is
-    /// torn down first. Returns once the task is launched — progress is reported
-    /// asynchronously via the telemetry sink and [`link_state`].
+    /// Legacy single-peer entry point: derives the peer key, role, socket, and
+    /// candidates from the pending-negotiation slot (`begin_offer`/
+    /// `begin_answer`/`set_peer`) and delegates to [`connect_to`]. Unchanged
+    /// behavior and signature from before Phase G.3b — only one session at a
+    /// time for *this* peer, but other peers connected via `connect_to` are
+    /// unaffected by it.
     ///
-    /// [`link_state`]: ConnectionManager::link_state
+    /// [`connect_to`]: ConnectionManager::connect_to
     pub fn connect(
         &self,
         identity: Arc<Identity>,
         sink: Box<dyn TelemetrySink>,
         settings: ConnectionSettings,
     ) -> Result<(), String> {
-        // One session per peer: refuse if a link is already coming up / live.
-        if matches!(self.link_state(), LinkState::Connecting | LinkState::Connected) {
-            return Err("a peer connection is already active".into());
-        }
-
-        // Snapshot the negotiated context without holding the lock across spawn.
-        let (socket, role, peer_public, mut peer_candidates) = {
+        let (socket, role, peer_public, peer_candidates) = {
             let g = self.inner.lock().unwrap();
             let socket = g
                 .socket
@@ -250,6 +300,32 @@ impl ConnectionManager {
         if role == Role::Idle {
             return Err("no role — create or accept an offer first".into());
         }
+        self.connect_to(socket, role, peer_public, peer_candidates, identity, sink, settings)
+    }
+
+    /// Begin connecting to `peer_public` at `peer_candidates` (Phase G.3b).
+    /// Spawns a single [`pipeline::run`] task and tracks its link state under
+    /// [`peer_key(peer_public)`](peer_key), independent of every other peer's
+    /// entry — two different peers can be `Connecting`/`Connected`
+    /// simultaneously. Rejected only if *this specific* peer already has a
+    /// link `Connecting` or `Connected` (one session per peer, not one
+    /// session total); a prior `Idle`/`Failed` entry for the same peer is
+    /// torn down and replaced. Returns once the task is launched — progress
+    /// is reported asynchronously via the telemetry sink and
+    /// [`link_state_of`].
+    ///
+    /// [`link_state_of`]: ConnectionManager::link_state_of
+    #[allow(clippy::too_many_arguments)]
+    pub fn connect_to(
+        &self,
+        socket: UdpTransport,
+        role: Role,
+        peer_public: Vec<u8>,
+        mut peer_candidates: Vec<SocketAddr>,
+        identity: Arc<Identity>,
+        sink: Box<dyn TelemetrySink>,
+        settings: ConnectionSettings,
+    ) -> Result<(), String> {
         // De-duplicate candidate paths (host and reflexive coincide without NAT).
         peer_candidates.sort();
         peer_candidates.dedup();
@@ -257,16 +333,23 @@ impl ConnectionManager {
             return Err("peer advertised no candidates to punch".into());
         }
 
-        let (cancel, cancel_rx) = watch::channel(false);
-        let link = self.link.clone();
-
-        // Replace any finished prior task, set Connecting, then launch.
-        let mut active = self.active.lock().unwrap();
-        if let Some(old) = active.take() {
-            let _ = old.cancel.send(true);
-            old.handle.abort();
+        let key = peer_key(&peer_public);
+        let mut peers = self.peers.lock().unwrap();
+        if let Some(existing) = peers.get(&key) {
+            if matches!(*existing.link.lock().unwrap(), LinkState::Connecting | LinkState::Connected) {
+                return Err("a connection to this peer is already active".into());
+            }
         }
-        *self.link.lock().unwrap() = LinkState::Connecting;
+        // Replace any finished prior task for this peer.
+        if let Some(old) = peers.remove(&key) {
+            if let Some(a) = old.active {
+                let _ = a.cancel.send(true);
+                a.handle.abort();
+            }
+        }
+
+        let (cancel, cancel_rx) = watch::channel(false);
+        let link = Arc::new(Mutex::new(LinkState::Connecting));
         let handle = async_runtime::spawn(pipeline::run(
             socket,
             role,
@@ -276,22 +359,32 @@ impl ConnectionManager {
             dataplane_source_for(role),
             settings,
             sink,
-            link,
+            link.clone(),
             cancel_rx,
         ));
-        *active = Some(Active { cancel, handle });
+        peers.insert(key, PeerLink { link, active: Some(Active { cancel, handle }) });
         Ok(())
     }
 
-    /// Tear down the live peer link (cancel the task, reset to `Idle`).
-    /// Idempotent: a no-op when nothing is connected.
+    /// Tear down the pending-negotiation peer's live link (legacy single-peer
+    /// accessor). Idempotent: a no-op when that peer has no tracked link, or
+    /// when nothing has been negotiated at all.
     pub fn disconnect(&self) {
-        let mut active = self.active.lock().unwrap();
-        if let Some(a) = active.take() {
-            let _ = a.cancel.send(true);
-            a.handle.abort();
+        if let Some(key) = self.current_peer_key() {
+            self.disconnect_peer(&key);
         }
-        *self.link.lock().unwrap() = LinkState::Idle;
+    }
+
+    /// Tear down a specific peer's live link (Phase G.3b): cancels its task
+    /// and removes its entry (equivalent to `Idle`). Every other peer's link
+    /// is untouched. Idempotent: a no-op for a key with no tracked entry.
+    pub fn disconnect_peer(&self, key: &PeerKey) {
+        if let Some(entry) = self.peers.lock().unwrap().remove(key) {
+            if let Some(a) = entry.active {
+                let _ = a.cancel.send(true);
+                a.handle.abort();
+            }
+        }
     }
 
     pub fn snapshot(&self) -> ConnectionSnapshot {
@@ -312,6 +405,10 @@ impl ConnectionManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::engine::notice::EngineNotice;
+    use crate::engine::state::EngineState;
+    use crate::engine::telemetry::{PacketLogEntry, TelemetrySnapshot};
+    use std::net::Ipv4Addr;
 
     /// A regression guard: before Phase B.3 these values were hardcoded
     /// (`forward_broadcast`/`forward_multicast` always `true` in
@@ -324,5 +421,168 @@ mod tests {
         assert!(s.forward_broadcast);
         assert!(s.forward_multicast);
         assert_eq!(s.fec_parity_shards, 1);
+    }
+
+    struct NullSink;
+    impl TelemetrySink for NullSink {
+        fn stats(&self, _: &TelemetrySnapshot) {}
+        fn packets(&self, _: &[PacketLogEntry]) {}
+        fn state(&self, _: EngineState) {}
+        fn notice(&self, _: &EngineNotice) {}
+    }
+
+    /// These G.3b tests exercise `ConnectionManager`'s per-peer bookkeeping,
+    /// not the handshake protocol itself (that's `pipeline.rs`'s job, already
+    /// covered end-to-end there). An unreachable candidate address is enough
+    /// to put a link into `Connecting` and keep it there for the duration of
+    /// the test — no real peer needs to answer.
+    fn unreachable_candidate() -> SocketAddr {
+        // RFC 5737 TEST-NET-1: reserved, never routable.
+        SocketAddr::from((Ipv4Addr::new(192, 0, 2, 1), 9))
+    }
+
+    async fn bound_socket() -> UdpTransport {
+        UdpTransport::bind(0).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn two_different_peers_can_be_connecting_at_once() {
+        let manager = ConnectionManager::default();
+        let id = Arc::new(Identity::generate().unwrap());
+
+        let peer_a = vec![1u8; 32];
+        let peer_b = vec![2u8; 32];
+
+        manager
+            .connect_to(
+                bound_socket().await,
+                Role::Initiator,
+                peer_a.clone(),
+                vec![unreachable_candidate()],
+                id.clone(),
+                Box::new(NullSink),
+                ConnectionSettings::default(),
+            )
+            .unwrap();
+        manager
+            .connect_to(
+                bound_socket().await,
+                Role::Initiator,
+                peer_b.clone(),
+                vec![unreachable_candidate()],
+                id.clone(),
+                Box::new(NullSink),
+                ConnectionSettings::default(),
+            )
+            .unwrap();
+
+        assert_eq!(manager.link_state_of(&peer_key(&peer_a)), LinkState::Connecting);
+        assert_eq!(manager.link_state_of(&peer_key(&peer_b)), LinkState::Connecting);
+
+        manager.disconnect_peer(&peer_key(&peer_a));
+        manager.disconnect_peer(&peer_key(&peer_b));
+    }
+
+    #[tokio::test]
+    async fn reconnecting_to_an_already_connecting_peer_is_rejected() {
+        let manager = ConnectionManager::default();
+        let id = Arc::new(Identity::generate().unwrap());
+        let peer_a = vec![3u8; 32];
+
+        manager
+            .connect_to(
+                bound_socket().await,
+                Role::Initiator,
+                peer_a.clone(),
+                vec![unreachable_candidate()],
+                id.clone(),
+                Box::new(NullSink),
+                ConnectionSettings::default(),
+            )
+            .unwrap();
+
+        let err = manager
+            .connect_to(
+                bound_socket().await,
+                Role::Initiator,
+                peer_a.clone(),
+                vec![unreachable_candidate()],
+                id.clone(),
+                Box::new(NullSink),
+                ConnectionSettings::default(),
+            )
+            .unwrap_err();
+        assert!(err.contains("already active"));
+
+        manager.disconnect_peer(&peer_key(&peer_a));
+    }
+
+    #[tokio::test]
+    async fn disconnecting_one_peer_leaves_another_untouched() {
+        let manager = ConnectionManager::default();
+        let id = Arc::new(Identity::generate().unwrap());
+        let peer_a = vec![4u8; 32];
+        let peer_b = vec![5u8; 32];
+
+        for peer in [&peer_a, &peer_b] {
+            manager
+                .connect_to(
+                    bound_socket().await,
+                    Role::Initiator,
+                    peer.clone(),
+                    vec![unreachable_candidate()],
+                    id.clone(),
+                    Box::new(NullSink),
+                    ConnectionSettings::default(),
+                )
+                .unwrap();
+        }
+
+        manager.disconnect_peer(&peer_key(&peer_a));
+
+        assert_eq!(manager.link_state_of(&peer_key(&peer_a)), LinkState::Idle);
+        assert_eq!(manager.link_state_of(&peer_key(&peer_b)), LinkState::Connecting);
+
+        manager.disconnect_peer(&peer_key(&peer_b));
+    }
+
+    #[test]
+    fn link_state_of_an_untracked_key_is_idle() {
+        let manager = ConnectionManager::default();
+        assert_eq!(manager.link_state_of(&peer_key(&[9u8; 32])), LinkState::Idle);
+    }
+
+    #[tokio::test]
+    async fn peer_link_states_lists_every_tracked_peer() {
+        let manager = ConnectionManager::default();
+        let id = Arc::new(Identity::generate().unwrap());
+        let peer_a = vec![6u8; 32];
+        let peer_b = vec![7u8; 32];
+
+        assert_eq!(manager.peer_link_states(), vec![]);
+
+        for peer in [&peer_a, &peer_b] {
+            manager
+                .connect_to(
+                    bound_socket().await,
+                    Role::Initiator,
+                    peer.clone(),
+                    vec![unreachable_candidate()],
+                    id.clone(),
+                    Box::new(NullSink),
+                    ConnectionSettings::default(),
+                )
+                .unwrap();
+        }
+
+        let mut states = manager.peer_link_states();
+        states.sort_by(|a, b| a.0.cmp(&b.0));
+        let mut expected =
+            vec![(peer_key(&peer_a), LinkState::Connecting), (peer_key(&peer_b), LinkState::Connecting)];
+        expected.sort_by(|a, b| a.0.cmp(&b.0));
+        assert_eq!(states, expected);
+
+        manager.disconnect_peer(&peer_key(&peer_a));
+        manager.disconnect_peer(&peer_key(&peer_b));
     }
 }
