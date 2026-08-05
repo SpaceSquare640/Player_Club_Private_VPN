@@ -26,7 +26,22 @@
   "network": {
     "title": "网络",
     "subtitle": "通过互联网与对等节点建立直接的加密连接。",
-    "footer": "先通过其他渠道交换 offer/answer 字符串,再双方按下「连接」。连接后,实时 RTT、吞吐量与数据包记录会显示在<1>诊断</1>页面。"
+    "footer": "先通过其他渠道交换 offer/answer 字符串,再双方按下「连接」。连接后,实时 RTT、吞吐量与数据包记录会显示在<1>诊断</1>页面。",
+    "modeManual": "手动配对",
+    "modeVirtual": "虚拟网络",
+    "virtualCreateHeading": "创建网络",
+    "virtualJoinHeading": "加入网络",
+    "virtualNamePlaceholder": "网络名称",
+    "virtualPasswordPlaceholder": "密码",
+    "virtualHostAddrPlaceholder": "主机地址 (ip:port)",
+    "virtualCreateBindAddrTitle": "此设备监听的地址。端口填 0 会自动分配;创建后显示的主机地址会包含实际端口,分享给其他人。",
+    "virtualCreateButton": "创建并加入",
+    "virtualJoinButton": "加入",
+    "virtualHostBadge": "主机",
+    "virtualHostAddr": "主机地址",
+    "virtualCopyAddr": "复制",
+    "virtualLeave": "离开网络",
+    "virtualNoMembers": "目前没有其他成员。"
   },
   "nodeIdentity": {
     "label": "本节点 · 指纹",

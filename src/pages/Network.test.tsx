@@ -87,4 +87,25 @@ describe("Network page", () => {
     );
     expect(screen.getByTestId("conn-status")).toHaveTextContent("PC-AAAA-BBBB-CCCC-DDDD");
   });
+
+  describe("mode tabs", () => {
+    it("shows the manual panel by default and switches to the virtual-network panel", async () => {
+      render(<Network />);
+      expect(screen.getByTestId("peer-connection")).toBeInTheDocument();
+      expect(screen.queryByTestId("vn-create-btn")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId("network-mode-virtual"));
+
+      expect(screen.queryByTestId("peer-connection")).not.toBeInTheDocument();
+      await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("get_network_status"));
+      expect(screen.getByTestId("vn-create-btn")).toBeInTheDocument();
+    });
+
+    it("switching back to manual restores the peer-connection panel", () => {
+      render(<Network />);
+      fireEvent.click(screen.getByTestId("network-mode-virtual"));
+      fireEvent.click(screen.getByTestId("network-mode-manual"));
+      expect(screen.getByTestId("peer-connection")).toBeInTheDocument();
+    });
+  });
 });

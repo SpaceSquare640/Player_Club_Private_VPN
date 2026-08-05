@@ -48,7 +48,7 @@ fn to_peer(envelope: &SignalEnvelope) -> Result<NegotiatedPeer, String> {
 #[tauri::command]
 pub async fn create_offer(
     identity: State<'_, Arc<Identity>>,
-    manager: State<'_, ConnectionManager>,
+    manager: State<'_, Arc<ConnectionManager>>,
 ) -> Result<String, String> {
     manager
         .ensure_socket(STUN_SERVER)
@@ -75,7 +75,7 @@ pub async fn create_offer(
 pub async fn accept_offer(
     blob_str: String,
     identity: State<'_, Arc<Identity>>,
-    manager: State<'_, ConnectionManager>,
+    manager: State<'_, Arc<ConnectionManager>>,
 ) -> Result<String, String> {
     let offer = blob::decode(&blob_str).map_err(|e| e.to_string())?;
     if offer.kind != SignalKind::Offer {
@@ -103,7 +103,7 @@ pub async fn accept_offer(
 #[tauri::command]
 pub fn accept_answer(
     blob_str: String,
-    manager: State<'_, ConnectionManager>,
+    manager: State<'_, Arc<ConnectionManager>>,
 ) -> Result<(), String> {
     let answer = blob::decode(&blob_str).map_err(|e| e.to_string())?;
     if answer.kind != SignalKind::Answer {
@@ -120,6 +120,6 @@ pub fn accept_answer(
 
 /// Current connection/negotiation status for the UI.
 #[tauri::command]
-pub fn get_connection(manager: State<'_, ConnectionManager>) -> ConnectionSnapshot {
+pub fn get_connection(manager: State<'_, Arc<ConnectionManager>>) -> ConnectionSnapshot {
     manager.snapshot()
 }

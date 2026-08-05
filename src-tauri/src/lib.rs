@@ -12,12 +12,14 @@ use std::sync::Arc;
 use tauri::Manager;
 
 use commands::{
-    accept_answer, accept_offer, connect_peer, create_offer, disconnect_peer, get_connection,
-    get_identity, get_packet_log, get_privilege_status, get_snapshot, get_status,
-    request_elevation, start_engine, stop_engine,
+    accept_answer, accept_offer, connect_peer, create_network, create_offer, disconnect_peer,
+    get_connection, get_identity, get_network_status, get_packet_log, get_privilege_status,
+    get_snapshot, get_status, join_network, leave_network, request_elevation, start_engine,
+    stop_engine,
 };
 use engine::connection::ConnectionManager;
 use engine::crypto::Identity;
+use engine::mesh::MeshSession;
 use engine::EngineController;
 
 /// Liveness probe invoked from the frontend to confirm the engine is reachable.
@@ -32,7 +34,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .manage(EngineController::default())
-        .manage(ConnectionManager::default())
+        .manage(Arc::new(ConnectionManager::default()))
+        .manage(MeshSession::default())
         .setup(|app| {
             // Load (or generate on first run) the static identity into a
             // per-app config location, then share it via managed state.
@@ -57,7 +60,11 @@ pub fn run() {
             accept_answer,
             get_connection,
             connect_peer,
-            disconnect_peer
+            disconnect_peer,
+            create_network,
+            join_network,
+            leave_network,
+            get_network_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running Player Club Private VPN");

@@ -26,7 +26,22 @@
   "network": {
     "title": "網路",
     "subtitle": "透過網際網路與對等節點建立直接的加密連線。",
-    "footer": "先透過其他管道交換 offer/answer 字串,再雙方按下「連線」。連線後,即時 RTT、吞吐量與封包記錄會顯示在<1>診斷</1>頁面。"
+    "footer": "先透過其他管道交換 offer/answer 字串,再雙方按下「連線」。連線後,即時 RTT、吞吐量與封包記錄會顯示在<1>診斷</1>頁面。",
+    "modeManual": "手動配對",
+    "modeVirtual": "虛擬網路",
+    "virtualCreateHeading": "建立網路",
+    "virtualJoinHeading": "加入網路",
+    "virtualNamePlaceholder": "網路名稱",
+    "virtualPasswordPlaceholder": "密碼",
+    "virtualHostAddrPlaceholder": "主機位址 (ip:port)",
+    "virtualCreateBindAddrTitle": "此裝置監聽的位址。連接埠填 0 會自動指派;建立後顯示的主機位址會包含實際連接埠,分享給其他人。",
+    "virtualCreateButton": "建立並加入",
+    "virtualJoinButton": "加入",
+    "virtualHostBadge": "主機",
+    "virtualHostAddr": "主機位址",
+    "virtualCopyAddr": "複製",
+    "virtualLeave": "離開網路",
+    "virtualNoMembers": "目前沒有其他成員。"
   },
   "nodeIdentity": {
     "label": "本節點 · 指紋",

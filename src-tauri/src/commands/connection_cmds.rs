@@ -21,7 +21,7 @@ use super::events::TauriSink;
 pub fn connect_peer(
     app: AppHandle,
     identity: State<'_, Arc<Identity>>,
-    manager: State<'_, ConnectionManager>,
+    manager: State<'_, Arc<ConnectionManager>>,
     settings: ConnectionSettings,
 ) -> Result<(), String> {
     let sink: Box<dyn TelemetrySink> = Box::new(TauriSink::new(app));
@@ -30,7 +30,7 @@ pub fn connect_peer(
 
 /// Disconnect the live peer link (idempotent).
 #[tauri::command]
-pub fn disconnect_peer(manager: State<'_, ConnectionManager>) -> Result<(), String> {
+pub fn disconnect_peer(manager: State<'_, Arc<ConnectionManager>>) -> Result<(), String> {
     manager.disconnect();
     Ok(())
 }

@@ -17,6 +17,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.32.0] - 2026-08-06
+
+### Added
+- **Virtual-network UI (Phase G.4)** — the last piece of the Hamachi/Radmin-style feature, integrated as a "Virtual Network" tab on the existing Network page (not a new sidebar entry — it's another way to reach the same underlying connection, alongside manual pairing). Create-network and join-network forms when not in a network; once in one, the network name, a host badge, the shareable host address, and a live member list (fingerprint + connection-state dot per member) with a Leave button.
+- `engine::mesh::MeshSession` — the Tauri-facing lifecycle wrapper around G.1–G.3c: `create`/`join` start a `SignalingServer` (host only) + `SignalingClient` + `MeshOrchestrator` in a background task; `leave` tears the whole thing down (idempotent); `status` reads the live roster and each member's `ConnectionManager` link state without reaching into the background task.
+- New Tauri commands: `create_network`, `join_network`, `leave_network`, `get_network_status` (`commands/mesh_cmds.rs`), plus their `lib/engine.ts` wrappers and `types/telemetry.ts` types (`NetworkStatus`, `NetworkMember`).
+- `MeshOrchestrator` gained a `roster` mirror (`roster_handle()`) so `MeshSession::status` can read the member list from outside the task the orchestrator's event loop runs in, without needing to hold the `SignalingClient` itself.
+- `ConnectionManager` is now Tauri-managed as `Arc<ConnectionManager>` instead of a bare value, so `MeshSession` can hand a shared, cloneable handle into its background task — every existing command (`connect_peer`, `create_offer`, etc.) updated to match; no behavior change.
+
+### Scope
+- No network discovery (e.g. auto-finding a host on the LAN) — a joiner types the host's `ip:port` by hand. A host behind NAT without port forwarding remains a known limitation of self-hosting the signaling server (G.1's tradeoff), not something this UI layer can paper over.
+- No network persistence/auto-reconnect across app restarts.
+- Status is polled (`get_network_status` every 2s while the panel is mounted) rather than pushed — there's no `engine://` event for roster/link changes yet, unlike the manual-signaling flow. Simple and correct, not the most efficient possible; documented as a deliberate tradeoff rather than an oversight.
+
+### Verified
+- `cargo test --lib`: 100/100 passing (4 new `MeshSession` tests): status is `None` outside a network, create-then-status reports self as host with an empty member list, creating twice is rejected, and the full Tauri-facing proof — one session hosts, another joins, and both `status()` calls eventually show the other member as `Connected`.
+- `cargo check`: zero warnings across the whole crate (workspace + lib), first time `engine::mesh` compiles without any `#[allow(dead_code)]` — everything is finally reachable from a real command.
+- `pnpm test`: 112/112 passing (11 new): tab switching between Manual and Virtual Network modes, create/join form validation (buttons disabled until required fields are filled), correct `invoke` argument mapping, inline error display on a rejected `create_network`, and the active-network view (name, host badge, address, member list with per-member link-state dot, empty-roster placeholder, Leave).
+- `tsc --noEmit` clean; `pnpm build` succeeds.
+- Browser-verified live: opened the Network page, confirmed Manual is the default tab, switched to Virtual Network and confirmed both forms render, typed a network name and password and watched the Create button go from disabled to enabled in real time, zero console errors on a fresh tab.
+
 ## [0.31.0] - 2026-08-06
 
 ### Added

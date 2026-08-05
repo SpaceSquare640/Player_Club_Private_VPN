@@ -8,26 +8,26 @@
 //! already produces and validates, just carried over [`SignalingClient::relay`]
 //! instead of copied by hand.
 //!
-//! Not yet wired into any Tauri command (that's G.4), so the public API is
-//! exercised only by this module's own tests for now — hence the blanket
-//! allow, rather than papering over each item individually.
-#![allow(dead_code)]
+//! [`MeshSession`] (Phase G.4) is the Tauri-facing lifecycle wrapper: one
+//! network membership at a time, created by `commands/mesh_cmds.rs`.
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use rand::RngCore;
+use serde::Serialize;
 use tokio::sync::{mpsc, watch};
 
-use super::connection::{ConnectionManager, ConnectionSettings, PeerKey, Role};
+use super::connection::{ConnectionManager, ConnectionSettings, LinkState, PeerKey, Role};
 use super::crypto::Identity;
 use super::nat::candidate::Candidate;
 use super::signaling::client::{MemberEvent, SignalingClient};
 use super::signaling::message::{SignalEnvelope, SignalKind, WireCandidate, PROTOCOL_VERSION};
 use super::signaling::protocol::MemberInfo;
+use super::signaling::server::SignalingServer;
 use super::telemetry::TelemetrySink;
 use super::transport::UdpTransport;
 
@@ -102,6 +102,12 @@ pub struct MeshOrchestrator {
     /// such a member would be processed twice, sending two different offers
     /// with two different session ids and corrupting `pending_offers`.
     seen_members: std::collections::HashSet<PeerKey>,
+    /// Live roster mirror, updated as members are seen/leave. Exposed via
+    /// [`roster_handle`](Self::roster_handle) so a caller (Phase G.4's Tauri
+    /// command layer) can read the current member list from outside the
+    /// task this orchestrator's `run` loop lives in, without needing to hold
+    /// the `SignalingClient` itself (which `run` borrows for its duration).
+    roster: Arc<std::sync::Mutex<Vec<MemberInfo>>>,
 }
 
 impl MeshOrchestrator {
@@ -120,7 +126,14 @@ impl MeshOrchestrator {
             local_candidates,
             pending_offers: HashMap::new(),
             seen_members: std::collections::HashSet::new(),
+            roster: Arc::new(std::sync::Mutex::new(Vec::new())),
         }
+    }
+
+    /// A handle to the live roster mirror — safe to read from outside the
+    /// task `run` is driven in.
+    pub fn roster_handle(&self) -> Arc<std::sync::Mutex<Vec<MemberInfo>>> {
+        self.roster.clone()
     }
 
     /// Drives every roster/relay event to completion: sends offers to newly
@@ -163,6 +176,7 @@ impl MeshOrchestrator {
             MemberEvent::Left { pubkey } => {
                 self.pending_offers.remove(&pubkey);
                 self.seen_members.remove(&pubkey);
+                self.roster.lock().expect("mesh roster lock poisoned").retain(|m| m.pubkey != pubkey);
                 self.manager.disconnect_peer(&pubkey);
                 Ok(())
             }
@@ -179,6 +193,7 @@ impl MeshOrchestrator {
         if !self.seen_members.insert(member.pubkey.clone()) {
             return Ok(()); // already handled — see `seen_members`'s doc comment
         }
+        self.roster.lock().expect("mesh roster lock poisoned").push(member.clone());
         if !should_initiate(&self.identity.public_b64(), &member.pubkey) {
             return Ok(());
         }
@@ -260,12 +275,177 @@ fn wire_candidates(cands: &[super::nat::candidate::Candidate]) -> Vec<WireCandid
     cands.iter().map(|c| WireCandidate { a: c.addr.to_string(), k: c.kind.as_str().to_string() }).collect()
 }
 
+/// STUN server for candidate gathering (matches the C1/manual-signaling
+/// default in `commands/signaling_cmds.rs`).
+const STUN_SERVER: &str = "stun.l.google.com:19302";
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct MemberSnapshot {
+    pub pubkey: String,
+    pub fingerprint: String,
+    pub link: LinkState,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkStatus {
+    pub network_name: String,
+    pub is_host: bool,
+    /// The host's address, in `ip:port` form — what a joiner needs to type
+    /// in. Meaningful whether or not this node is the host: everyone in the
+    /// network already knows it (it's how they connected).
+    pub host_addr: String,
+    pub members: Vec<MemberSnapshot>,
+}
+
+struct ActiveMesh {
+    cancel: watch::Sender<bool>,
+    task: tokio::task::JoinHandle<()>,
+    roster: Arc<Mutex<Vec<MemberInfo>>>,
+    network_name: String,
+    is_host: bool,
+    host_addr: SocketAddr,
+}
+
+/// One networked-signaling membership at a time (Phase G.4). Owns the
+/// lifecycle Tauri commands drive: `create`/`join` start a
+/// [`SignalingClient`] + [`MeshOrchestrator`] pair (and, for `create`, a
+/// [`SignalingServer`]) in a background task; `leave` tears it all down;
+/// `status` reads the live roster and each member's `ConnectionManager` link
+/// state without needing to reach into the background task at all.
+#[derive(Default)]
+pub struct MeshSession {
+    active: Mutex<Option<ActiveMesh>>,
+}
+
+impl MeshSession {
+    /// Starts hosting a new network: binds a `SignalingServer` on
+    /// `bind_addr` (port `0` picks an ephemeral port — the actual bound
+    /// address is returned so the UI can show it to share), joins it as the
+    /// first member, and starts auto-connecting. Rejected if already in a
+    /// network.
+    pub async fn create(
+        &self,
+        bind_addr: SocketAddr,
+        network_name: String,
+        password: String,
+        identity: Arc<Identity>,
+        manager: Arc<ConnectionManager>,
+        sink_factory: impl Fn() -> Box<dyn TelemetrySink> + Send + Sync + 'static,
+    ) -> Result<SocketAddr, String> {
+        if self.active.lock().expect("mesh session lock poisoned").is_some() {
+            return Err("already in a network — leave it first".into());
+        }
+        let server = SignalingServer::start(bind_addr, network_name.clone(), &password)
+            .await
+            .map_err(|e| e.to_string())?;
+        let host_addr = server.local_addr();
+        self.start(host_addr, network_name, password, identity, manager, sink_factory, Some(server)).await?;
+        Ok(host_addr)
+    }
+
+    /// Joins an existing network hosted at `host_addr`. Rejected if already
+    /// in a network.
+    pub async fn join(
+        &self,
+        host_addr: SocketAddr,
+        network_name: String,
+        password: String,
+        identity: Arc<Identity>,
+        manager: Arc<ConnectionManager>,
+        sink_factory: impl Fn() -> Box<dyn TelemetrySink> + Send + Sync + 'static,
+    ) -> Result<(), String> {
+        if self.active.lock().expect("mesh session lock poisoned").is_some() {
+            return Err("already in a network — leave it first".into());
+        }
+        self.start(host_addr, network_name, password, identity, manager, sink_factory, None).await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn start(
+        &self,
+        host_addr: SocketAddr,
+        network_name: String,
+        password: String,
+        identity: Arc<Identity>,
+        manager: Arc<ConnectionManager>,
+        sink_factory: impl Fn() -> Box<dyn TelemetrySink> + Send + Sync + 'static,
+        server: Option<SignalingServer>,
+    ) -> Result<(), String> {
+        manager.ensure_socket(STUN_SERVER).await.map_err(|e| e.to_string())?;
+        let (client, events) = SignalingClient::join(
+            host_addr,
+            network_name.clone(),
+            &password,
+            identity.public_b64(),
+            identity.peer_address(),
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+
+        let socket = manager.socket().ok_or("no socket after ensure_socket")?;
+        let candidates = manager.local_candidates();
+        let mut orch = MeshOrchestrator::new(manager, identity, ConnectionSettings::default(), socket, candidates);
+        let roster = orch.roster_handle();
+        let is_host = server.is_some();
+
+        let (cancel, cancel_rx) = watch::channel(false);
+        let task = tokio::spawn(async move {
+            orch.run(&client, events, sink_factory, cancel_rx).await;
+            client.disconnect().await;
+            if let Some(server) = server {
+                server.shutdown().await;
+            }
+        });
+
+        *self.active.lock().expect("mesh session lock poisoned") =
+            Some(ActiveMesh { cancel, task, roster, network_name, is_host, host_addr });
+        Ok(())
+    }
+
+    /// Leaves the current network (idempotent: a no-op if not in one).
+    /// Cancels the orchestrator, disconnects the signaling client, and — if
+    /// this node was the host — shuts down the signaling server, all inside
+    /// the same background task `start` spawned.
+    pub async fn leave(&self) {
+        let active = self.active.lock().expect("mesh session lock poisoned").take();
+        if let Some(active) = active {
+            let _ = active.cancel.send(true);
+            let _ = active.task.await;
+        }
+    }
+
+    /// The current network's status, or `None` if not in one. Every
+    /// member's link state is read live from `manager` — the roster itself
+    /// says nothing about connection progress, `ConnectionManager` does.
+    pub fn status(&self, manager: &ConnectionManager) -> Option<NetworkStatus> {
+        let active = self.active.lock().expect("mesh session lock poisoned");
+        let active = active.as_ref()?;
+        let members = active
+            .roster
+            .lock()
+            .expect("mesh roster lock poisoned")
+            .iter()
+            .map(|m| MemberSnapshot {
+                pubkey: m.pubkey.clone(),
+                fingerprint: m.fingerprint.clone(),
+                link: manager.link_state_of(&m.pubkey),
+            })
+            .collect();
+        Some(NetworkStatus {
+            network_name: active.network_name.clone(),
+            is_host: active.is_host,
+            host_addr: active.host_addr.to_string(),
+            members,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::engine::nat::candidate::CandidateKind;
-    use crate::engine::connection::LinkState;
-    use crate::engine::signaling::server::SignalingServer;
     use crate::engine::state::EngineState;
     use crate::engine::notice::EngineNotice;
     use crate::engine::telemetry::{PacketLogEntry, TelemetrySnapshot};
@@ -401,8 +581,145 @@ mod tests {
         orch.on_member_present(&client, &member).await.unwrap();
 
         assert_eq!(orch.pending_offers.len(), 1);
+        assert_eq!(orch.roster_handle().lock().unwrap().len(), 1); // not duplicated either
 
         client.disconnect().await;
         server.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn roster_handle_reflects_joins_and_leaves() {
+        let server = SignalingServer::start("127.0.0.1:0".parse().unwrap(), "party", "secret")
+            .await
+            .unwrap();
+        let id = Arc::new(Identity::generate().unwrap());
+        let (client, _events) =
+            SignalingClient::join(server.local_addr(), "party", "secret", id.public_b64(), id.peer_address())
+                .await
+                .unwrap();
+
+        let manager = Arc::new(ConnectionManager::default());
+        let (socket, cand) = loopback_socket_and_candidate().await;
+        let mut orch = MeshOrchestrator::new(manager, id, ConnectionSettings::default(), socket, vec![cand]);
+        let roster = orch.roster_handle();
+        assert_eq!(roster.lock().unwrap().len(), 0);
+
+        let member = MemberInfo { pubkey: "z".repeat(44), fingerprint: "PC-0000-0000-0000-0000".to_string() };
+        orch.on_member_present(&client, &member).await.unwrap();
+        assert_eq!(roster.lock().unwrap().clone(), vec![member.clone()]);
+
+        orch.on_event(&client, MemberEvent::Left { pubkey: member.pubkey.clone() }, &|| Box::new(NullSink))
+            .await
+            .unwrap();
+        assert_eq!(roster.lock().unwrap().len(), 0);
+
+        client.disconnect().await;
+        server.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn mesh_session_status_is_none_when_not_in_a_network() {
+        let session = MeshSession::default();
+        let manager = ConnectionManager::default();
+        assert!(session.status(&manager).is_none());
+    }
+
+    #[tokio::test]
+    async fn mesh_session_create_then_status_reports_self_as_host_with_no_members() {
+        let session = MeshSession::default();
+        let manager = Arc::new(ConnectionManager::default());
+        let identity = Arc::new(Identity::generate().unwrap());
+
+        let host_addr = session
+            .create(
+                "127.0.0.1:0".parse().unwrap(),
+                "party".to_string(),
+                "secret".to_string(),
+                identity,
+                manager.clone(),
+                || Box::new(NullSink),
+            )
+            .await
+            .unwrap();
+        assert_ne!(host_addr.port(), 0); // an ephemeral port was actually assigned
+
+        let status = session.status(&manager).unwrap();
+        assert_eq!(status.network_name, "party");
+        assert!(status.is_host);
+        assert_eq!(status.host_addr, host_addr.to_string());
+        assert_eq!(status.members.len(), 0); // only member so far is ourselves, never listed
+
+        session.leave().await;
+        assert!(session.status(&manager).is_none());
+    }
+
+    #[tokio::test]
+    async fn mesh_session_create_twice_is_rejected() {
+        let session = MeshSession::default();
+        let manager = Arc::new(ConnectionManager::default());
+        let identity = Arc::new(Identity::generate().unwrap());
+
+        session
+            .create(
+                "127.0.0.1:0".parse().unwrap(),
+                "party".to_string(),
+                "secret".to_string(),
+                identity.clone(),
+                manager.clone(),
+                || Box::new(NullSink),
+            )
+            .await
+            .unwrap();
+
+        let err = session
+            .create("127.0.0.1:0".parse().unwrap(), "other".to_string(), "secret".to_string(), identity, manager, || {
+                Box::new(NullSink)
+            })
+            .await
+            .unwrap_err();
+        assert!(err.contains("already in a network"));
+
+        session.leave().await;
+    }
+
+    /// The end-to-end proof at the Tauri-facing layer: one `MeshSession`
+    /// hosts, another joins it, and — through nothing but `create`/`join` —
+    /// both `status()` calls eventually show the other as `Connected`.
+    #[tokio::test]
+    async fn two_mesh_sessions_create_and_join_reach_connected() {
+        let session_a = MeshSession::default();
+        let session_b = MeshSession::default();
+        let manager_a = Arc::new(ConnectionManager::default());
+        let manager_b = Arc::new(ConnectionManager::default());
+        let identity_a = Arc::new(Identity::generate().unwrap());
+        let identity_b = Arc::new(Identity::generate().unwrap());
+
+        let host_addr = session_a
+            .create(
+                "127.0.0.1:0".parse().unwrap(),
+                "party".to_string(),
+                "secret".to_string(),
+                identity_a,
+                manager_a.clone(),
+                || Box::new(NullSink),
+            )
+            .await
+            .unwrap();
+
+        session_b
+            .join(host_addr, "party".to_string(), "secret".to_string(), identity_b, manager_b.clone(), || {
+                Box::new(NullSink)
+            })
+            .await
+            .unwrap();
+
+        until(15, "both sides show Connected in status()", move || {
+            let sa = session_a.status(&manager_a);
+            let sb = session_b.status(&manager_b);
+            let a_sees_b = sa.map(|s| s.members.iter().any(|m| m.link == LinkState::Connected)).unwrap_or(false);
+            let b_sees_a = sb.map(|s| s.members.iter().any(|m| m.link == LinkState::Connected)).unwrap_or(false);
+            a_sees_b && b_sees_a
+        })
+        .await;
     }
 }

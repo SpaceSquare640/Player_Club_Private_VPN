@@ -77,7 +77,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Offer/answer relay over the signaling connection — transport only (G.3) | ✅ Done |
 | Multi-peer `ConnectionManager` — independent link state per peer, mesh-ready (G.3b) | ✅ Done |
 | Mesh auto-connect orchestration — roster + relay → automatic offer/answer, no manual paste (G.3c) | ✅ Done |
-| Virtual-network UI — create/join network, member list (G.4) | ⏳ Planned |
+| Virtual-network UI — create/join network, live member list, integrated into the Network page (G.4) | ✅ Done |
 
 ---
 
@@ -93,7 +93,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 - ✅ **TUN/TAP adapter management** — programmatic creation and lifecycle of the virtual network interface (Windows/Wintun), including automatic Windows network-category and firewall integration (E.2).
 - ✅ **Forward Error Correction (FEC)** — Reed-Solomon recovery of lost packets without retransmission.
 - ✅ **Split tunneling** — a data-plane policy gating which traffic the tunnel carries, with broadcast/multicast forwarding user-configurable from Settings.
-- ✅ **Hamachi/Radmin-style virtual networking, fully automatic (Phase G.1–G.3c)** — an embedded WebSocket server anyone can start to host a virtual network (name + password gate, live member roster), a client that joins one, and a `MeshOrchestrator` that wires the two together with the multi-peer `ConnectionManager`: on seeing a member (at join time or later), exactly one side sends an offer (a deterministic pubkey tie-break, no coordination round-trip needed to decide who), the other answers, and both sides connect automatically — the exact same offer/answer envelope the manual paste flow produces, just relayed instead of copied by hand. Proven end-to-end in a real test: two members join a network and reach `Connected` with zero manual signaling. Zero hosted infrastructure — whoever creates the network runs the server; actual traffic stays P2P over the existing NAT hole-punch + encrypted data plane. Not yet wired to any UI — see Project Status.
+- ✅ **Hamachi/Radmin-style virtual networking, complete end to end (Phase G.1–G.4)** — a "Virtual Network" tab on the Network page (alongside the original manual pairing flow) to create or join a named, password-gated network. Whoever creates one hosts an embedded WebSocket signaling server themselves — zero hosted infrastructure; actual game traffic stays P2P over the existing NAT hole-punch + encrypted data plane. Every member auto-connects to every other member (a deterministic pubkey tie-break decides who sends the offer, no coordination round-trip needed) — the exact same offer/answer envelope the manual paste flow produces, just relayed instead of copied by hand. The panel shows the network name, the host address to share, and a live member list with each person's connection state. A host behind NAT without port forwarding is a known limitation of self-hosting the signaling server — see Project Status.
 
 ### Application & UX
 - ✅ **60px icon sidebar** with **breadcrumb** pathing for clear navigation.

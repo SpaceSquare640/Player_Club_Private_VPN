@@ -77,6 +77,22 @@ export interface ConnectionInfo {
   peer: ConnectionPeer | null;
 }
 
+/** A member of a networked virtual network (Phase G.4), with their live P2P link state. */
+export interface NetworkMember {
+  pubkey: string;
+  fingerprint: string;
+  link: LinkState;
+}
+
+/** Status of the current virtual-network membership (Phase G.1–G.4), or `null` if not in one. */
+export interface NetworkStatus {
+  networkName: string;
+  isHost: boolean;
+  /** `ip:port` — what a joiner types in. Meaningful for host and joiner alike. */
+  hostAddr: string;
+  members: NetworkMember[];
+}
+
 export type SimProfile = "stable" | "congested" | "lossy";
 
 export interface TunConfig {

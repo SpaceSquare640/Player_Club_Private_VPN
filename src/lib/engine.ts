@@ -13,6 +13,7 @@ import type {
   EngineState,
   EngineStatus,
   IdentityInfo,
+  NetworkStatus,
   PacketLogEntry,
   PrivilegeStatus,
   TelemetrySnapshot,
@@ -108,6 +109,32 @@ export function connectPeer(settings: ConnectionSettings): Promise<void> {
 /** Tear down the live peer link. */
 export function disconnectPeer(): Promise<void> {
   return invoke("disconnect_peer");
+}
+
+// --- Virtual network (G.1–G.4) ---------------------------------------------
+
+/**
+ * Start hosting a new virtual network. `bindAddr` is `ip:port` (port `0`
+ * picks an ephemeral port). Resolves to the actual bound `ip:port`, for
+ * display so others can join.
+ */
+export function createNetwork(bindAddr: string, networkName: string, password: string): Promise<string> {
+  return invoke("create_network", { bindAddr, networkName, password });
+}
+
+/** Join an existing virtual network hosted at `hostAddr` (`ip:port`). */
+export function joinNetwork(hostAddr: string, networkName: string, password: string): Promise<void> {
+  return invoke("join_network", { hostAddr, networkName, password });
+}
+
+/** Leave the current virtual network (idempotent). */
+export function leaveNetwork(): Promise<void> {
+  return invoke("leave_network");
+}
+
+/** Current virtual-network status, or `null` if not in one. */
+export function getNetworkStatus(): Promise<NetworkStatus | null> {
+  return invoke("get_network_status");
 }
 
 // --- Events (engine → UI) --------------------------------------------------

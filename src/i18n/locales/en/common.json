@@ -26,7 +26,22 @@
   "network": {
     "title": "Network",
     "subtitle": "Establish a direct, encrypted link to a peer over the internet.",
-    "footer": "Exchange the offer/answer blobs out of band, then press Connect on both ends. Once connected, live RTT, throughput and the packet log appear on the <1>Diagnostics</1> page."
+    "footer": "Exchange the offer/answer blobs out of band, then press Connect on both ends. Once connected, live RTT, throughput and the packet log appear on the <1>Diagnostics</1> page.",
+    "modeManual": "Manual",
+    "modeVirtual": "Virtual Network",
+    "virtualCreateHeading": "Create a network",
+    "virtualJoinHeading": "Join a network",
+    "virtualNamePlaceholder": "Network name",
+    "virtualPasswordPlaceholder": "Password",
+    "virtualHostAddrPlaceholder": "Host address (ip:port)",
+    "virtualCreateBindAddrTitle": "The address this device listens on. Port 0 picks one automatically; the host address shown after creating will include the actual port to share with others.",
+    "virtualCreateButton": "Create & Join",
+    "virtualJoinButton": "Join",
+    "virtualHostBadge": "Host",
+    "virtualHostAddr": "Host address",
+    "virtualCopyAddr": "Copy",
+    "virtualLeave": "Leave Network",
+    "virtualNoMembers": "No other members yet."
   },
   "nodeIdentity": {
     "label": "This node · fingerprint",
