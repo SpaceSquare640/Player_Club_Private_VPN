@@ -121,6 +121,7 @@
     "languageHeading": "Language",
     "languageEnglish": "English",
     "languageZhHant": "繁體中文",
+    "languageZhHans": "简体中文",
     "expertMode": "Expert settings",
     "expertModeTitle": "Show advanced settings (split-tunnel forwarding, FEC redundancy). Off by default; hidden settings stay in effect either way.",
     "exportProfile": "Export Profile",

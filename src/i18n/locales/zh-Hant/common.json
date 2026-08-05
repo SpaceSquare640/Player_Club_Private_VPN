@@ -121,6 +121,7 @@
     "languageHeading": "語言",
     "languageEnglish": "English",
     "languageZhHant": "繁體中文",
+    "languageZhHans": "简体中文",
     "expertMode": "進階設定",
     "expertModeTitle": "顯示進階設定(split-tunnel 轉發、FEC 冗餘度)。預設關閉;隱藏的設定值不論是否顯示都照常生效。",
     "exportProfile": "匯出設定檔",

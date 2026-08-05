@@ -9,12 +9,16 @@ export type RouteId = "dashboard" | "network" | "diagnostics";
 /**
  * Best-effort default language from the OS/browser locale, used only until the
  * user picks one explicitly (which then persists and wins on every future
- * launch). No detector plugin — this is a three-line check, not a dependency.
+ * launch). No detector plugin — this is a short check, not a dependency.
+ * Traditional-script regions (Taiwan, Hong Kong, Macau) and an explicit
+ * "Hant" subtag map to zh-Hant; every other "zh" locale (zh-CN, zh-SG, or a
+ * bare "zh") maps to zh-Hans, the more common default.
  */
 function detectDefaultLanguage(): SupportedLanguage {
-  return typeof navigator !== "undefined" && navigator.language?.startsWith("zh")
-    ? "zh-Hant"
-    : "en";
+  if (typeof navigator === "undefined" || !navigator.language?.startsWith("zh")) return "en";
+  const locale = navigator.language.toLowerCase();
+  const isTraditional = ["-tw", "-hk", "-mo", "-hant"].some((suffix) => locale.includes(suffix));
+  return isTraditional ? "zh-Hant" : "zh-Hans";
 }
 
 interface AppState {

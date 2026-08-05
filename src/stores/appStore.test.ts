@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { useAppStore } from "./appStore";
 import { DEFAULT_THEME } from "../theme/themes";
 import { DEFAULT_CONNECTION_SETTINGS } from "../types/telemetry";
@@ -99,5 +99,48 @@ describe("appStore", () => {
     expect(useAppStore.getState().expertMode).toBe(true);
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) as string);
     expect(parsed.state.expertMode).toBe(true);
+  });
+});
+
+// `detectDefaultLanguage` runs once at module init from `navigator.language`,
+// so exercising its branches means stubbing the locale and re-importing the
+// store module fresh for each case (vi.resetModules + dynamic import),
+// rather than calling a private function directly.
+describe("appStore — default language detection", () => {
+  const originalLanguage = navigator.language;
+
+  afterEach(() => {
+    Object.defineProperty(navigator, "language", {
+      value: originalLanguage,
+      configurable: true,
+    });
+  });
+
+  const detectFor = async (locale: string) => {
+    Object.defineProperty(navigator, "language", { value: locale, configurable: true });
+    vi.resetModules();
+    localStorage.clear();
+    const { useAppStore: freshStore } = await import("./appStore");
+    return freshStore.getState().language;
+  };
+
+  it("maps a non-Chinese locale to en", async () => {
+    expect(await detectFor("en-US")).toBe("en");
+  });
+
+  it("maps zh-TW to zh-Hant", async () => {
+    expect(await detectFor("zh-TW")).toBe("zh-Hant");
+  });
+
+  it("maps zh-HK to zh-Hant", async () => {
+    expect(await detectFor("zh-HK")).toBe("zh-Hant");
+  });
+
+  it("maps zh-CN to zh-Hans", async () => {
+    expect(await detectFor("zh-CN")).toBe("zh-Hans");
+  });
+
+  it("maps a bare zh locale to zh-Hans", async () => {
+    expect(await detectFor("zh")).toBe("zh-Hans");
   });
 });

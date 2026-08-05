@@ -18,6 +18,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.24.0] - 2026-08-05
+
+### Added
+- **Simplified Chinese (简体中文) locale.** Third bundled language alongside English and Traditional Chinese, selectable live from Settings and persisted like the other two. `src/i18n/locales/zh-Hans/common.json` uses Mainland terminology, not a mechanical script conversion of the Traditional file (e.g. "数据包" rather than a literal "封包" conversion).
+- `SupportedLanguage` gains `"zh-Hans"`; `SettingsOverlay`'s language picker is now a 3-column grid with a `简体中文` button.
+
+### Changed
+- **`detectDefaultLanguage()` in `appStore.ts`** now splits `zh-*` locales three ways instead of collapsing every `zh` prefix to Traditional: `zh-TW`/`zh-HK`/`zh-MO`/any `-Hant` subtag → `zh-Hant`; every other `zh` locale (`zh-CN`, `zh-SG`, or a bare `zh`) → `zh-Hans`, the more common default. Only affects first-run detection — an already-persisted language choice is untouched.
+- **`i18n/index.test.ts`'s key-parity check** generalized from a hardcoded two-locale diff to a pairwise check across every bundled locale, so adding a future locale is automatically covered by the same regression test rather than needing a rewrite.
+
+### Verified
+- `pnpm test`: 98/98 passing (8 new — 2 key-parity tests generalized to cover the new locale pairwise, 5 `detectDefaultLanguage` branch tests via `vi.resetModules` + dynamic re-import with a stubbed `navigator.language`, 1 new SettingsOverlay button test).
+- `tsc --noEmit` clean; `pnpm build` succeeds.
+- Browser-verified live: opened Settings, clicked 简体中文, confirmed the entire visible UI (nav labels, theme names, Expert-mode copy) re-rendered in Simplified Chinese with zero remount, matching the same live-switch behavior already verified for zh-Hant in the i18n phase; confirmed via `localStorage` that the choice persisted as `"zh-Hans"`; zero console errors.
+- `cargo check`/`test --lib`: no Rust changes in this phase.
+
 ## [0.23.0] - 2026-08-05
 
 ### Added

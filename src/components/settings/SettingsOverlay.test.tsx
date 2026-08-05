@@ -96,6 +96,15 @@ describe("SettingsOverlay — language switching (i18n)", () => {
     expect(screen.getByTestId("language-en")).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("offers Simplified Chinese as a third language option", () => {
+    render(<SettingsOverlay />);
+    fireEvent.click(screen.getByTestId("language-zh-Hans"));
+    expect(useAppStore.getState().language).toBe("zh-Hans");
+    expect(screen.getByTestId("language-zh-Hans")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("language-zh-Hant")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("language-en")).toHaveAttribute("aria-pressed", "false");
+  });
+
   // The real proof the plumbing works: when i18next's active language changes
   // (which is what AppShell's store-sync effect does), every already-mounted
   // component using useTranslation() re-renders in the new language — no

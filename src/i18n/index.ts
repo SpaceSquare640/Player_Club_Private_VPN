@@ -11,13 +11,15 @@ import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import en from "./locales/en/common.json";
 import zhHant from "./locales/zh-Hant/common.json";
+import zhHans from "./locales/zh-Hans/common.json";
 
-export type SupportedLanguage = "en" | "zh-Hant";
+export type SupportedLanguage = "en" | "zh-Hant" | "zh-Hans";
 
 void i18n.use(initReactI18next).init({
   resources: {
     en: { common: en },
     "zh-Hant": { common: zhHant },
+    "zh-Hans": { common: zhHans },
   },
   lng: "en", // AppShell syncs the persisted/detected choice immediately on mount.
   fallbackLng: "en",

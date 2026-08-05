@@ -65,14 +65,13 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Frontend test foundation — vitest + testing-library, pure logic and store coverage (B.1) | ✅ Done |
 | Network page — peer-connection management moved off Diagnostics, first component tests (B.2) | ✅ Done |
 | Connection settings — split-tunnel broadcast/multicast + FEC redundancy wired to Settings UI (B.3) | ✅ Done |
-| Multi-language (i18n) — English + Traditional Chinese, react-i18next, live switching, persisted | ✅ Done |
+| Multi-language (i18n) — English, Traditional Chinese, Simplified Chinese, react-i18next, live switching, persisted | ✅ Done |
 | Windows network integration — adapter set to Private, scoped firewall allow-rule, best-effort (E.2) | ✅ Done |
 | Site-to-site LAN sharing (peer-advertised routes + remote IP forwarding) | ⏳ Deferred — unverifiable without 3 physical hosts; see CHANGELOG |
 | Diagnostics — live telemetry readout ✅ · FEC/policy counters ✅ · two-node topology view ✅ · spectrum chart ✅ | ✅ Done |
 | Settings — layered Basic/Expert access (Connection section gated, display-only) | ✅ Done |
 | Settings — JSON profile import/export (connection settings only) | ✅ Done |
 | Settings — automatic game detection | ⏳ Planned |
-| Additional languages (e.g. Simplified Chinese) | ⏳ Planned |
 
 ---
 
@@ -110,8 +109,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 
 ### Personalization
 - ✅ **6 predefined visual themes** (Midnight, Carbon, Nebula, Abyss, Aurora, Ember).
-- ✅ **Multi-language** support — English and Traditional Chinese (繁體中文), switchable live from Settings, persisted. *(Engine-originated notices and error text remain English — see Scope below.)*
-- ⏳ Additional languages (e.g. Simplified Chinese) are a low-cost follow-on once translators are available.
+- ✅ **Multi-language** support — English, Traditional Chinese (繁體中文), and Simplified Chinese (简体中文), switchable live from Settings, persisted. *(Engine-originated notices and error text remain English — see Scope below.)*
 
 ---
 
