@@ -118,6 +118,8 @@
     "fecRedundancyHeading": "FEC 冗餘度",
     "fecRedundancyValue": "r = {{n}}",
     "fecRedundancySubtitle": "每 8 個封包一組,最多可復原 r 個遺失封包,但會增加頻寬用量。",
+    "minecraftPreset": "🎮 Minecraft 快速設定",
+    "minecraftPresetTitle": "一鍵套用適合 Minecraft 區域網路世界探索的設定(廣播+多播轉發、中等 FEC 冗餘度)。不是自動偵測——僅為手動捷徑。",
     "languageHeading": "語言",
     "languageEnglish": "English",
     "languageZhHant": "繁體中文",

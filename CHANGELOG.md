@@ -14,9 +14,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Diagnostics:** a dedicated "FEC recovered" stat tile (recoveries currently surface in the packet log) and split-tunnel broadcast/multicast toggles in Settings.
 - **Diagnostics:** interactive topology map and spectrum monitoring (the live telemetry readout shipped in 0.4.0).
 - **Elevation:** privileged helper-service backend (replacing the relaunch-elevated path behind the existing seam).
-- **Settings:** automatic game detection.
 
 ---
+
+## [0.25.0] - 2026-08-06
+
+### Added
+- **Settings: Minecraft quick-setup preset.** A one-click button in the Connection section applies a Minecraft-tuned configuration — broadcast + multicast forwarding on (both editions rely on them for LAN-world discovery) and FEC redundancy `r = 2` (one step above the default, without maxing it out).
+
+### Scope
+- Deliberately a manual shortcut, not automatic game detection. Real process detection would need new Windows API calls and a materially larger permission surface for something that boils down to setting three already-existing store fields; a one-click preset gets the same practical outcome — the user does not have to know or remember the "right" settings for Minecraft — without any of that. No background polling, no process scanning, no new capability grants.
+- Only affects the three fields already covered by `ConnectionSettings` (forwarding + FEC); does not touch theme, language, or Expert-mode visibility.
+
+### Verified
+- `pnpm test`: 99/99 passing (1 new — clicking the preset button applies all three fields in a single interaction).
+- `tsc --noEmit` clean; `pnpm build` succeeds.
+- Browser-verified live: set FEC to 1 and both forwarding toggles off, clicked the preset button once, confirmed via `localStorage` that all three fields flipped to the preset values (`forwardBroadcast: true`, `forwardMulticast: true`, `fecParityShards: 2`) in one click. Zero console errors.
+- `cargo check`/`test --lib`: no Rust changes in this phase.
 
 ## [0.24.0] - 2026-08-05
 

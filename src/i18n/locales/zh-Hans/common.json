@@ -118,6 +118,8 @@
     "fecRedundancyHeading": "FEC 冗余度",
     "fecRedundancyValue": "r = {{n}}",
     "fecRedundancySubtitle": "每 8 个数据包一组,最多可恢复 r 个丢失数据包,但会增加带宽用量。",
+    "minecraftPreset": "🎮 Minecraft 快速设置",
+    "minecraftPresetTitle": "一键套用适合 Minecraft 局域网世界发现的设置(广播+多播转发、中等 FEC 冗余度)。不是自动检测——仅为手动快捷方式。",
     "languageHeading": "语言",
     "languageEnglish": "English",
     "languageZhHant": "繁體中文",

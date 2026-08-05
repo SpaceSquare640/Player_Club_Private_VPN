@@ -85,6 +85,17 @@ describe("SettingsOverlay — Connection section (Phase B.3)", () => {
     expect(screen.getByTestId("settings-fec-2")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("settings-fec-1")).toHaveAttribute("aria-pressed", "false");
   });
+
+  it("the Minecraft quick-setup button applies the preset in one click", () => {
+    useAppStore.setState({ forwardBroadcast: false, forwardMulticast: false, fecParityShards: 1 });
+    render(<SettingsOverlay />);
+
+    fireEvent.click(screen.getByTestId("settings-minecraft-preset"));
+
+    expect(useAppStore.getState().forwardBroadcast).toBe(true);
+    expect(useAppStore.getState().forwardMulticast).toBe(true);
+    expect(useAppStore.getState().fecParityShards).toBe(2);
+  });
 });
 
 describe("SettingsOverlay — language switching (i18n)", () => {
