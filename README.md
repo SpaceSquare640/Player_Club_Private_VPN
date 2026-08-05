@@ -74,7 +74,8 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Dedicated Minecraft page — settings summary + one-click preset (manual, not process detection) | ✅ Done |
 | Networked signaling server — WebSocket host, network name/password gate, live member roster (G.1) | ✅ Done |
 | Networked signaling client — join a network, track roster + live join/leave events (G.2) | ✅ Done |
-| Auto offer/answer relay, virtual-network UI (G.3–G.4) | ⏳ Planned |
+| Offer/answer relay over the signaling connection — transport only (G.3) | ✅ Done |
+| Auto-connect orchestration (multi-peer `ConnectionManager`), virtual-network UI (G.3b–G.4) | ⏳ Planned |
 
 ---
 
@@ -90,7 +91,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 - ✅ **TUN/TAP adapter management** — programmatic creation and lifecycle of the virtual network interface (Windows/Wintun), including automatic Windows network-category and firewall integration (E.2).
 - ✅ **Forward Error Correction (FEC)** — Reed-Solomon recovery of lost packets without retransmission.
 - ✅ **Split tunneling** — a data-plane policy gating which traffic the tunnel carries, with broadcast/multicast forwarding user-configurable from Settings.
-- ✅ **Networked signaling server + client (Phase G.1–G.2)** — an embedded WebSocket server anyone can start to host a Hamachi/Radmin-style virtual network (name + password gate, live member roster broadcast on join/leave), and a client that joins one, tracks the roster, and surfaces join/leave events live. Zero hosted infrastructure — whoever creates the network runs the server; actual traffic stays P2P over the existing NAT hole-punch + encrypted data plane. Not yet wired to any UI or to automatic offer/answer relay — see Project Status.
+- ✅ **Networked signaling server + client + relay (Phase G.1–G.3)** — an embedded WebSocket server anyone can start to host a Hamachi/Radmin-style virtual network (name + password gate, live member roster broadcast on join/leave), a client that joins one and tracks the roster live, and offer/answer relay between members through that same connection (transport only — the exact blob a user would otherwise paste by hand, just moved automatically). Zero hosted infrastructure — whoever creates the network runs the server; actual traffic stays P2P over the existing NAT hole-punch + encrypted data plane. Not yet wired to any UI, and nothing auto-triggers a connection yet — the current `ConnectionManager` only manages one peer at a time, and generalizing it to a full mesh is deliberately deferred to a later phase. See Project Status.
 
 ### Application & UX
 - ✅ **60px icon sidebar** with **breadcrumb** pathing for clear navigation.

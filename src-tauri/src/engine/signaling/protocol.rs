@@ -36,6 +36,12 @@ pub enum ClientMessage {
         pubkey: String,
         fingerprint: String,
     },
+    /// Forward an opaque signaling blob (a `blob::encode`d offer/answer
+    /// envelope — same format a user would otherwise paste manually) to
+    /// another member, addressed by pubkey. The server relays this without
+    /// inspecting or validating its contents; only the two endpoints ever
+    /// decode it.
+    Relay { to_pubkey: String, blob: String },
 }
 
 /// Server → client.
@@ -51,6 +57,10 @@ pub enum ServerMessage {
     MemberJoined(MemberInfo),
     /// Broadcast to every other member when someone disconnects.
     MemberLeft { pubkey: String },
+    /// A `Relay` forwarded from `from_pubkey`. Silently dropped server-side
+    /// (never sent) if `to_pubkey` in the original `Relay` isn't a current
+    /// member — a member leaving mid-relay is an expected race, not an error.
+    Relayed { from_pubkey: String, blob: String },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

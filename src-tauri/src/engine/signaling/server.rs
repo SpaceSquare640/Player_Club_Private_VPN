@@ -136,7 +136,10 @@ async fn handle_connection(
     // rejected and dropped — no partial membership state.
     let join_frame = ws_rx.next().await.ok_or(())?.map_err(|_| ())?;
     let ClientMessage::Join { v, network_name, password_hash, pubkey, fingerprint } =
-        parse_client_message(&join_frame).ok_or(())?;
+        parse_client_message(&join_frame).ok_or(())?
+    else {
+        return Ok(());
+    };
 
     let reject = |reason: JoinRejectReason| -> Option<ServerMessage> { Some(ServerMessage::JoinRejected { reason }) };
     let rejection = if v != PROTOCOL_VERSION {
@@ -170,9 +173,8 @@ async fn handle_connection(
     send(&mut ws_tx, &ServerMessage::JoinAccepted { members: existing_members }).await.map_err(|_| ())?;
     broadcast(&state, &pubkey, &ServerMessage::MemberJoined(MemberInfo { pubkey: pubkey.clone(), fingerprint }));
 
-    // Keep the connection open: forward outgoing broadcasts to this member,
-    // and keep reading incoming frames purely to detect disconnect (Phase
-    // G.1 doesn't act on any post-join message yet — that's G.3's job).
+    // Keep the connection open: forward outgoing broadcasts/relays to this
+    // member, and relay any `Relay` this member sends on to its target.
     loop {
         tokio::select! {
             _ = cancel_rx.changed() => break,
@@ -184,7 +186,11 @@ async fn handle_connection(
             }
             incoming = ws_rx.next() => {
                 match incoming {
-                    Some(Ok(_)) => {} // no post-join client messages handled yet
+                    Some(Ok(frame)) => {
+                        if let Some(ClientMessage::Relay { to_pubkey, blob }) = parse_client_message(&frame) {
+                            relay_to(&state, &to_pubkey, &pubkey, blob);
+                        }
+                    }
                     _ => break,
                 }
             }
@@ -220,6 +226,16 @@ fn broadcast(state: &SharedState, exclude_pubkey: &str, msg: &ServerMessage) {
         if pubkey != exclude_pubkey {
             let _ = handle.tx.send(msg.clone());
         }
+    }
+}
+
+/// Forwards a `Relay`'s blob to `to_pubkey` as `Relayed`. A no-op if
+/// `to_pubkey` isn't currently a member — an expected race (they may have
+/// just left), not treated as an error.
+fn relay_to(state: &SharedState, to_pubkey: &str, from_pubkey: &str, blob: String) {
+    let members = state.members.lock().expect("signaling members lock poisoned");
+    if let Some(handle) = members.get(to_pubkey) {
+        let _ = handle.tx.send(ServerMessage::Relayed { from_pubkey: from_pubkey.to_string(), blob });
     }
 }
 
@@ -400,6 +416,57 @@ mod tests {
         assert_eq!(
             server.members(),
             vec![MemberInfo { pubkey: "pkA".to_string(), fingerprint: "PC-AAAA-AAAA-AAAA-AAAA".to_string() }],
+        );
+
+        server.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn relays_a_blob_to_its_target_and_silently_drops_relays_to_unknown_members() {
+        let server = SignalingServer::start("127.0.0.1:0".parse().unwrap(), "party", "secret")
+            .await
+            .unwrap();
+
+        let mut ws_a = connect(server.local_addr()).await;
+        join(&mut ws_a, "party", "secret", "pkA", "PC-AAAA-AAAA-AAAA-AAAA").await;
+        recv(&mut ws_a).await; // JoinAccepted
+
+        let mut ws_b = connect(server.local_addr()).await;
+        join(&mut ws_b, "party", "secret", "pkB", "PC-BBBB-BBBB-BBBB-BBBB").await;
+        recv(&mut ws_b).await; // JoinAccepted
+        recv(&mut ws_a).await; // MemberJoined(B)
+
+        // Relaying to a member that doesn't exist is a silent no-op — proven
+        // by then successfully relaying to a real member on the same socket.
+        ws_a.send(WsMessage::Text(
+            serde_json::to_string(&ClientMessage::Relay {
+                to_pubkey: "does-not-exist".to_string(),
+                blob: "irrelevant".to_string(),
+            })
+            .unwrap()
+            .into(),
+        ))
+        .await
+        .unwrap();
+
+        ws_a.send(WsMessage::Text(
+            serde_json::to_string(&ClientMessage::Relay {
+                to_pubkey: "pkB".to_string(),
+                blob: "PCPV1.OFFER.example.deadbeef".to_string(),
+            })
+            .unwrap()
+            .into(),
+        ))
+        .await
+        .unwrap();
+
+        let relayed = recv(&mut ws_b).await;
+        assert_eq!(
+            relayed,
+            ServerMessage::Relayed {
+                from_pubkey: "pkA".to_string(),
+                blob: "PCPV1.OFFER.example.deadbeef".to_string(),
+            }
         );
 
         server.shutdown().await;

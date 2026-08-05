@@ -17,6 +17,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.29.0] - 2026-08-06
+
+### Added
+- **Offer/answer relay over the signaling connection (Phase G.3)** — `ClientMessage::Relay { to_pubkey, blob }` / `ServerMessage::Relayed { from_pubkey, blob }` let two members exchange offer/answer envelopes through the host they're both already connected to, instead of copy/pasting a blob out of band. The `blob` field is the exact same `signaling::blob::encode`d string the manual paste flow already produces and validates (CRC32 + version + structural checks) — this phase adds a transport, not a new envelope format.
+- `SignalingServer` relays `Relay` messages to the named `to_pubkey` if they're currently a member; silently drops it otherwise (a member leaving mid-relay is an expected race, not an error worth surfacing).
+- `SignalingClient::relay(to_pubkey, &envelope)` — fire-and-forget send via a new background writer task (the client previously only read; this phase adds the other half of the connection). `MemberEvent::Relayed { from_pubkey, envelope }` surfaces incoming relays through the same event channel as join/leave — a blob that fails to decode is dropped silently, consistent with how every other malformed frame in this reader loop is already handled.
+
+### Scope
+- **Transport only.** Nothing in this phase decides *when* to relay an offer or reacts to a received one — that requires generalizing `ConnectionManager` from single-peer to multi-peer (mesh), a substantially larger, separate piece of work than adding a message type. Explicitly deferred to a later phase (tentatively G.3b) rather than folded in here.
+- No UI yet (G.4).
+
+### Verified
+- `cargo test --lib`: 86/86 passing (3 new): a relay reaches its intended target and no one else, relaying to a nonexistent member is a silent no-op that leaves the connection healthy (proven by a subsequent successful relay), and the server-level behavior is exercised directly over a raw WebSocket too, not only through the client wrapper.
+- `cargo check --lib`: zero warnings.
+- No frontend changes in this phase.
+
 ## [0.28.0] - 2026-08-06
 
 ### Added
