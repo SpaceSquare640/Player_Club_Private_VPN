@@ -41,7 +41,8 @@
     "virtualHostAddr": "主機位址",
     "virtualCopyAddr": "複製",
     "virtualLeave": "離開網路",
-    "virtualNoMembers": "目前沒有其他成員。"
+    "virtualNoMembers": "目前沒有其他成員。",
+    "gameTagMinecraft": "Minecraft"
   },
   "nodeIdentity": {
     "label": "本節點 · 指紋",
@@ -160,6 +161,8 @@
     "presetHeading": "快速設定",
     "presetSubtitle": "套用廣播+多播轉發與 FEC 冗餘度 r = 2——手動捷徑,不是自動遊戲偵測。",
     "presetApply": "套用 Minecraft 建議設定",
-    "presetApplied": "已套用建議設定"
+    "presetApplied": "已套用建議設定",
+    "networkHeading": "虛擬網路",
+    "networkSubtitle": "建立或加入標記為 Minecraft 的虛擬網路——廣播/多播轉發與 FEC 冗餘度會預先套用上方的建議設定。"
   }
 }

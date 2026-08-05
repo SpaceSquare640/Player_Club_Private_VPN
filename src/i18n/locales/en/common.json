@@ -41,7 +41,8 @@
     "virtualHostAddr": "Host address",
     "virtualCopyAddr": "Copy",
     "virtualLeave": "Leave Network",
-    "virtualNoMembers": "No other members yet."
+    "virtualNoMembers": "No other members yet.",
+    "gameTagMinecraft": "Minecraft"
   },
   "nodeIdentity": {
     "label": "This node · fingerprint",
@@ -160,6 +161,8 @@
     "presetHeading": "Quick setup",
     "presetSubtitle": "Applies broadcast + multicast forwarding and FEC redundancy r = 2 — a manual shortcut, not automatic game detection.",
     "presetApply": "Apply Minecraft preset",
-    "presetApplied": "Preset applied"
+    "presetApplied": "Preset applied",
+    "networkHeading": "Virtual network",
+    "networkSubtitle": "Create or join a Minecraft-tagged virtual network — broadcast/multicast forwarding and FEC redundancy are pre-filled from the preset above."
   }
 }

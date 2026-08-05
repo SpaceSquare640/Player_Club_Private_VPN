@@ -296,6 +296,11 @@ pub struct NetworkStatus {
     /// in. Meaningful whether or not this node is the host: everyone in the
     /// network already knows it (it's how they connected).
     pub host_addr: String,
+    /// Free-form label set at creation/join time (e.g. `"minecraft"`) —
+    /// display metadata only, never inspected by any connection logic.
+    /// Deliberately a plain string rather than an enum: new games get a new
+    /// tag value, not a code change here.
+    pub game_tag: Option<String>,
     pub members: Vec<MemberSnapshot>,
 }
 
@@ -306,6 +311,7 @@ struct ActiveMesh {
     network_name: String,
     is_host: bool,
     host_addr: SocketAddr,
+    game_tag: Option<String>,
 }
 
 /// One networked-signaling membership at a time (Phase G.4). Owns the
@@ -325,11 +331,14 @@ impl MeshSession {
     /// address is returned so the UI can show it to share), joins it as the
     /// first member, and starts auto-connecting. Rejected if already in a
     /// network.
+    #[allow(clippy::too_many_arguments)]
     pub async fn create(
         &self,
         bind_addr: SocketAddr,
         network_name: String,
         password: String,
+        game_tag: Option<String>,
+        settings: ConnectionSettings,
         identity: Arc<Identity>,
         manager: Arc<ConnectionManager>,
         sink_factory: impl Fn() -> Box<dyn TelemetrySink> + Send + Sync + 'static,
@@ -341,17 +350,21 @@ impl MeshSession {
             .await
             .map_err(|e| e.to_string())?;
         let host_addr = server.local_addr();
-        self.start(host_addr, network_name, password, identity, manager, sink_factory, Some(server)).await?;
+        self.start(host_addr, network_name, password, game_tag, settings, identity, manager, sink_factory, Some(server))
+            .await?;
         Ok(host_addr)
     }
 
     /// Joins an existing network hosted at `host_addr`. Rejected if already
     /// in a network.
+    #[allow(clippy::too_many_arguments)]
     pub async fn join(
         &self,
         host_addr: SocketAddr,
         network_name: String,
         password: String,
+        game_tag: Option<String>,
+        settings: ConnectionSettings,
         identity: Arc<Identity>,
         manager: Arc<ConnectionManager>,
         sink_factory: impl Fn() -> Box<dyn TelemetrySink> + Send + Sync + 'static,
@@ -359,7 +372,7 @@ impl MeshSession {
         if self.active.lock().expect("mesh session lock poisoned").is_some() {
             return Err("already in a network — leave it first".into());
         }
-        self.start(host_addr, network_name, password, identity, manager, sink_factory, None).await
+        self.start(host_addr, network_name, password, game_tag, settings, identity, manager, sink_factory, None).await
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -368,6 +381,8 @@ impl MeshSession {
         host_addr: SocketAddr,
         network_name: String,
         password: String,
+        game_tag: Option<String>,
+        settings: ConnectionSettings,
         identity: Arc<Identity>,
         manager: Arc<ConnectionManager>,
         sink_factory: impl Fn() -> Box<dyn TelemetrySink> + Send + Sync + 'static,
@@ -386,7 +401,7 @@ impl MeshSession {
 
         let socket = manager.socket().ok_or("no socket after ensure_socket")?;
         let candidates = manager.local_candidates();
-        let mut orch = MeshOrchestrator::new(manager, identity, ConnectionSettings::default(), socket, candidates);
+        let mut orch = MeshOrchestrator::new(manager, identity, settings, socket, candidates);
         let roster = orch.roster_handle();
         let is_host = server.is_some();
 
@@ -400,7 +415,7 @@ impl MeshSession {
         });
 
         *self.active.lock().expect("mesh session lock poisoned") =
-            Some(ActiveMesh { cancel, task, roster, network_name, is_host, host_addr });
+            Some(ActiveMesh { cancel, task, roster, network_name, is_host, host_addr, game_tag });
         Ok(())
     }
 
@@ -437,6 +452,7 @@ impl MeshSession {
             network_name: active.network_name.clone(),
             is_host: active.is_host,
             host_addr: active.host_addr.to_string(),
+            game_tag: active.game_tag.clone(),
             members,
         })
     }
@@ -635,6 +651,8 @@ mod tests {
                 "127.0.0.1:0".parse().unwrap(),
                 "party".to_string(),
                 "secret".to_string(),
+                None,
+                ConnectionSettings::default(),
                 identity,
                 manager.clone(),
                 || Box::new(NullSink),
@@ -654,6 +672,58 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn mesh_session_create_carries_the_game_tag_and_settings_into_the_orchestrator() {
+        let session = MeshSession::default();
+        let manager = Arc::new(ConnectionManager::default());
+        let identity = Arc::new(Identity::generate().unwrap());
+        let settings = ConnectionSettings { forward_broadcast: true, forward_multicast: true, fec_parity_shards: 2 };
+
+        session
+            .create(
+                "127.0.0.1:0".parse().unwrap(),
+                "party".to_string(),
+                "secret".to_string(),
+                Some("minecraft".to_string()),
+                settings,
+                identity,
+                manager.clone(),
+                || Box::new(NullSink),
+            )
+            .await
+            .unwrap();
+
+        let status = session.status(&manager).unwrap();
+        assert_eq!(status.game_tag, Some("minecraft".to_string()));
+
+        session.leave().await;
+    }
+
+    #[tokio::test]
+    async fn mesh_session_status_has_no_game_tag_when_not_supplied() {
+        let session = MeshSession::default();
+        let manager = Arc::new(ConnectionManager::default());
+        let identity = Arc::new(Identity::generate().unwrap());
+
+        session
+            .create(
+                "127.0.0.1:0".parse().unwrap(),
+                "party".to_string(),
+                "secret".to_string(),
+                None,
+                ConnectionSettings::default(),
+                identity,
+                manager.clone(),
+                || Box::new(NullSink),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(session.status(&manager).unwrap().game_tag, None);
+
+        session.leave().await;
+    }
+
+    #[tokio::test]
     async fn mesh_session_create_twice_is_rejected() {
         let session = MeshSession::default();
         let manager = Arc::new(ConnectionManager::default());
@@ -664,6 +734,8 @@ mod tests {
                 "127.0.0.1:0".parse().unwrap(),
                 "party".to_string(),
                 "secret".to_string(),
+                None,
+                ConnectionSettings::default(),
                 identity.clone(),
                 manager.clone(),
                 || Box::new(NullSink),
@@ -672,9 +744,16 @@ mod tests {
             .unwrap();
 
         let err = session
-            .create("127.0.0.1:0".parse().unwrap(), "other".to_string(), "secret".to_string(), identity, manager, || {
-                Box::new(NullSink)
-            })
+            .create(
+                "127.0.0.1:0".parse().unwrap(),
+                "other".to_string(),
+                "secret".to_string(),
+                None,
+                ConnectionSettings::default(),
+                identity,
+                manager,
+                || Box::new(NullSink),
+            )
             .await
             .unwrap_err();
         assert!(err.contains("already in a network"));
@@ -699,6 +778,8 @@ mod tests {
                 "127.0.0.1:0".parse().unwrap(),
                 "party".to_string(),
                 "secret".to_string(),
+                None,
+                ConnectionSettings::default(),
                 identity_a,
                 manager_a.clone(),
                 || Box::new(NullSink),
@@ -707,9 +788,16 @@ mod tests {
             .unwrap();
 
         session_b
-            .join(host_addr, "party".to_string(), "secret".to_string(), identity_b, manager_b.clone(), || {
-                Box::new(NullSink)
-            })
+            .join(
+                host_addr,
+                "party".to_string(),
+                "secret".to_string(),
+                None,
+                ConnectionSettings::default(),
+                identity_b,
+                manager_b.clone(),
+                || Box::new(NullSink),
+            )
             .await
             .unwrap();
 

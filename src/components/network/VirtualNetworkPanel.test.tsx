@@ -5,7 +5,7 @@ const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 
 import VirtualNetworkPanel from "./VirtualNetworkPanel";
-import type { NetworkStatus } from "../../types/telemetry";
+import { DEFAULT_CONNECTION_SETTINGS, type NetworkStatus } from "../../types/telemetry";
 
 function wireInvoke(status: NetworkStatus | null = null) {
   invokeMock.mockImplementation((cmd: string) => {
@@ -61,6 +61,8 @@ describe("VirtualNetworkPanel — not in a network", () => {
         bindAddr: "0.0.0.0:7777",
         networkName: "party",
         password: "secret",
+        gameTag: null,
+        settings: DEFAULT_CONNECTION_SETTINGS,
       }),
     );
   });
@@ -90,7 +92,25 @@ describe("VirtualNetworkPanel — not in a network", () => {
         hostAddr: "192.168.1.5:7777",
         networkName: "party",
         password: "secret",
+        gameTag: null,
+        settings: DEFAULT_CONNECTION_SETTINGS,
       }),
+    );
+  });
+
+  it("passes a fixed gameTag and settings through to create_network", async () => {
+    const minecraftSettings = { forwardBroadcast: true, forwardMulticast: true, fecParityShards: 2 };
+    render(<VirtualNetworkPanel gameTag="minecraft" settings={minecraftSettings} />);
+    fireEvent.change(screen.getByTestId("vn-create-name"), { target: { value: "party" } });
+    fireEvent.change(screen.getByTestId("vn-create-password"), { target: { value: "secret" } });
+
+    fireEvent.click(screen.getByTestId("vn-create-btn"));
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith(
+        "create_network",
+        expect.objectContaining({ gameTag: "minecraft", settings: minecraftSettings }),
+      ),
     );
   });
 
@@ -110,11 +130,51 @@ describe("VirtualNetworkPanel — not in a network", () => {
   });
 });
 
+describe("VirtualNetworkPanel — game tag badge", () => {
+  it("shows a friendly label for a known game tag", async () => {
+    wireInvoke({
+      networkName: "party",
+      isHost: true,
+      hostAddr: "127.0.0.1:54321",
+      gameTag: "minecraft",
+      members: [],
+    });
+    render(<VirtualNetworkPanel />);
+    expect(await screen.findByTestId("vn-game-tag")).toHaveTextContent("Minecraft");
+  });
+
+  it("falls back to the raw tag for an unrecognized value", async () => {
+    wireInvoke({
+      networkName: "party",
+      isHost: true,
+      hostAddr: "127.0.0.1:54321",
+      gameTag: "some-future-game",
+      members: [],
+    });
+    render(<VirtualNetworkPanel />);
+    expect(await screen.findByTestId("vn-game-tag")).toHaveTextContent("some-future-game");
+  });
+
+  it("shows no badge when the network has no game tag", async () => {
+    wireInvoke({
+      networkName: "party",
+      isHost: true,
+      hostAddr: "127.0.0.1:54321",
+      gameTag: null,
+      members: [],
+    });
+    render(<VirtualNetworkPanel />);
+    await screen.findByTestId("vn-network-name");
+    expect(screen.queryByTestId("vn-game-tag")).not.toBeInTheDocument();
+  });
+});
+
 describe("VirtualNetworkPanel — in a network", () => {
   const status: NetworkStatus = {
     networkName: "party",
     isHost: true,
     hostAddr: "127.0.0.1:54321",
+    gameTag: null,
     members: [
       { pubkey: "pkA", fingerprint: "PC-AAAA-AAAA-AAAA-AAAA", link: "connected" },
       { pubkey: "pkB", fingerprint: "PC-BBBB-BBBB-BBBB-BBBB", link: "connecting" },

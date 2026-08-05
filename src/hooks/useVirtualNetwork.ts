@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createNetwork, getNetworkStatus, joinNetwork, leaveNetwork } from "../lib/engine";
-import type { NetworkStatus } from "../types/telemetry";
+import { DEFAULT_CONNECTION_SETTINGS, type ConnectionSettings, type NetworkStatus } from "../types/telemetry";
 
 const STATUS_POLL_MS = 2000;
 
@@ -32,8 +32,17 @@ export interface VirtualNetworkController {
  * `get_network_status` on a short interval while mounted — the same
  * accepted tradeoff as the Basic/Expert Settings display filter: simple and
  * correct, not the most efficient possible.
+ *
+ * `gameTag` (display metadata, e.g. `"minecraft"`) and `settings` (applied
+ * to every auto-connected peer) are fixed for the lifetime of this hook
+ * instance — the Network page's general panel omits both (`null` /
+ * defaults), while the Minecraft page's panel fixes them so its "create"
+ * button needs no separate settings step.
  */
-export function useVirtualNetwork(): VirtualNetworkController {
+export function useVirtualNetwork(
+  gameTag: string | null = null,
+  settings: ConnectionSettings = DEFAULT_CONNECTION_SETTINGS,
+): VirtualNetworkController {
   const [status, setStatus] = useState<NetworkStatus | null>(null);
   const [createName, setCreateName] = useState("");
   const [createPassword, setCreatePassword] = useState("");
@@ -66,7 +75,7 @@ export function useVirtualNetwork(): VirtualNetworkController {
     setError(null);
     setBusy(true);
     try {
-      await createNetwork(createBindAddr, createName, createPassword);
+      await createNetwork(createBindAddr, createName, createPassword, gameTag, settings);
       await refreshStatus();
     } catch (e) {
       setError(String(e));
@@ -79,7 +88,7 @@ export function useVirtualNetwork(): VirtualNetworkController {
     setError(null);
     setBusy(true);
     try {
-      await joinNetwork(joinHostAddr, joinName, joinPassword);
+      await joinNetwork(joinHostAddr, joinName, joinPassword, gameTag, settings);
       await refreshStatus();
     } catch (e) {
       setError(String(e));

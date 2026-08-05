@@ -1,6 +1,7 @@
 import { Gamepad2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../stores/appStore";
+import VirtualNetworkPanel from "../components/network/VirtualNetworkPanel";
 import { cn } from "../lib/cn";
 
 /**
@@ -81,6 +82,15 @@ export default function Minecraft() {
         >
           {isApplied ? t("minecraft.presetApplied") : t("minecraft.presetApply")}
         </button>
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-sm font-medium text-ink-muted">{t("minecraft.networkHeading")}</h2>
+        <p className="mb-3 text-xs text-ink-muted">{t("minecraft.networkSubtitle")}</p>
+        {/* Same MeshSession as the Network page's general panel — creating or
+            joining here just pre-fills the game tag and connection settings,
+            it isn't a separate network system. */}
+        <VirtualNetworkPanel gameTag="minecraft" settings={MINECRAFT_PRESET} />
       </section>
     </div>
   );

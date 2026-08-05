@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useVirtualNetwork } from "../../hooks/useVirtualNetwork";
 import { cn } from "../../lib/cn";
-import type { LinkState } from "../../types/telemetry";
+import type { ConnectionSettings, LinkState } from "../../types/telemetry";
 
 const LINK_DOT: Record<LinkState, string> = {
   idle: "bg-ink-muted",
@@ -10,6 +10,18 @@ const LINK_DOT: Record<LinkState, string> = {
   failed: "bg-brand-red",
 };
 
+/** Known game tags get a friendly label; an unrecognized future tag falls back to itself. */
+const GAME_TAG_LABEL_KEYS: Record<string, string> = {
+  minecraft: "network.gameTagMinecraft",
+};
+
+export interface VirtualNetworkPanelProps {
+  /** Fixed game tag (display metadata, e.g. `"minecraft"`) applied on create/join. */
+  gameTag?: string;
+  /** Fixed connection settings applied to every auto-connected peer. */
+  settings?: ConnectionSettings;
+}
+
 /**
  * Hamachi/Radmin-style virtual networking (Phase G.1–G.4): create or join a
  * named, password-gated network and let every member auto-connect — no
@@ -17,8 +29,15 @@ const LINK_DOT: Record<LinkState, string> = {
  * creates a network runs its signaling server themselves (see
  * `network.virtualCreateBindAddrTitle`); a host behind NAT without port
  * forwarding is a known limitation, not something this UI can paper over.
+ *
+ * Used both as the Network page's general management panel (no fixed
+ * `gameTag`/`settings` — a real independent instance, its own create/join
+ * state) and, with a fixed `gameTag`, as a game-specific quick-create panel
+ * (e.g. the Minecraft page). Both read/write the *same* underlying
+ * `MeshSession` on the Rust side — there is only ever one active network no
+ * matter which panel instance you used to create or join it.
  */
-export default function VirtualNetworkPanel() {
+export default function VirtualNetworkPanel({ gameTag, settings }: VirtualNetworkPanelProps) {
   const { t } = useTranslation();
   const {
     status,
@@ -39,7 +58,7 @@ export default function VirtualNetworkPanel() {
     onCreate,
     onJoin,
     onLeave,
-  } = useVirtualNetwork();
+  } = useVirtualNetwork(gameTag, settings);
 
   if (status) {
     return (
@@ -55,6 +74,14 @@ export default function VirtualNetworkPanel() {
             {status.isHost && (
               <span className="ml-2 rounded bg-brand-violet/15 px-1.5 py-0.5 text-[10px] font-medium text-brand-violet">
                 {t("network.virtualHostBadge")}
+              </span>
+            )}
+            {status.gameTag && (
+              <span
+                data-testid="vn-game-tag"
+                className="ml-2 rounded bg-brand-cyan/15 px-1.5 py-0.5 text-[10px] font-medium text-brand-cyan"
+              >
+                {status.gameTag in GAME_TAG_LABEL_KEYS ? t(GAME_TAG_LABEL_KEYS[status.gameTag]) : status.gameTag}
               </span>
             )}
           </div>

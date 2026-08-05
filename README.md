@@ -78,6 +78,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Multi-peer `ConnectionManager` — independent link state per peer, mesh-ready (G.3b) | ✅ Done |
 | Mesh auto-connect orchestration — roster + relay → automatic offer/answer, no manual paste (G.3c) | ✅ Done |
 | Virtual-network UI — create/join network, live member list, integrated into the Network page (G.4) | ✅ Done |
+| Game-tagged networks — Minecraft quick-create panel, generic `gameTag` metadata shown wherever a network is viewed | ✅ Done |
 
 ---
 
@@ -93,7 +94,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 - ✅ **TUN/TAP adapter management** — programmatic creation and lifecycle of the virtual network interface (Windows/Wintun), including automatic Windows network-category and firewall integration (E.2).
 - ✅ **Forward Error Correction (FEC)** — Reed-Solomon recovery of lost packets without retransmission.
 - ✅ **Split tunneling** — a data-plane policy gating which traffic the tunnel carries, with broadcast/multicast forwarding user-configurable from Settings.
-- ✅ **Hamachi/Radmin-style virtual networking, complete end to end (Phase G.1–G.4)** — a "Virtual Network" tab on the Network page (alongside the original manual pairing flow) to create or join a named, password-gated network. Whoever creates one hosts an embedded WebSocket signaling server themselves — zero hosted infrastructure; actual game traffic stays P2P over the existing NAT hole-punch + encrypted data plane. Every member auto-connects to every other member (a deterministic pubkey tie-break decides who sends the offer, no coordination round-trip needed) — the exact same offer/answer envelope the manual paste flow produces, just relayed instead of copied by hand. The panel shows the network name, the host address to share, and a live member list with each person's connection state. A host behind NAT without port forwarding is a known limitation of self-hosting the signaling server — see Project Status.
+- ✅ **Hamachi/Radmin-style virtual networking, complete end to end (Phase G.1–G.4)** — a "Virtual Network" tab on the Network page (alongside the original manual pairing flow) to create or join a named, password-gated network, plus a Minecraft-specific quick-create panel on the Minecraft page that pre-fills the game's recommended connection settings. Whoever creates a network hosts an embedded WebSocket signaling server themselves — zero hosted infrastructure; actual game traffic stays P2P over the existing NAT hole-punch + encrypted data plane. Every member auto-connects to every other member (a deterministic pubkey tie-break decides who sends the offer, no coordination round-trip needed) — the exact same offer/answer envelope the manual paste flow produces, just relayed instead of copied by hand. Both panels drive the *same* underlying network session — a free-form `gameTag` (e.g. `"minecraft"`) is just metadata shown as a badge wherever the network is viewed, ready to extend to other games later. The panel shows the network name, the host address to share, and a live member list with each person's connection state. A host behind NAT without port forwarding is a known limitation of self-hosting the signaling server — see Project Status.
 
 ### Application & UX
 - ✅ **60px icon sidebar** with **breadcrumb** pathing for clear navigation.

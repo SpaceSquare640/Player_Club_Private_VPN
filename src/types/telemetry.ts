@@ -90,6 +90,8 @@ export interface NetworkStatus {
   isHost: boolean;
   /** `ip:port` — what a joiner types in. Meaningful for host and joiner alike. */
   hostAddr: string;
+  /** Free-form label set at creation/join time (e.g. `"minecraft"`) — display only. */
+  gameTag: string | null;
   members: NetworkMember[];
 }
 

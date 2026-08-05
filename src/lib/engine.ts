@@ -115,16 +115,30 @@ export function disconnectPeer(): Promise<void> {
 
 /**
  * Start hosting a new virtual network. `bindAddr` is `ip:port` (port `0`
- * picks an ephemeral port). Resolves to the actual bound `ip:port`, for
- * display so others can join.
+ * picks an ephemeral port). `gameTag` is display metadata only (e.g.
+ * `"minecraft"`); `settings` applies to every auto-connected peer, same as
+ * `connectPeer`'s. Resolves to the actual bound `ip:port`, for display so
+ * others can join.
  */
-export function createNetwork(bindAddr: string, networkName: string, password: string): Promise<string> {
-  return invoke("create_network", { bindAddr, networkName, password });
+export function createNetwork(
+  bindAddr: string,
+  networkName: string,
+  password: string,
+  gameTag: string | null,
+  settings: ConnectionSettings,
+): Promise<string> {
+  return invoke("create_network", { bindAddr, networkName, password, gameTag, settings });
 }
 
 /** Join an existing virtual network hosted at `hostAddr` (`ip:port`). */
-export function joinNetwork(hostAddr: string, networkName: string, password: string): Promise<void> {
-  return invoke("join_network", { hostAddr, networkName, password });
+export function joinNetwork(
+  hostAddr: string,
+  networkName: string,
+  password: string,
+  gameTag: string | null,
+  settings: ConnectionSettings,
+): Promise<void> {
+  return invoke("join_network", { hostAddr, networkName, password, gameTag, settings });
 }
 
 /** Leave the current virtual network (idempotent). */

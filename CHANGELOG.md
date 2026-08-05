@@ -17,6 +17,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.33.0] - 2026-08-06
+
+### Added
+- **Minecraft-specific virtual network panel** — the Minecraft page now hosts its own `VirtualNetworkPanel` instance (create/join, live member list — the exact same component and underlying `MeshSession` as the Network page's general panel, not a parallel system), pre-filled with the Minecraft preset (broadcast + multicast forwarding, FEC `r = 2`) so creating a Minecraft network needs no separate settings step.
+- **`gameTag`** — free-form display metadata (`Option<String>` on the Rust side, `string | null` on the frontend) settable at network creation/join. Shown as a badge next to the network name wherever the network is viewed — the Network page's general panel included, regardless of which panel instance was used to create or join it. Deliberately a plain string rather than an enum: a future second game is a new tag value, not a code change, matching the explicit intent to add more games later.
+- `VirtualNetworkPanel` now accepts optional `gameTag`/`settings` props; `useVirtualNetwork(gameTag, settings)` threads them through to `create_network`/`join_network`. Both default to the prior behavior (`null` tag, `DEFAULT_CONNECTION_SETTINGS`) — the Network page's usage is unchanged.
+
+### Changed
+- `create_network`/`join_network` (Tauri commands) and `MeshSession::create`/`join`/`start` (Rust) gained `game_tag: Option<String>` and `settings: ConnectionSettings` parameters — `settings` was previously hardcoded to `ConnectionSettings::default()` inside `MeshSession`, meaning every virtual-network connection ignored whatever the user had configured. It's now threaded through exactly like the manual-signaling `connect_peer`'s `settings` argument.
+
+### Scope
+- Kept the Network page's general Virtual Network panel — an earlier direction considered moving it entirely to the Minecraft page, but the general management panel remains the intended way to reach *any* network (Minecraft or otherwise) from one place.
+- No per-game settings beyond Minecraft's yet, and no filtering/searching networks by tag — that's for when a second game is actually added.
+
+### Verified
+- `cargo test --lib`: 102/102 passing (2 new): `game_tag` and `settings` both carry through `create` into `status()`, and `status().gameTag` is `None` when not supplied.
+- `cargo check`: zero warnings across the whole crate.
+- `pnpm test`: 116/116 passing (4 new): a fixed `gameTag`/`settings` prop pair is passed through to `create_network`'s `invoke` call, a known tag (`"minecraft"`) renders its friendly label, an unrecognized tag falls back to the raw string, and no badge renders when there's no tag.
+- `tsc --noEmit` clean; `pnpm build` succeeds.
+- Browser-verified live: opened the Minecraft page, confirmed the new Virtual Network section renders both forms; opened the Network page, confirmed its general Virtual Network tab still works unchanged; zero console errors on a fresh tab.
+
 ## [0.32.0] - 2026-08-06
 
 ### Added
