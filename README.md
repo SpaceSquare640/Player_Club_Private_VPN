@@ -76,7 +76,8 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Networked signaling client — join a network, track roster + live join/leave events (G.2) | ✅ Done |
 | Offer/answer relay over the signaling connection — transport only (G.3) | ✅ Done |
 | Multi-peer `ConnectionManager` — independent link state per peer, mesh-ready (G.3b) | ✅ Done |
-| Auto-connect orchestration (roster → automatic offer/answer), virtual-network UI (G.3c–G.4) | ⏳ Planned |
+| Mesh auto-connect orchestration — roster + relay → automatic offer/answer, no manual paste (G.3c) | ✅ Done |
+| Virtual-network UI — create/join network, member list (G.4) | ⏳ Planned |
 
 ---
 
@@ -92,7 +93,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 - ✅ **TUN/TAP adapter management** — programmatic creation and lifecycle of the virtual network interface (Windows/Wintun), including automatic Windows network-category and firewall integration (E.2).
 - ✅ **Forward Error Correction (FEC)** — Reed-Solomon recovery of lost packets without retransmission.
 - ✅ **Split tunneling** — a data-plane policy gating which traffic the tunnel carries, with broadcast/multicast forwarding user-configurable from Settings.
-- ✅ **Networked signaling server + client + relay + multi-peer connections (Phase G.1–G.3b)** — an embedded WebSocket server anyone can start to host a Hamachi/Radmin-style virtual network (name + password gate, live member roster broadcast on join/leave), a client that joins one and tracks the roster live, offer/answer relay between members through that same connection (the exact blob a user would otherwise paste by hand, just moved automatically), and a `ConnectionManager` that now tracks an independent link per peer instead of just one — the mesh prerequisite for a network with more than two members. Zero hosted infrastructure — whoever creates the network runs the server; actual traffic stays P2P over the existing NAT hole-punch + encrypted data plane. Not yet wired to any UI, and nothing auto-triggers a connection yet — deciding *when* to connect to whom, using the roster and relay that already exist, is the next phase. See Project Status.
+- ✅ **Hamachi/Radmin-style virtual networking, fully automatic (Phase G.1–G.3c)** — an embedded WebSocket server anyone can start to host a virtual network (name + password gate, live member roster), a client that joins one, and a `MeshOrchestrator` that wires the two together with the multi-peer `ConnectionManager`: on seeing a member (at join time or later), exactly one side sends an offer (a deterministic pubkey tie-break, no coordination round-trip needed to decide who), the other answers, and both sides connect automatically — the exact same offer/answer envelope the manual paste flow produces, just relayed instead of copied by hand. Proven end-to-end in a real test: two members join a network and reach `Connected` with zero manual signaling. Zero hosted infrastructure — whoever creates the network runs the server; actual traffic stays P2P over the existing NAT hole-punch + encrypted data plane. Not yet wired to any UI — see Project Status.
 
 ### Application & UX
 - ✅ **60px icon sidebar** with **breadcrumb** pathing for clear navigation.

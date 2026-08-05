@@ -17,6 +17,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.31.0] - 2026-08-06
+
+### Added
+- **Mesh auto-connect orchestration (Phase G.3c)** — `engine::mesh::MeshOrchestrator` wires the signaling roster (G.2), relay (G.3), and multi-peer `ConnectionManager` (G.3b) together: joining a network now establishes P2P links with every other member automatically, no manual offer/answer paste required. For each member seen (at join time or via a live `Joined` event), a deterministic pubkey tie-break (`should_initiate`) decides which side sends the offer — both sides compute the same answer independently from data they both already have, so exactly one offer is ever sent per pair with no coordination round-trip to arbitrate it. The receiving side answers and connects as `Role::Responder`; the sender connects as `Role::Initiator` once the answer comes back, matched against the pending offer's session id.
+- Everything `MeshOrchestrator` sends is the exact same `SignalEnvelope` the manual paste flow (`commands/signaling_cmds.rs`) already produces and validates — this phase is glue, not a new envelope format.
+- `ConnectionManager::socket()` — a new accessor so a future caller (Phase G.4) can hand `ensure_socket`'s bound socket to a `MeshOrchestrator` explicitly, keeping the orchestrator decoupled from the manager's internal STUN bootstrap (useful for tests: a directly-bound loopback socket works exactly the same way).
+
+### Fixed (pre-release, caught by the phase's own integration test)
+- **Double offer-send race.** A member whose `Joined` event was already queued in the signaling client's channel by the time `MeshOrchestrator::run`'s initial-roster read happened (both reflect the same underlying state update, made atomically by the client's reader task) was processed twice — once from the roster snapshot, once from the queued event — sending two different offers with two different session ids and corrupting the pending-offer bookkeeping (observed as ~50% test flakiness: "answer for the wrong session" / "no matching pending offer"). Fixed with a `seen_members` guard making `on_member_present` idempotent per peer, cleared again when that peer leaves.
+
+### Scope
+- No UI yet. See Project Status: a host behind NAT without port forwarding remains a known limitation of the user-hosted signaling architecture (G.1's tradeoff, not something this phase changes).
+
+### Verified
+- `cargo test --lib`: 95/95 passing (5 new): the full two-member auto-connect proof (real `SignalingServer` + two real `SignalingClient`s + two `MeshOrchestrator`s + real loopback UDP sockets, reaching `Connected` on both sides with zero manual signaling calls), the tie-break picks exactly one side, the idempotency guard, plus a new `ConnectionManager`-level test (`connect_to_reaches_connected_over_real_loopback_sockets`) proving `connect_to` itself carries a link all the way to `Connected`, not just to `Connecting` (every other G.3b test used an unreachable candidate on purpose). Re-ran the full suite 3 times and the new auto-connect test 10 times individually to confirm the race fix holds — no flakes.
+- `cargo check --lib`: zero warnings (`mesh.rs` carries the same documented `#![allow(dead_code)]` posture as G.1/G.2's still-unwired modules, since nothing calls it from a Tauri command yet).
+- No frontend changes in this phase.
+
 ## [0.30.0] - 2026-08-06
 
 ### Added

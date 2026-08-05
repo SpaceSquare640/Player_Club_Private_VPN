@@ -210,6 +210,17 @@ impl ConnectionManager {
         Ok(())
     }
 
+    /// The shared socket, if [`ensure_socket`](Self::ensure_socket) has been
+    /// called. `UdpTransport` is cheaply `Clone` (an `Arc` internally), so
+    /// every peer's `connect_to` call shares the same bound port. Intended
+    /// for a future caller (Phase G.4's Tauri command wiring) to construct a
+    /// `mesh::MeshOrchestrator`, which takes the socket explicitly rather
+    /// than reaching into the manager itself — hence the explicit allow.
+    #[allow(dead_code)]
+    pub fn socket(&self) -> Option<UdpTransport> {
+        self.inner.lock().unwrap().socket.clone()
+    }
+
     pub fn local_candidates(&self) -> Vec<Candidate> {
         self.inner.lock().unwrap().local_candidates.clone()
     }
@@ -544,6 +555,47 @@ mod tests {
         assert_eq!(manager.link_state_of(&peer_key(&peer_b)), LinkState::Connecting);
 
         manager.disconnect_peer(&peer_key(&peer_b));
+    }
+
+    /// Unlike the other G.3b tests (which use an unreachable candidate on
+    /// purpose to stay `Connecting`), this one proves `connect_to` can carry
+    /// a link all the way to `Connected` over real loopback sockets — the
+    /// per-peer bookkeeping doesn't just track state, it sits in front of a
+    /// working handshake.
+    #[tokio::test]
+    async fn connect_to_reaches_connected_over_real_loopback_sockets() {
+        let manager_a = ConnectionManager::default();
+        let manager_b = ConnectionManager::default();
+        let id_a = Arc::new(Identity::generate().unwrap());
+        let id_b = Arc::new(Identity::generate().unwrap());
+        let sock_a = bound_socket().await;
+        let sock_b = bound_socket().await;
+        let addr_a = SocketAddr::from((Ipv4Addr::LOCALHOST, sock_a.local_addr().unwrap().port()));
+        let addr_b = SocketAddr::from((Ipv4Addr::LOCALHOST, sock_b.local_addr().unwrap().port()));
+
+        let pub_a: Vec<u8> = STANDARD.decode(id_a.public_b64()).unwrap();
+        let pub_b: Vec<u8> = STANDARD.decode(id_b.public_b64()).unwrap();
+
+        manager_a
+            .connect_to(sock_a, Role::Initiator, pub_b.clone(), vec![addr_b], id_a.clone(), Box::new(NullSink), ConnectionSettings::default())
+            .unwrap();
+        manager_b
+            .connect_to(sock_b, Role::Responder, pub_a.clone(), vec![addr_a], id_b.clone(), Box::new(NullSink), ConnectionSettings::default())
+            .unwrap();
+
+        for _ in 0..500 {
+            if manager_a.link_state_of(&peer_key(&pub_b)) == LinkState::Connected
+                && manager_b.link_state_of(&peer_key(&pub_a)) == LinkState::Connected
+            {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+        panic!(
+            "timed out: a={:?} b={:?}",
+            manager_a.link_state_of(&peer_key(&pub_b)),
+            manager_b.link_state_of(&peer_key(&pub_a))
+        );
     }
 
     #[test]

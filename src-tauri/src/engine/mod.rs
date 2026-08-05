@@ -15,6 +15,7 @@ pub mod crypto;
 pub mod dataplane;
 pub mod error;
 pub mod fec;
+pub mod mesh;
 pub mod nat;
 pub mod notice;
 pub mod pipeline;
