@@ -88,7 +88,20 @@
     "statBlockedTitle": "split-tunnel 策略拒絕的封包數(雙向合計)——本次連線累計值",
     "packetLog": "封包記錄",
     "entriesCount": "{{count}} 筆",
-    "noPacketsYet": "尚無封包。請按下「啟動」,或到「網路」頁面連線到對等節點。"
+    "noPacketsYet": "尚無封包。請按下「啟動」,或到「網路」頁面連線到對等節點。",
+    "spectrumHeading": "頻寬",
+    "spectrumTx": "上傳",
+    "spectrumRx": "下載",
+    "spectrumUnit": "kbps",
+    "spectrumEmpty": "尚無流量",
+    "topologyHeading": "拓撲",
+    "topologyThisNode": "本節點",
+    "topologyPeer": "對等節點",
+    "topologyNoPeer": "尚未協商對等節點",
+    "topologyLinkIdle": "閒置",
+    "topologyLinkConnecting": "連線中…",
+    "topologyLinkConnected": "已連線",
+    "topologyLinkFailed": "失敗"
   },
   "settings": {
     "title": "設定",

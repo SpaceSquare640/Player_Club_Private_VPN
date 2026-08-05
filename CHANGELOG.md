@@ -19,6 +19,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.21.0] - 2026-07-02
+
+### Added
+- **Diagnostics visualization: topology view + spectrum chart.** The last item that had carried a 🚧 in the Project Status table since Phase A.
+- **`TopologyView`** — this node and the negotiated peer as two nodes with a connecting line, colored by `LinkState` (idle/connecting/connected/failed) using the same status-color convention already used elsewhere in Diagnostics, with live RTT annotated once connected. Deliberately a **two-node view, not a general graph layout engine** — the product is strictly point-to-point today; a generic multi-node graph would be solving a problem this app doesn't have. If multi-peer support ever lands, that is the point a real layout engine becomes worth it.
+- **`SpectrumChart`** — a live tx/rx throughput line+area chart with a hover crosshair and tooltip. Hand-rolled SVG (`lib/spectrum.ts` is ~50 lines of pure coordinate math) rather than a charting dependency. One axis (kbps, shared by both series — never a dual-axis chart); tx/rx reuse the app's existing violet/cyan convention from the packet log, so color means the same thing everywhere in Diagnostics rather than introducing a fresh palette.
+- `telemetryStore.spectrumHistory` — a 120-sample ring buffer (a sample *count*, not a time window, since `tick_hz` is configurable 1–20 Hz) populated by `setSnapshot`, cleared by `reset()`.
+- Followed the project's `dataviz` skill: single axis, fixed-order categorical color reused from an already-shipped convention (not a fresh palette needing separate validation), status color reserved for state (never doubled up with the node encoding — the nodes stay neutral so status is said once, not twice), a legend for the two series, recessive gridlines, and a hover layer shipped by default rather than as a follow-up.
+
+### Verified
+- `pnpm test` — **70/70 pass** (23 new: `lib/spectrum.ts`'s coordinate math — including the zero-max and single-sample edge cases — `spectrumHistory`'s accumulation/120-cap/reset behavior, and component tests for both the empty and populated states of each view, including a hover test against a stubbed `getBoundingClientRect`).
+- `tsc` clean; `pnpm build` succeeds; `cargo test` — **69/69**, unaffected (no Rust changes).
+- **Browser-verified with real data, not just component tests:** Vite's dev server serves unbundled ES modules, so a dynamic `import()` from the browser console reached the *exact same* `telemetryStore` singleton the running app reads from — pushing 20 live samples through it and watching the empty-state placeholder replaced by a real drawn chart, a real dynamic y-axis ceiling, and the injected identity appear in the topology view, all through the actual render path rather than a simulated one. A dispatched `mousemove` against the real (non-mocked) SVG geometry produced a correctly-positioned, correctly-valued tooltip. Confirmed responsive down to mobile width (grid collapses to one column, no horizontal overflow) and zero console errors throughout.
+
+---
+
 ## [0.20.0] - 2026-07-01
 
 ### Added
@@ -614,6 +630,7 @@ Hardened after an adversarial multi-agent review of the new egress policy (findi
 - Project `README.md` documenting overview, feature set, technology stack, architecture (Mermaid), structure, and development protocol.
 
 [Unreleased]: #unreleased
+[0.21.0]: #0210---2026-07-02
 [0.20.0]: #0200---2026-07-01
 [0.19.0]: #0190---2026-06-30
 [0.18.0]: #0180---2026-06-29

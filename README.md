@@ -68,7 +68,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Multi-language (i18n) — English + Traditional Chinese, react-i18next, live switching, persisted | ✅ Done |
 | Windows network integration — adapter set to Private, scoped firewall allow-rule, best-effort (E.2) | ✅ Done |
 | Site-to-site LAN sharing (peer-advertised routes + remote IP forwarding) | ⏳ Deferred — unverifiable without 3 physical hosts; see CHANGELOG |
-| Diagnostics — live telemetry readout ✅ · FEC/policy counters ✅ · topology, spectrum 🚧 | 🚧 In progress |
+| Diagnostics — live telemetry readout ✅ · FEC/policy counters ✅ · two-node topology view ✅ · spectrum chart ✅ | ✅ Done |
 | Settings — layered Basic/Expert access, JSON profile import/export, game detection | ⏳ Planned |
 | Additional languages (e.g. Simplified Chinese) | ⏳ Planned |
 
@@ -97,8 +97,8 @@ communicates with the engine over Tauri's IPC command/event bridge.
 ### Diagnostics
 - ✅ **Live telemetry readout** — RTT / jitter / loss / throughput, FEC-recovered and policy-blocked counters.
 - ✅ **Terminal-style packet logs** for low-level inspection.
-- ⏳ **Interactive topology map** of connected peers and routes.
-- ⏳ **Spectrum / bandwidth monitoring** with live throughput visualization.
+- ✅ **Topology view** — this node and the negotiated peer, with the link colored by state and live RTT annotated once connected. *(Deliberately a two-node view, not a general graph — the product is strictly point-to-point today.)*
+- ✅ **Spectrum chart** — a live tx/rx throughput line chart (hand-rolled SVG, hover crosshair + tooltip) over the most recent samples.
 
 ### Settings
 - ✅ **Connection settings** — split-tunnel broadcast/multicast forwarding and FEC redundancy (`r`), applied at the next Connect.

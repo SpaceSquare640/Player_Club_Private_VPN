@@ -88,7 +88,20 @@
     "statBlockedTitle": "Packets the split-tunnel policy refused, in either direction — cumulative for this connection",
     "packetLog": "Packet Log",
     "entriesCount": "{{count}} entries",
-    "noPacketsYet": "No packets yet. Press Start, or connect to a peer on the Network page."
+    "noPacketsYet": "No packets yet. Press Start, or connect to a peer on the Network page.",
+    "spectrumHeading": "Spectrum",
+    "spectrumTx": "TX",
+    "spectrumRx": "RX",
+    "spectrumUnit": "kbps",
+    "spectrumEmpty": "No traffic yet",
+    "topologyHeading": "Topology",
+    "topologyThisNode": "This node",
+    "topologyPeer": "Peer",
+    "topologyNoPeer": "No peer negotiated",
+    "topologyLinkIdle": "Idle",
+    "topologyLinkConnecting": "Connecting…",
+    "topologyLinkConnected": "Connected",
+    "topologyLinkFailed": "Failed"
   },
   "settings": {
     "title": "Settings",

@@ -8,6 +8,20 @@ function pkt(t: number): PacketLogEntry {
   return { tMs: t, dir: "tx", proto: "UDP", len: 40, note: "" };
 }
 
+function snap(txKbps: number, rxKbps: number): TelemetrySnapshot {
+  return {
+    state: "connected",
+    rttMs: 10,
+    jitterMs: 1,
+    lossPct: 0,
+    txKbps,
+    rxKbps,
+    peers: 1,
+    fecRecovered: 0,
+    policyBlocked: 0,
+  };
+}
+
 beforeEach(() => {
   // Replace the whole state so each test starts from the store's initial values.
   useTelemetryStore.setState(pristine, true);
@@ -73,5 +87,33 @@ describe("telemetryStore", () => {
     expect(after.state).toBe("idle");
     expect(after.packets).toEqual([]);
     expect(after.notice).toBeNull();
+  });
+
+  // Spectrum chart history (Diagnostics visualization).
+  it("setSnapshot accumulates a spectrum sample per call, oldest first", () => {
+    useTelemetryStore.getState().setSnapshot(snap(10, 20));
+    useTelemetryStore.getState().setSnapshot(snap(30, 40));
+    const history = useTelemetryStore.getState().spectrumHistory;
+    expect(history).toEqual([
+      { txKbps: 10, rxKbps: 20 },
+      { txKbps: 30, rxKbps: 40 },
+    ]);
+  });
+
+  it("bounds spectrumHistory to 120 samples, trimming the oldest", () => {
+    for (let i = 0; i < 150; i++) {
+      useTelemetryStore.getState().setSnapshot(snap(i, i));
+    }
+    const history = useTelemetryStore.getState().spectrumHistory;
+    expect(history).toHaveLength(120);
+    // The oldest 30 were dropped; the newest sample is last.
+    expect(history[0].txKbps).toBe(30);
+    expect(history[history.length - 1].txKbps).toBe(149);
+  });
+
+  it("reset clears spectrumHistory too", () => {
+    useTelemetryStore.getState().setSnapshot(snap(5, 5));
+    useTelemetryStore.getState().reset();
+    expect(useTelemetryStore.getState().spectrumHistory).toEqual([]);
   });
 });

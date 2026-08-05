@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { useTelemetryStore } from "../stores/telemetryStore";
 import { configForMode, requestElevation, startEngine, stopEngine } from "../lib/engine";
 import { cn } from "../lib/cn";
+import SpectrumChart from "../components/diagnostics/SpectrumChart";
+import TopologyView from "../components/diagnostics/TopologyView";
 import type { EngineMode, EngineState } from "../types/telemetry";
 
 const MODE_LABEL_KEYS: Record<EngineMode, string> = {
@@ -75,8 +77,8 @@ function StatTile({
  * Diagnostics — the live *readout* of whatever session is active: a telemetry
  * source (Simulated / Transport probe / Real adapter) started here, or a peer
  * link established on the Network page. Connection management itself lives on the
- * Network page; this view only observes. Topology map and spectrum monitor
- * arrive with the dedicated Diagnostics module.
+ * Network page; this view only observes — including the two-node topology view
+ * and the live tx/rx spectrum chart below.
  */
 export default function Diagnostics() {
   const { t } = useTranslation();
@@ -240,6 +242,14 @@ export default function Diagnostics() {
           unit="pkts"
           title={t("diagnostics.statBlockedTitle")}
         />
+      </div>
+
+      <div
+        className="grid h-44 shrink-0 grid-cols-1 gap-3 lg:grid-cols-[1.618fr_1fr]"
+        data-testid="viz-row"
+      >
+        <SpectrumChart />
+        <TopologyView />
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-white/10 bg-black/40">
