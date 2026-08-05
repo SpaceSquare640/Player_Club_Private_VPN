@@ -15,15 +15,6 @@ import { parseConnectionProfile, serializeConnectionProfile } from "../../lib/pr
  */
 const FEC_OPTIONS = [1, 2, 3] as const;
 
-/**
- * Manually-triggered preset, not a background process scan — deliberately
- * lighter-weight than real "game detection". LAN-world discovery on
- * Minecraft's Java and Bedrock editions relies on broadcast/multicast, so
- * both stay on; FEC is nudged one step above the default for a bit more
- * resilience on typical home connections without maxing it out.
- */
-const MINECRAFT_PRESET = { forwardBroadcast: true, forwardMulticast: true, fecParityShards: 2 } as const;
-
 const LANGUAGE_OPTIONS: { id: SupportedLanguage; labelKey: string }[] = [
   { id: "en", labelKey: "settings.languageEnglish" },
   { id: "zh-Hant", labelKey: "settings.languageZhHant" },
@@ -268,22 +259,6 @@ export default function SettingsOverlay() {
                   </button>
                 ))}
               </div>
-            </div>
-
-            <div className="mt-4">
-              <button
-                type="button"
-                data-testid="settings-minecraft-preset"
-                title={t("settings.minecraftPresetTitle")}
-                onClick={() => {
-                  setForwardBroadcast(MINECRAFT_PRESET.forwardBroadcast);
-                  setForwardMulticast(MINECRAFT_PRESET.forwardMulticast);
-                  setFecParityShards(MINECRAFT_PRESET.fecParityShards);
-                }}
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-ink-muted transition-colors hover:border-white/25 hover:text-ink"
-              >
-                {t("settings.minecraftPreset")}
-              </button>
             </div>
 
             <div className="mt-4 flex flex-col gap-2">

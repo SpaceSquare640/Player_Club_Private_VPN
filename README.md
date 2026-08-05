@@ -71,7 +71,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Diagnostics — live telemetry readout ✅ · FEC/policy counters ✅ · two-node topology view ✅ · spectrum chart ✅ | ✅ Done |
 | Settings — layered Basic/Expert access (Connection section gated, display-only) | ✅ Done |
 | Settings — JSON profile import/export (connection settings only) | ✅ Done |
-| Settings — Minecraft quick-setup preset (manual one-click, not process detection) | ✅ Done |
+| Dedicated Minecraft page — settings summary + one-click preset (manual, not process detection) | ✅ Done |
 
 ---
 
@@ -105,7 +105,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 - ✅ **Connection settings** — split-tunnel broadcast/multicast forwarding and FEC redundancy (`r`), applied at the next Connect.
 - ✅ **Layered access** — Basic mode shows Theme + Language; an Expert toggle reveals Connection settings. Purely a display filter — a setting stays in effect whether or not its section is currently shown.
 - ✅ **JSON profile import/export** — save or load the current connection settings (broadcast/multicast forwarding, FEC redundancy) as a versioned JSON file via native save/open dialogs; malformed or incompatible files are rejected with an inline error, never silently coerced.
-- ✅ **Minecraft quick-setup preset** — one-click button in the Connection section that applies a Minecraft-tuned configuration (broadcast + multicast forwarding on, FEC redundancy `r = 2`). A manual shortcut, not background process detection — no process scanning, no new OS permissions.
+- ✅ **Dedicated Minecraft page** — its own sidebar entry, showing the current effective connection settings and a one-click preset button (broadcast + multicast forwarding on, FEC redundancy `r = 2`). A manual shortcut, not background process detection — no process scanning, no new OS permissions. Uses a neutral placeholder icon (lucide's `Gamepad2`) pending resolution of Minecraft-branded artwork licensing.
 
 ### Personalization
 - ✅ **6 predefined visual themes** (Midnight, Carbon, Nebula, Abyss, Aurora, Ember).

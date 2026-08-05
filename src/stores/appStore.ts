@@ -4,7 +4,7 @@ import { DEFAULT_THEME, type ThemeId } from "../theme/themes";
 import { DEFAULT_CONNECTION_SETTINGS } from "../types/telemetry";
 import type { SupportedLanguage } from "../i18n";
 
-export type RouteId = "dashboard" | "network" | "diagnostics";
+export type RouteId = "dashboard" | "network" | "diagnostics" | "minecraft";
 
 /**
  * Best-effort default language from the OS/browser locale, used only until the

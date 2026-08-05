@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   Activity,
+  Gamepad2,
   LayoutDashboard,
   Network as NetworkIcon,
   Settings,
@@ -21,6 +22,9 @@ const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", labelKey: "nav.dashboard", path: "/", Icon: LayoutDashboard },
   { id: "network", labelKey: "nav.network", path: "/network", Icon: NetworkIcon },
   { id: "diagnostics", labelKey: "nav.diagnostics", path: "/diagnostics", Icon: Activity },
+  // Neutral placeholder icon (lucide's Gamepad2) — pending resolution of the
+  // Minecraft-branded artwork's licensing before it can ship in this repo.
+  { id: "minecraft", labelKey: "nav.minecraft", path: "/minecraft", Icon: Gamepad2 },
 ];
 
 /** Fixed 60px icon rail. Active item glows violet (semantic "active"). */

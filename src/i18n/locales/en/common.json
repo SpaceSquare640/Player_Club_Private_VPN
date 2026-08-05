@@ -3,6 +3,7 @@
     "dashboard": "Dashboard",
     "network": "Network",
     "diagnostics": "Diagnostics",
+    "minecraft": "Minecraft",
     "settings": "Settings"
   },
   "theme": {
@@ -118,8 +119,6 @@
     "fecRedundancyHeading": "FEC redundancy",
     "fecRedundancyValue": "r = {{n}}",
     "fecRedundancySubtitle": "Recovers up to r lost packets per group of 8, at more bandwidth.",
-    "minecraftPreset": "🎮 Minecraft quick setup",
-    "minecraftPresetTitle": "One-click apply settings tuned for Minecraft LAN-world discovery (broadcast + multicast forwarding, moderate FEC redundancy). Not automatic detection — a manual shortcut.",
     "languageHeading": "Language",
     "languageEnglish": "English",
     "languageZhHant": "繁體中文",
@@ -138,5 +137,14 @@
       "invalid-forward-multicast": "The forward-multicast value in this profile is invalid.",
       "invalid-fec-parity-shards": "The FEC redundancy value in this profile is invalid."
     }
+  },
+  "minecraft": {
+    "title": "Minecraft",
+    "subtitle": "Connection settings tuned for Minecraft's LAN-world multiplayer discovery.",
+    "currentSettingsHeading": "Current settings",
+    "presetHeading": "Quick setup",
+    "presetSubtitle": "Applies broadcast + multicast forwarding and FEC redundancy r = 2 — a manual shortcut, not automatic game detection.",
+    "presetApply": "Apply Minecraft preset",
+    "presetApplied": "Preset applied"
   }
 }

@@ -17,6 +17,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.26.0] - 2026-08-06
+
+### Added
+- **Dedicated Minecraft page**, its own sidebar entry (`RouteId` gains `"minecraft"`, route `/minecraft`). Shows a read-only summary of the currently effective connection settings (broadcast/multicast forwarding, FEC redundancy) and a one-click "Apply Minecraft preset" button, disabled once already applied so the state is visibly reflected rather than just silently idempotent.
+- The Minecraft preset logic (broadcast + multicast on, FEC `r = 2`) **moved from Settings to this page** — a single entry point instead of the same feature living in two places. The Settings → Connection section no longer has its own Minecraft button.
+
+### Scope
+- Icon is a neutral placeholder (lucide's `Gamepad2`), not Minecraft-branded artwork. Two candidate images were supplied and reviewed — a Creeper-face icon and the official Minecraft app icon (grass block + wordmark) — both carry real Mojang/Microsoft trademark and copyright exposure for a distributed application; this repo's `LICENSE` covers only original content and explicitly-listed licensed third-party software, neither of which extends to third-party game branding. Deferred pending the project owner confirming licensing/rights for the artwork; swapping the icon later is a one-line change in `Sidebar.tsx` and `pages/Minecraft.tsx`.
+
+### Verified
+- `pnpm test`: 101/101 passing (3 new page tests — summary reflects live store state, preset click applies all three fields, button disables once already applied).
+- `tsc --noEmit` clean; `pnpm build` succeeds.
+- Browser-verified live: navigated to the new Minecraft nav item, confirmed breadcrumb and page content render, clicked the preset (FEC visibly updated `r = 1` → `r = 2`, button label switched to "applied" and disabled), then opened Settings → Expert → Connection and confirmed the old preset button is gone. Zero console errors.
+- `cargo check`/`test --lib`: no Rust changes in this phase.
+
 ## [0.25.0] - 2026-08-06
 
 ### Added

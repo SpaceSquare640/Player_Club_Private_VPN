@@ -3,6 +3,7 @@
     "dashboard": "儀表板",
     "network": "網路",
     "diagnostics": "診斷",
+    "minecraft": "Minecraft",
     "settings": "設定"
   },
   "theme": {
@@ -118,8 +119,6 @@
     "fecRedundancyHeading": "FEC 冗餘度",
     "fecRedundancyValue": "r = {{n}}",
     "fecRedundancySubtitle": "每 8 個封包一組,最多可復原 r 個遺失封包,但會增加頻寬用量。",
-    "minecraftPreset": "🎮 Minecraft 快速設定",
-    "minecraftPresetTitle": "一鍵套用適合 Minecraft 區域網路世界探索的設定(廣播+多播轉發、中等 FEC 冗餘度)。不是自動偵測——僅為手動捷徑。",
     "languageHeading": "語言",
     "languageEnglish": "English",
     "languageZhHant": "繁體中文",
@@ -138,5 +137,14 @@
       "invalid-forward-multicast": "此設定檔中的多播轉發數值無效。",
       "invalid-fec-parity-shards": "此設定檔中的 FEC 冗餘度數值無效。"
     }
+  },
+  "minecraft": {
+    "title": "Minecraft",
+    "subtitle": "為 Minecraft 區域網路世界多人探索調校的連線設定。",
+    "currentSettingsHeading": "目前設定",
+    "presetHeading": "快速設定",
+    "presetSubtitle": "套用廣播+多播轉發與 FEC 冗餘度 r = 2——手動捷徑,不是自動遊戲偵測。",
+    "presetApply": "套用 Minecraft 建議設定",
+    "presetApplied": "已套用建議設定"
   }
 }

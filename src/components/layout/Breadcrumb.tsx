@@ -6,6 +6,7 @@ const LABEL_KEYS: Record<RouteId, string> = {
   dashboard: "nav.dashboard",
   network: "nav.network",
   diagnostics: "nav.diagnostics",
+  minecraft: "nav.minecraft",
 };
 
 /** Breadcrumb trail driven by the store's active route. */

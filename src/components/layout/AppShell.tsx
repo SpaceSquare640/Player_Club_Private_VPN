@@ -12,11 +12,13 @@ const ROUTE_PATHS: Record<RouteId, string> = {
   dashboard: "/",
   network: "/network",
   diagnostics: "/diagnostics",
+  minecraft: "/minecraft",
 };
 
 function routeFromPath(pathname: string): RouteId {
   if (pathname.startsWith("/network")) return "network";
   if (pathname.startsWith("/diagnostics")) return "diagnostics";
+  if (pathname.startsWith("/minecraft")) return "minecraft";
   return "dashboard";
 }
 
