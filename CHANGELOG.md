@@ -16,6 +16,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.38.0] - 2026-08-06
+
+### Added
+- **Real named-pipe transport + `helper.exe` binary (Phase E.3, step 3 of 4).** `engine::helper::pipe` wraps `tokio::net::windows::named_pipe`, restricted by an **owner-only security descriptor** (`"D:(A;;GA;;;OW)"` — Generic All to the pipe's Owner, implicitly denying every other local principal). This is the actual security boundary of the whole feature: the helper runs elevated, so anything that can connect to its pipe can ask it to perform privileged operations. `src-tauri/src/bin/helper.rs` is a new, separate binary target — `helper.exe <pipe-name>` creates that pipe, accepts exactly one connection, and runs `server::run` with the real `WindowsDispatcher` against it. `engine::helper::launcher::launch_and_connect` is the main-app side: elevates `helper.exe` via the same `ShellExecuteW … "runas"` mechanism `tun::privilege::relaunch_elevated` already uses (aimed at the small helper binary instead of the whole GUI), then connects.
+- `engine::pub mod` — `lib.rs`'s `engine` module is now `pub` so `helper.exe`, a separate binary target in this same package, can reach `engine::helper` (this crate is never published; the visibility widening is scoped to this package's own binaries, not an external API).
+
+### Scope
+- **Still not wired into `WintunDevice::open`** — `relaunch_elevated`'s whole-app relaunch remains the only elevation path exercised by the running app in this release. `dispatch::WindowsDispatcher::create_adapter` is still the one unimplemented operation, for the reason stated in steps 1–2: splitting adapter creation (helper) from session start (main process) is a real design question, not something to improvise. That integration is step 4.
+- Honest split on what could and couldn't be verified here (no Administrator privileges in this environment): pipe creation with the owner-only descriptor, and a full client↔server round trip over a **real** OS named pipe (not `tokio::io::duplex`), both actually ran and passed — that's genuine signal the transport works for same-user connect/accept. What did **not** run: an elevation prompt actually appearing, a *different* local account being refused by the pipe's ACL, or the helper performing a real privileged Windows operation. Anyone continuing this work on a real elevated machine should treat the ACL specifically as unverified until confirmed.
+
+### Verified
+- `cargo test --lib`: 138/138 passing (7 new): `pipe_name` produces non-colliding names, `create_server` with the owner-only descriptor succeeds against the real Windows named-pipe API, a full `HelperClient`↔`server::run` round trip over that real pipe works end to end (using `FakeDispatcher`, so no privileged operation actually runs), and the launcher's binary-location logic is tested against a real (temp-directory) present/absent binary rather than depending on `cargo test`'s own output layout (which, in practice, sometimes places every binary target next to the test harness — an early version of this test assumed it never would, and failed on this very machine).
+- `cargo check --bins --lib`: zero warnings, including the new `helper.exe` binary target.
+- `helper.exe` built and smoke-tested directly: running it with no arguments prints the usage message and exits non-zero, as designed.
+- No frontend changes in this phase.
+
 ## [0.37.0] - 2026-08-06
 
 ### Added

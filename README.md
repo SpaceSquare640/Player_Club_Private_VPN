@@ -83,7 +83,8 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Network page's virtual network panel repositioned as pure management — hint + collapsed general-purpose forms | ✅ Done |
 | Elevation helper — IPC protocol + message framing (E.3 step 1) | ✅ Done |
 | Elevation helper — request/response dispatch cycle, generic transport, real `tun::windows` wiring for 4 of 5 operations (E.3 step 2) | ✅ Done |
-| Elevation helper — real named-pipe transport, `helper.exe` binary, elevated launch, `WintunDevice` integration (E.3 step 3) | ⏳ Planned |
+| Elevation helper — real named-pipe transport (owner-only ACL), `helper.exe` binary, elevated launch (E.3 step 3) | ✅ Done |
+| Elevation helper — `WintunDevice`/`create_adapter` integration, replacing whole-app relaunch (E.3 step 4) | ⏳ Planned |
 
 ---
 

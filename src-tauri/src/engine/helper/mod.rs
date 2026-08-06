@@ -1,33 +1,42 @@
-//! Elevation helper (Phase E.3, step 1 of 2): the IPC protocol between the
-//! main (unelevated) app and a small, separately-launched elevated helper
-//! process that performs the handful of privileged operations this app
-//! needs — creating the Wintun adapter, `netsh`/PowerShell network
-//! integration, and OS route management (E.2) — without relaunching the
-//! entire GUI elevated the way [`super::tun::privilege::relaunch_elevated`]
-//! currently does.
+//! Elevation helper (Phase E.3): the IPC protocol and (as of this step)
+//! infrastructure between the main (unelevated) app and a small,
+//! separately-launched elevated helper process that performs the handful of
+//! privileged operations this app needs — creating the Wintun adapter,
+//! `netsh`/PowerShell network integration, and OS route management (E.2) —
+//! without relaunching the entire GUI elevated the way
+//! [`super::tun::privilege::relaunch_elevated`] currently does.
 //!
-//! Step 1 ([0.36.0]) defined [`protocol`]: the request/response message set
-//! and wire framing. This step ([0.37.0]) adds the request/response cycle
-//! itself — [`server::run`] dispatches decoded requests to a
-//! [`dispatch::HelperDispatcher`] and writes back replies; [`client::HelperClient`]
-//! is the other end. Both are generic over the transport (`AsyncRead`/
-//! `AsyncWrite`), so the full cycle is tested against an in-memory
-//! `tokio::io::duplex` — no real pipe, process, or elevation involved.
+//! - Step 1 ([0.36.0]): [`protocol`] — the request/response message set and
+//!   wire framing.
+//! - Step 2 ([0.37.0]): [`server::run`] + [`client::HelperClient`] — the
+//!   request/response cycle itself, generic over the transport, tested
+//!   against an in-memory `tokio::io::duplex`. [`dispatch::WindowsDispatcher`]
+//!   wires 4 of 5 operations to the real `tun::windows` functions.
+//! - Step 3 (this step, [0.38.0]): [`pipe`] — the real named-pipe transport,
+//!   with an owner-only security descriptor (**read [`pipe`]'s module doc
+//!   comment before touching it** — this is the actual security boundary,
+//!   not a formality); [`launcher`] — elevated launch of `helper.exe`
+//!   (`src/bin/helper.rs`) and connecting to the pipe it creates.
 //!
-//! Still explicitly not done: a real named-pipe transport, the `helper.exe`
-//! binary that would run [`server::run`] against one, an elevated-launch
-//! path for it, and — even once those exist — wiring `tun::windows` to
-//! actually use the helper instead of calling its own functions directly
-//! (`relaunch_elevated`'s whole-app relaunch remains the only elevation path
-//! today). `dispatch::WindowsDispatcher::create_adapter` is deliberately
-//! left unimplemented for the same reason: splitting "the helper creates the
+//! Still explicitly not done: nothing in `tun::windows` calls through the
+//! helper yet (`relaunch_elevated`'s whole-app relaunch remains the only
+//! elevation path in this release), and `dispatch::WindowsDispatcher::create_adapter`
+//! is still deliberately unimplemented — splitting "the helper creates the
 //! adapter" from "the main process opens a session against it" is a real
 //! design question (Wintun sessions aren't simply handed across a process
 //! boundary) that deserves its own verified step, not an improvised answer
-//! here. This environment has no Administrator privileges to verify any of
-//! that end to end.
+//! written blind. **This environment has no Administrator privileges**, so
+//! while [`pipe`]'s same-user connect/accept path and the protocol/dispatch
+//! logic are genuinely tested against real OS primitives, the actual
+//! elevation prompt, a second local account being refused by the pipe's
+//! ACL, and the helper performing a real privileged operation have not been
+//! exercised end to end by anyone yet.
 
 pub mod client;
 pub mod dispatch;
+#[cfg(windows)]
+pub mod launcher;
+#[cfg(windows)]
+pub mod pipe;
 pub mod protocol;
 pub mod server;

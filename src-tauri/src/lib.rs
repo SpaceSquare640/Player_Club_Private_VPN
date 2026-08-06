@@ -5,7 +5,12 @@
 //! bridge live under `commands/`. The `ping` command is a liveness probe.
 
 mod commands;
-mod engine;
+// `pub` so `src/bin/helper.rs` — a separate binary target in this same
+// package, launched elevated and standalone from the main Tauri process —
+// can reach `engine::helper` without the whole engine becoming a published,
+// externally-consumed API (this crate is never published; `pub` here only
+// widens visibility across this package's own binary targets).
+pub mod engine;
 
 use std::sync::Arc;
 
