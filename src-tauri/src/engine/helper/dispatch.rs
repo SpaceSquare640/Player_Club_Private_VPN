@@ -21,21 +21,69 @@ pub trait HelperDispatcher: Send {
 }
 
 /// The real dispatcher: calls straight into `tun::windows`'s existing
-/// functions. `create_adapter` is the one operation this step does **not**
-/// wire up for real — see the module doc comment on `helper` for why (the
-/// Wintun session `WintunDevice::open` starts can't simply be created in one
-/// process and handed to another; splitting adapter creation from session
-/// start is a real design question for a later step, not something to
-/// improvise here without a way to verify it).
+/// functions.
+///
+/// # Why this holds the adapter instead of creating and returning
+///
+/// Wintun's `WintunCloseAdapter` — which the `wintun` crate calls from
+/// `Adapter`'s `Drop` — *removes* an adapter that was made with
+/// `WintunCreateAdapter`. So the helper cannot create an adapter, drop its
+/// handle, and leave something behind for the main process to use: the
+/// adapter would disappear the moment `create_adapter` returned. (This is
+/// the concrete answer to the design question steps 1–3 deliberately left
+/// open rather than guessing at.)
+///
+/// The split that does work, and is what this implements: the **helper**
+/// creates the adapter and holds the handle for its whole lifetime (so the
+/// adapter exists as long as the helper process does), while the **main**
+/// process opens that same adapter *by name* (`Adapter::open`, i.e.
+/// `WintunOpenAdapter`) and starts its own session against it. Teardown is
+/// the helper exiting, which drops the handle and removes the adapter.
+///
+/// **Unverified:** whether the main process's `Adapter::open` +
+/// `start_session` actually succeeds *unelevated* is the open question this
+/// whole architecture rests on, and this environment has no Administrator
+/// access to answer it. If it turns out to require elevation too, the helper
+/// buys nothing over the existing whole-app relaunch and this approach has
+/// to change — which is exactly why `WintunDevice` is **not** yet rewired to
+/// use it (see the `helper` module doc comment).
 #[cfg(windows)]
-pub struct WindowsDispatcher;
+#[derive(Default)]
+pub struct WindowsDispatcher {
+    /// Loaded lazily on the first `create_adapter`, then kept alive: every
+    /// `Adapter` holds an `Arc` of this, so dropping it early would be
+    /// wrong, and loading it per-call would be wasteful.
+    wintun: Option<wintun::Wintun>,
+    /// Adapters this helper created, keyed by name. Holding them here is
+    /// what keeps them alive in the OS — see the type-level doc comment.
+    adapters: std::collections::HashMap<String, std::sync::Arc<wintun::Adapter>>,
+}
 
 #[cfg(windows)]
 impl HelperDispatcher for WindowsDispatcher {
-    fn create_adapter(&mut self, _name: &str, _virtual_ip: Ipv4Addr, _prefix_len: u8) -> Result<(), String> {
-        Err("create_adapter is not yet implemented by the helper — see the helper module's \
-             doc comment for why this one operation is deferred"
-            .to_string())
+    fn create_adapter(&mut self, name: &str, virtual_ip: Ipv4Addr, prefix_len: u8) -> Result<(), String> {
+        if self.adapters.contains_key(name) {
+            return Err(format!("adapter {name} was already created by this helper"));
+        }
+
+        let wintun = match &self.wintun {
+            Some(w) => w.clone(),
+            None => {
+                let dll = super::super::tun::windows::locate_wintun_dll()
+                    .ok_or_else(|| "wintun.dll not found in bundled resources".to_string())?;
+                let loaded =
+                    unsafe { wintun::load_from_path(&dll) }.map_err(|e| format!("load wintun.dll: {e}"))?;
+                self.wintun = Some(loaded.clone());
+                loaded
+            }
+        };
+
+        let adapter = wintun::Adapter::create(&wintun, name, "Player Club", None)
+            .map_err(|e| format!("create adapter: {e}"))?;
+        super::super::tun::windows::assign_ip(name, virtual_ip, prefix_len).map_err(|e| e.to_string())?;
+
+        self.adapters.insert(name.to_string(), adapter);
+        Ok(())
     }
 
     fn configure_network_integration(&mut self, adapter_name: &str) -> Result<(), String> {

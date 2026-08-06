@@ -44,7 +44,16 @@ fn main() -> std::process::ExitCode {
             return ExitCode::FAILURE;
         }
         let (read_half, write_half) = tokio::io::split(server_pipe);
-        match player_club_private_vpn_lib::engine::helper::server::run(read_half, write_half, WindowsDispatcher).await
+        // The dispatcher owns any adapter it creates, and dropping an
+        // adapter removes it from the OS — so it must live exactly as long
+        // as this session, no longer and no shorter. Constructing it here
+        // and letting `run` consume it gives precisely that.
+        match player_club_private_vpn_lib::engine::helper::server::run(
+            read_half,
+            write_half,
+            WindowsDispatcher::default(),
+        )
+        .await
         {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {

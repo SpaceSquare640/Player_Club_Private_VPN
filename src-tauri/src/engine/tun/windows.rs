@@ -44,6 +44,12 @@ pub struct WintunDevice {
     /// actually done rather than re-deriving it from config is the more
     /// robust invariant to hold as this code evolves).
     extra_routes: Vec<(Ipv4Addr, u8)>,
+    /// Whether this device performed the privileged network integration and
+    /// is therefore responsible for undoing it on drop. False for
+    /// [`attach_existing`](Self::attach_existing), where the elevation
+    /// helper owns that setup — tearing down another process's firewall rule
+    /// would be actively wrong, not merely redundant.
+    owns_integration: bool,
 }
 
 impl WintunDevice {
@@ -84,6 +90,51 @@ impl WintunDevice {
                 mtu: cfg.mtu,
             },
             extra_routes: cfg.extra_routes.clone(),
+            owns_integration: true,
+        })
+    }
+
+    /// Attach to an adapter **someone else already created** — specifically,
+    /// the elevation helper (`engine::helper`), which holds the adapter open
+    /// for its lifetime because dropping a created adapter removes it.
+    ///
+    /// Unlike [`open`](Self::open), this performs no privileged setup at all:
+    /// no `Adapter::create`, no `assign_ip`, no firewall/route work. The
+    /// helper did all of that; this side only opens the existing adapter by
+    /// name and starts its own session against it. Correspondingly, the
+    /// returned device's `Drop` must **not** tear down integration the helper
+    /// owns — hence `extra_routes` is left empty here (see `Drop`).
+    ///
+    /// **Unverified:** whether this succeeds *unelevated* is the open
+    /// question the whole helper architecture rests on, and no one has
+    /// answered it yet on a real elevated Windows machine. Nothing calls this
+    /// in production yet for exactly that reason — hence the explicit allow.
+    #[allow(dead_code)]
+    pub fn attach_existing(cfg: &TunConfig) -> io::Result<Self> {
+        let dll = locate_wintun_dll().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::NotFound, "wintun.dll not found in bundled resources")
+        })?;
+        let wintun = unsafe { wintun::load_from_path(&dll) }
+            .map_err(|e| io::Error::other(format!("load wintun.dll: {e}")))?;
+
+        let adapter = Adapter::open(&wintun, &cfg.name)
+            .map_err(|e| io::Error::other(format!("open existing adapter {}: {e}", cfg.name)))?;
+
+        let session = Arc::new(
+            adapter
+                .start_session(wintun::MAX_RING_CAPACITY)
+                .map_err(|e| io::Error::other(format!("start session: {e}")))?,
+        );
+
+        Ok(Self {
+            session,
+            _adapter: adapter,
+            _wintun: wintun,
+            info: DeviceInfo { name: cfg.name.clone(), mtu: cfg.mtu },
+            // Deliberately empty: this process did not add any routes, and
+            // must not remove the helper's on drop.
+            extra_routes: Vec::new(),
+            owns_integration: false,
         })
     }
 }
@@ -129,6 +180,12 @@ impl Drop for WintunDevice {
     /// (Windows removes routes bound to a deleted interface automatically in
     /// practice; this is defense in depth, not the only cleanup path).
     fn drop(&mut self) {
+        // `attach_existing` did none of this setup — the elevation helper
+        // owns it and tears it down when *it* exits. Undoing it from here
+        // would break a still-running helper session.
+        if !self.owns_integration {
+            return;
+        }
         let _ = remove_network_integration(&self.info.name);
         remove_extra_routes(&self.info.name, &self.extra_routes);
     }
@@ -136,7 +193,7 @@ impl Drop for WintunDevice {
 
 /// Assign the IPv4 address via `netsh` (requires elevation, already verified
 /// before the device is opened).
-fn assign_ip(name: &str, ip: Ipv4Addr, prefix_len: u8) -> io::Result<()> {
+pub(crate) fn assign_ip(name: &str, ip: Ipv4Addr, prefix_len: u8) -> io::Result<()> {
     let mask = prefix_to_mask(prefix_len);
     let status = Command::new("netsh")
         .args([
@@ -269,7 +326,7 @@ fn prefix_to_mask(prefix_len: u8) -> Ipv4Addr {
 
 /// Resolve the bundled `wintun.dll` for the current architecture across both
 /// dev and bundled layouts.
-fn locate_wintun_dll() -> Option<PathBuf> {
+pub(crate) fn locate_wintun_dll() -> Option<PathBuf> {
     let arch = if cfg!(target_arch = "x86_64") {
         "amd64"
     } else if cfg!(target_arch = "aarch64") {

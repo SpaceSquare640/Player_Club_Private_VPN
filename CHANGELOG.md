@@ -16,6 +16,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.39.0] - 2026-08-06
+
+### Added
+- **`create_adapter` implemented, and its main-process counterpart (Phase E.3, step 4 of 5).** `dispatch::WindowsDispatcher` is now stateful: it loads `wintun.dll` on first use and **holds every adapter it creates** for the helper process's lifetime. `tun::windows::WintunDevice::attach_existing` is the other half — opens an already-existing adapter *by name* (`Adapter::open`) and starts a session against it, performing no privileged setup of its own.
+- `WintunDevice` gained an `owns_integration` flag. `attach_existing` sets it false so `Drop` skips firewall/route teardown — that setup belongs to the helper, and undoing it from the main process would break a still-running helper session rather than merely duplicating work.
+
+### The design question steps 1–3 deferred, and its actual answer
+- Those steps declined to implement `create_adapter` because "can the helper create an adapter and hand it to the main process?" was a real question, not something to guess at. Investigating Wintun's semantics gave a concrete answer: **no, not by handing it over.** `WintunCloseAdapter` — which the `wintun` crate calls from `Adapter`'s `Drop` — *removes* an adapter created via `WintunCreateAdapter`. A helper that created one and returned would destroy it on the way out.
+- What works instead, and what this ships: the helper creates the adapter and holds the handle for its whole lifetime (so the adapter lives as long as the helper does); the main process opens that same adapter by name and starts its own session. The helper exiting is the teardown. A duplicate-name guard rejects a second `create_adapter` for a name already held, rather than orphaning the first handle.
+
+### Scope — and the one thing still blocking this feature
+- **`WintunDevice` is still not rewired to use the helper**, and `relaunch_elevated`'s whole-app relaunch remains the only elevation path the running app actually takes. The blocker is specific and load-bearing: whether the main process's `Adapter::open` + `start_session` succeeds **unelevated**. If it needs elevation too, the helper buys nothing over the existing relaunch and the approach has to change. This environment has no Administrator privileges to answer that, and wiring the app over to an unverified assumption would be building on sand — so step 5 is marked blocked, not planned.
+- A test for the duplicate-adapter guard was written and then **removed rather than shipped**: `wintun::Adapter` has no constructor that avoids touching the driver, so the test needed `unreachable!()` scaffolding that would have asserted nothing real. A fake test is worse than no test.
+
+### Verified
+- `cargo test --lib`: 138/138 passing (unchanged count — this phase added no new testable-without-elevation surface, which is itself the honest signal about where its risk sits).
+- `cargo check --bins --lib`: zero warnings, including the `helper.exe` target.
+- Not verified by anyone yet: a real elevation prompt, a second local account being refused by the pipe ACL, the helper actually creating an adapter, and — the decisive one — unelevated `Adapter::open` + `start_session`.
+
 ## [0.38.0] - 2026-08-06
 
 ### Added

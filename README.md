@@ -84,7 +84,8 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Elevation helper — IPC protocol + message framing (E.3 step 1) | ✅ Done |
 | Elevation helper — request/response dispatch cycle, generic transport, real `tun::windows` wiring for 4 of 5 operations (E.3 step 2) | ✅ Done |
 | Elevation helper — real named-pipe transport (owner-only ACL), `helper.exe` binary, elevated launch (E.3 step 3) | ✅ Done |
-| Elevation helper — `WintunDevice`/`create_adapter` integration, replacing whole-app relaunch (E.3 step 4) | ⏳ Planned |
+| Elevation helper — `create_adapter` + `attach_existing` (helper owns the adapter, main process opens it by name) (E.3 step 4) | ✅ Done |
+| Elevation helper — actually replacing whole-app relaunch; blocked on verifying unelevated `WintunOpenAdapter` on a real machine (E.3 step 5) | ⏳ Blocked |
 
 ---
 
