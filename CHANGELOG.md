@@ -16,6 +16,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.37.0] - 2026-08-06
+
+### Added
+- **Elevation helper dispatch cycle (Phase E.3, step 2 of 3).** `engine::helper::server::run` reads `HelperRequest` lines, dispatches each to a `HelperDispatcher`, writes back a `HelperResponse` — generic over `AsyncRead`/`AsyncWrite`, so it's exercised in tests against an in-memory `tokio::io::duplex`, no real pipe or elevation involved. `engine::helper::client::HelperClient` is the other end of the same cycle, tested as a full round trip against the real server loop (not a hand-rolled stand-in for it).
+- `engine::helper::dispatch::HelperDispatcher` trait + `WindowsDispatcher`: 4 of the 5 protocol operations now call the real `tun::windows` functions (`configure_network_integration`, `remove_network_integration`, `add_extra_routes`, `remove_extra_routes` — all newly `pub(crate)` for this). `create_adapter` deliberately still returns an explicit "not yet implemented" error — see Scope below.
+- `dispatch::test_support::FakeDispatcher` — records every call instead of touching the OS, letting the server/client tests assert exactly what got dispatched with what arguments, and control success/failure per call, without Windows or elevation.
+
+### Scope
+- **`create_adapter` is the one operation not wired to anything real.** A Wintun session (what `WintunDevice::open` ultimately needs) isn't simply created in one process and handed to another — splitting "the helper creates the adapter" from "the main process opens a session against it" is a real design question that deserves its own verified step, not an improvised answer written blind. It returns a clear error rather than silently doing nothing or guessing at an implementation.
+- Still no real named-pipe transport, no `helper.exe` binary, no elevated-launch path, and nothing in `tun::windows` calls through the helper yet — `relaunch_elevated`'s whole-app relaunch remains the only elevation path in this release. That's step 3, deferred for the same reason as before: this environment has no Administrator privileges to verify any of it against.
+
+### Verified
+- `cargo test --lib`: 131/131 passing (18 new across `server`/`client`): the loop dispatches each request type to the right `HelperDispatcher` method with the right arguments, a dispatcher error becomes an `Error` response, an unsupported version is reported *without* dispatching, malformed input gets an error reply and the loop keeps running (proven by a subsequent real request still getting a real reply), `Shutdown` ends the server task after replying (not before — and not hanging), the client gets its own reply for each of several sequential requests, and the client surfaces a clear I/O error when the other end of the connection disappears mid-request.
+- `cargo check`: zero warnings (both new modules carry the same documented `#![allow(dead_code)]` posture as every other not-yet-wired-in module this project has shipped incrementally).
+- No frontend changes in this phase.
+
 ## [0.36.0] - 2026-08-06
 
 ### Added

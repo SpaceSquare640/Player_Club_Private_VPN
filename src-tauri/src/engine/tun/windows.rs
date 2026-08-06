@@ -196,7 +196,7 @@ fn run_powershell(script: &str) -> io::Result<()> {
 /// adapter is `split_tunnel`'s job, done before any packet gets here, so a
 /// failure here degrades to "Windows Firewall might also need a manual nudge"
 /// rather than a broken adapter — callers ignore the `Result`.
-fn configure_network_integration(adapter_name: &str) -> io::Result<()> {
+pub(crate) fn configure_network_integration(adapter_name: &str) -> io::Result<()> {
     run_powershell(&format!(
         "Set-NetConnectionProfile -InterfaceAlias {} -NetworkCategory Private",
         ps_quote(adapter_name)
@@ -210,7 +210,7 @@ fn configure_network_integration(adapter_name: &str) -> io::Result<()> {
 
 /// Remove the rule `configure_network_integration` added. Best-effort, like
 /// its counterpart — see `Drop for WintunDevice`.
-fn remove_network_integration(adapter_name: &str) -> io::Result<()> {
+pub(crate) fn remove_network_integration(adapter_name: &str) -> io::Result<()> {
     run_powershell(&format!(
         "Remove-NetFirewallRule -DisplayName {} -ErrorAction SilentlyContinue",
         ps_quote(&firewall_rule_name(adapter_name)),
@@ -240,7 +240,7 @@ fn remove_route_script(adapter_name: &str, network: Ipv4Addr, prefix: u8) -> Str
     )
 }
 
-fn add_extra_routes(adapter_name: &str, routes: &[(Ipv4Addr, u8)]) -> io::Result<()> {
+pub(crate) fn add_extra_routes(adapter_name: &str, routes: &[(Ipv4Addr, u8)]) -> io::Result<()> {
     for (network, prefix) in routes {
         let _ = run_powershell(&add_route_script(adapter_name, *network, *prefix));
     }
@@ -250,7 +250,7 @@ fn add_extra_routes(adapter_name: &str, routes: &[(Ipv4Addr, u8)]) -> io::Result
 /// Remove the routes `add_extra_routes` added. Best-effort, like its
 /// counterpart — see `Drop for WintunDevice`. Does not return a `Result`
 /// since every call site already treats it as fire-and-forget.
-fn remove_extra_routes(adapter_name: &str, routes: &[(Ipv4Addr, u8)]) {
+pub(crate) fn remove_extra_routes(adapter_name: &str, routes: &[(Ipv4Addr, u8)]) {
     for (network, prefix) in routes {
         let _ = run_powershell(&remove_route_script(adapter_name, *network, *prefix));
     }

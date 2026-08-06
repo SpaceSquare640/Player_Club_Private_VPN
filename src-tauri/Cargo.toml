@@ -1,6 +1,6 @@
 [package]
 name = "player-club-private-vpn"
-version = "0.36.0"
+version = "0.37.0"
 description = "Player Club Private VPN — a high-performance Gaming Virtual Network."
 authors = ["Player Club"]
 edition = "2021"
@@ -21,7 +21,7 @@ serde_json = "1"
 
 # Networking engine (Phase A: telemetry spine). The async loop is hosted on
 # Tauri's shared runtime; tokio provides the timer + watch-based shutdown.
-tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "net"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "net", "io-util"] }
 thiserror = "1"
 # Seedable PRNG (StdRng) — reproducible telemetry runs when a seed is supplied,
 # OS entropy otherwise. See engine::telemetry::simulator.

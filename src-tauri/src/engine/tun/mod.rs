@@ -9,7 +9,7 @@ pub mod packet;
 pub mod privilege;
 
 #[cfg(windows)]
-mod windows;
+pub(crate) mod windows;
 
 use std::io;
 
