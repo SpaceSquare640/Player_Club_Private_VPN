@@ -81,6 +81,8 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Virtual-network UI — create/join network, live member list, integrated into the Network page (G.4) | ✅ Done |
 | Game-tagged networks — Minecraft quick-create panel, generic `gameTag` metadata shown wherever a network is viewed | ✅ Done |
 | Network page's virtual network panel repositioned as pure management — hint + collapsed general-purpose forms | ✅ Done |
+| Elevation helper — IPC protocol + message framing only, step 1 of 2 (E.3) | ✅ Done |
+| Elevation helper — named-pipe server/client + `helper.exe` binary (E.3 step 2) | ⏳ Planned |
 
 ---
 

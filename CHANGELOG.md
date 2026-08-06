@@ -16,6 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.36.0] - 2026-08-06
+
+### Added
+- **Elevation helper protocol (Phase E.3, step 1 of 2).** `engine::helper::protocol` defines the closed message set a future elevated helper process will accept — `CreateAdapter`, `ConfigureNetworkIntegration`, `RemoveNetworkIntegration`, `AddExtraRoutes`, `RemoveExtraRoutes`, `Shutdown` — each a 1:1 counterpart to an existing `tun::windows` function, and nothing broader (the helper is not a general-purpose remote shell). Framing is newline-delimited JSON, reusing the convention `signaling::protocol` already established for a similar problem (typed request/response over a long-lived stream) rather than inventing a second one.
+- `HelperResponse::UnsupportedVersion` — a request whose `v` the helper doesn't understand gets a protocol-level reply, not a transport-level failure, so a future version mismatch is something the caller can react to distinctly from "the pipe broke."
+
+### Scope
+- **Protocol only.** No named-pipe server/client, no `helper.exe` binary, and nothing in `tun::windows` calls through this yet — `relaunch_elevated`'s whole-app relaunch remains the only elevation path in this release. Explicitly the first of two steps (see `engine::helper`'s module doc comment): building and wiring the actual IPC transport is deferred to when real Administrator-privileged verification is available, which this environment does not have.
+
+### Verified
+- `cargo test --lib`: 121/121 passing (8 new): every request and response variant round-trips through encode/decode, a version-mismatch response round-trips with its `supported` value, malformed JSON is rejected, a response-shaped line fails to decode as a request and vice versa, a trailing `\r` (as a CRLF-terminated pipe might leave) is tolerated, and — the one genuine bug this phase's own tests caught — encoding is proven to never produce an embedded newline even when the input (e.g. an adapter name) contains one, because `serde_json` escapes control characters inside strings. (The first draft of this test asserted a defensive `encode` rejection that could never fire, since JSON string escaping already makes the newline impossible to produce — removed in favor of testing the actual invariant.)
+- `cargo check`: zero warnings (`#![allow(dead_code)]` on the new module, same posture as every other not-yet-wired-in module this project has shipped incrementally — G.1–G.3, mesh.rs).
+- No frontend changes in this phase.
+
 ## [0.35.0] - 2026-08-06
 
 ### Added
