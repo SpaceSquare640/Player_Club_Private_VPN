@@ -17,6 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.34.0] - 2026-08-06
+
+### Changed
+- **Network page's Virtual Network tab now leads with management, not creation.** When not currently in a network, it shows a one-line hint pointing at the relevant game's own page (e.g. Minecraft) instead of the create/join forms — those forms are still there, one click away behind an explicit "or create a general-purpose network" toggle, for networks that aren't tied to any particular game. Once in a network, the panel is unchanged: name, game tag, host address, live member list, leave — that's the actual "management" the tab is for.
+- `VirtualNetworkPanel` gained a `collapseFormsByDefault` prop (Network page passes it; the Minecraft page's instance does not, so its forms still show immediately — it's a direct, single-purpose entry point, not a management surface).
+
+### Scope
+- Purely a UI-layer change — no Rust changes, no new Tauri commands, no change to `MeshSession`'s behavior. Creating a "general-purpose" (no `gameTag`) network from the Network page still works exactly as before, just one click further in.
+
+### Verified
+- `pnpm test`: 120/120 passing (4 new: the hint shows instead of forms by default, the toggle reveals the forms, the full status view (not the hint) shows once in a network, and the prop being omitted — as on the Minecraft page — keeps the old always-shown-forms behavior). One existing `Network.test.tsx` test updated to expect the hint instead of the forms when switching to the virtual-network tab.
+- `tsc --noEmit` clean; `pnpm build` succeeds.
+- Browser-verified live: Network page's virtual-network tab shows the hint by default, expanding it reveals the general-purpose forms; Minecraft page's own panel still shows its forms immediately, unaffected. Zero console errors.
+
 ## [0.33.0] - 2026-08-06
 
 ### Added

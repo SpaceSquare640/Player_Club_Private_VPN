@@ -79,6 +79,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Mesh auto-connect orchestration — roster + relay → automatic offer/answer, no manual paste (G.3c) | ✅ Done |
 | Virtual-network UI — create/join network, live member list, integrated into the Network page (G.4) | ✅ Done |
 | Game-tagged networks — Minecraft quick-create panel, generic `gameTag` metadata shown wherever a network is viewed | ✅ Done |
+| Network page's virtual network panel repositioned as pure management — hint + collapsed general-purpose forms | ✅ Done |
 
 ---
 

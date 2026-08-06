@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useVirtualNetwork } from "../../hooks/useVirtualNetwork";
 import { cn } from "../../lib/cn";
@@ -20,6 +21,17 @@ export interface VirtualNetworkPanelProps {
   gameTag?: string;
   /** Fixed connection settings applied to every auto-connected peer. */
   settings?: ConnectionSettings;
+  /**
+   * When not in a network, show a one-line hint pointing at game-specific
+   * pages instead of the create/join forms — an explicit "or create a
+   * general-purpose network" toggle still reveals them. Used by the Network
+   * page's general management panel so it doesn't compete with e.g. the
+   * Minecraft page's own quick-create panel as a second, redundant entry
+   * point for the common case. Once in a network, this has no effect — the
+   * status view (name, game tag, member list, leave) is the same either way,
+   * which is the actual "management" part.
+   */
+  collapseFormsByDefault?: boolean;
 }
 
 /**
@@ -37,8 +49,9 @@ export interface VirtualNetworkPanelProps {
  * `MeshSession` on the Rust side — there is only ever one active network no
  * matter which panel instance you used to create or join it.
  */
-export default function VirtualNetworkPanel({ gameTag, settings }: VirtualNetworkPanelProps) {
+export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsByDefault }: VirtualNetworkPanelProps) {
   const { t } = useTranslation();
+  const [formsExpanded, setFormsExpanded] = useState(!collapseFormsByDefault);
   const {
     status,
     createName,
@@ -129,6 +142,25 @@ export default function VirtualNetworkPanel({ gameTag, settings }: VirtualNetwor
             {error}
           </div>
         )}
+      </div>
+    );
+  }
+
+  if (!formsExpanded) {
+    return (
+      <div
+        data-testid="vn-collapsed-hint"
+        className="rounded-xl border border-white/10 bg-surface-2/40 p-4 text-xs text-ink-muted"
+      >
+        <p>{t("network.virtualCollapsedHint")}</p>
+        <button
+          type="button"
+          data-testid="vn-expand-general-forms"
+          onClick={() => setFormsExpanded(true)}
+          className="mt-2 text-brand-cyan transition-colors hover:text-ink"
+        >
+          {t("network.virtualExpandGeneralForms")}
+        </button>
       </div>
     );
   }

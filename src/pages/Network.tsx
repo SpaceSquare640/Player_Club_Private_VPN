@@ -63,7 +63,7 @@ export default function Network() {
           </p>
         </>
       ) : (
-        <VirtualNetworkPanel />
+        <VirtualNetworkPanel collapseFormsByDefault />
       )}
     </section>
   );

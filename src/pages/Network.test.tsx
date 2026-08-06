@@ -98,7 +98,10 @@ describe("Network page", () => {
 
       expect(screen.queryByTestId("peer-connection")).not.toBeInTheDocument();
       await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("get_network_status"));
-      expect(screen.getByTestId("vn-create-btn")).toBeInTheDocument();
+      // Network page's panel collapses its forms by default (see
+      // VirtualNetworkPanel's "collapseFormsByDefault" behaviour tests) —
+      // the hint is what should show up here, not the forms themselves.
+      expect(screen.getByTestId("vn-collapsed-hint")).toBeInTheDocument();
     });
 
     it("switching back to manual restores the peer-connection panel", () => {

@@ -42,7 +42,9 @@
     "virtualCopyAddr": "复制",
     "virtualLeave": "离开网络",
     "virtualNoMembers": "目前没有其他成员。",
-    "gameTagMinecraft": "Minecraft"
+    "gameTagMinecraft": "Minecraft",
+    "virtualCollapsedHint": "尚未加入任何虚拟网络。请前往对应的游戏页面(例如 Minecraft)创建或加入该游戏的网络。",
+    "virtualExpandGeneralForms": "或创建一般用途网络"
   },
   "nodeIdentity": {
     "label": "本节点 · 指纹",

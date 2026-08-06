@@ -130,6 +130,49 @@ describe("VirtualNetworkPanel — not in a network", () => {
   });
 });
 
+describe("VirtualNetworkPanel — collapseFormsByDefault", () => {
+  it("shows a hint instead of the forms when not in a network", async () => {
+    render(<VirtualNetworkPanel collapseFormsByDefault />);
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("get_network_status"));
+
+    expect(screen.getByTestId("vn-collapsed-hint")).toBeInTheDocument();
+    expect(screen.queryByTestId("vn-create-btn")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("vn-join-btn")).not.toBeInTheDocument();
+  });
+
+  it("reveals the general-purpose forms when expanded", async () => {
+    render(<VirtualNetworkPanel collapseFormsByDefault />);
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("get_network_status"));
+
+    fireEvent.click(screen.getByTestId("vn-expand-general-forms"));
+
+    expect(screen.getByTestId("vn-create-btn")).toBeInTheDocument();
+    expect(screen.getByTestId("vn-join-btn")).toBeInTheDocument();
+  });
+
+  it("shows the full status view (not the hint) once in a network", async () => {
+    wireInvoke({
+      networkName: "party",
+      isHost: true,
+      hostAddr: "127.0.0.1:54321",
+      gameTag: null,
+      members: [],
+    });
+    render(<VirtualNetworkPanel collapseFormsByDefault />);
+
+    expect(await screen.findByTestId("virtual-network-active")).toBeInTheDocument();
+    expect(screen.queryByTestId("vn-collapsed-hint")).not.toBeInTheDocument();
+  });
+
+  it("does not collapse by default when the prop is omitted", async () => {
+    render(<VirtualNetworkPanel />);
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("get_network_status"));
+
+    expect(screen.getByTestId("vn-create-btn")).toBeInTheDocument();
+    expect(screen.queryByTestId("vn-collapsed-hint")).not.toBeInTheDocument();
+  });
+});
+
 describe("VirtualNetworkPanel — game tag badge", () => {
   it("shows a friendly label for a known game tag", async () => {
     wireInvoke({

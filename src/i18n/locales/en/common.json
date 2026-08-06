@@ -42,7 +42,9 @@
     "virtualCopyAddr": "Copy",
     "virtualLeave": "Leave Network",
     "virtualNoMembers": "No other members yet.",
-    "gameTagMinecraft": "Minecraft"
+    "gameTagMinecraft": "Minecraft",
+    "virtualCollapsedHint": "Not in a network yet. Create or join a game's network from that game's page (e.g. Minecraft).",
+    "virtualExpandGeneralForms": "Or create a general-purpose network"
   },
   "nodeIdentity": {
     "label": "This node · fingerprint",
