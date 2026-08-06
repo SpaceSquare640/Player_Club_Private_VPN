@@ -9,7 +9,7 @@ pub mod privilege_cmds;
 pub mod signaling_cmds;
 pub mod telemetry_cmds;
 
-pub use connection_cmds::{connect_peer, disconnect_peer};
+pub use connection_cmds::{connect_peer, disconnect_peer, update_connection_settings};
 pub use engine_cmds::{get_status, start_engine, stop_engine};
 pub use identity_cmds::get_identity;
 pub use mesh_cmds::{create_network, get_network_status, join_network, leave_network};

@@ -161,6 +161,11 @@ fn peer_key(public_key: &[u8]) -> PeerKey {
 struct PeerLink {
     link: Arc<Mutex<LinkState>>,
     active: Option<Active>,
+    /// Pushes live setting changes into this peer's running pipeline (Phase
+    /// B.4). Held here rather than in `Active` because it stays useful for
+    /// exactly as long as the entry does, and dropping it is what retires
+    /// the pipeline's settings-watch branch.
+    settings_tx: watch::Sender<ConnectionSettings>,
 }
 
 #[derive(Default)]
@@ -379,6 +384,7 @@ impl ConnectionManager {
             .collect();
 
         let (cancel, cancel_rx) = watch::channel(false);
+        let (settings_tx, settings_rx) = watch::channel(settings);
         let link = Arc::new(Mutex::new(LinkState::Connecting));
         let handle = async_runtime::spawn(pipeline::run(
             socket,
@@ -387,13 +393,28 @@ impl ConnectionManager {
             peer_public,
             peer_candidates,
             dataplane_source_for(role, extra_routes),
-            settings,
+            settings_rx,
             sink,
             link.clone(),
             cancel_rx,
         ));
-        peers.insert(key, PeerLink { link, active: Some(Active { cancel, handle }) });
+        peers.insert(key, PeerLink { link, active: Some(Active { cancel, handle }), settings_tx });
         Ok(())
+    }
+
+    /// Push a settings change into every live link (Phase B.4 — live
+    /// toggles). Only the broadcast/multicast toggles actually take effect
+    /// mid-session; see `SplitPolicy::set_forward_broadcast` for why the
+    /// rest can't. Applies to every peer because the settings are global in
+    /// the UI — there is no per-peer settings surface to honour.
+    ///
+    /// A send failure means that peer's pipeline has already exited, which
+    /// is not an error worth reporting: the entry is about to be cleaned up
+    /// anyway, and there is nothing the caller could do differently.
+    pub fn update_settings(&self, settings: ConnectionSettings) {
+        for peer in self.peers.lock().unwrap().values() {
+            let _ = peer.settings_tx.send(settings.clone());
+        }
     }
 
     /// Tear down the pending-negotiation peer's live link (legacy single-peer

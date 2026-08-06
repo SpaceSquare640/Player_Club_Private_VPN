@@ -16,6 +16,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.40.0] - 2026-08-06
+
+### Added
+- **Live split-tunnel toggles (Phase B.4)** — flipping broadcast or multicast forwarding now takes effect on an **already-connected link**, with no reconnect. This closes the limitation recorded in `[0.15.0]`, which deferred it as needing "a control channel into the running pipeline"; that channel is a `tokio::sync::watch` carrying `ConnectionSettings`, matching how cancellation is already plumbed through this codebase.
+- `ConnectionManager::update_settings` pushes to every live peer, and the `update_connection_settings` Tauri command exposes it. `SplitPolicy` gained in-place `set_forward_broadcast`/`set_forward_multicast` so a running link's policy can be adjusted without rebuilding it from its `TunConfig`.
+- `hooks/useLiveConnectionSettings` — mounted app-wide in `AppShell`, alongside the telemetry subscription and i18n sync, for the same reason: it must outlive whichever page is showing.
+
+### Scope — and why only two of the four settings are live
+- **Broadcast/multicast are pure local packet filtering.** Flipping one changes only what this side forwards; the peer neither knows nor cares. Safe to change mid-session.
+- **FEC redundancy (`r`) is not**, and deliberately stays connect-time: it is a wire-format agreement with the peer, so changing it unilaterally would desynchronise the encoder and decoder. Making it live means renegotiating with the peer — a different feature.
+- **Extra routed networks are not**, for a different reason: they mutate the OS routing table and need elevation.
+- The frontend sends the whole `ConnectionSettings` object anyway and the engine ignores what it can't apply. A hand-curated "live subset" on the frontend would silently drift out of sync with the type as it grows.
+
+### Design note — watching values, not buttons
+- The live push is keyed on the settings *values*, not wired into the Settings overlay's toggle handlers. An earlier draft did the latter and would have silently missed two other writers of the same store fields: the Minecraft page's preset button and JSON profile import. Both should reach a live link, and now do. There is a regression test for exactly this.
+
+### Verified
+- `cargo test --lib`: 139/139 passing (1 new integration test): with a pair connected over loopback, a broadcast crosses, `forward_broadcast: false` is pushed into the *running* link, and a subsequent broadcast is dropped while a unicast still crosses. The trailing unicast is what makes it a real assertion rather than a race — it is sent after the broadcast, so its arrival proves the pipeline processed both and the broadcast's absence was a decision, not a packet still in flight. Re-ran 5× to confirm it isn't flaky.
+- `cargo check --bins --lib`: zero warnings.
+- `pnpm test`: 133/133 passing (6 new): the `updateConnectionSettings` wrapper's invoke shape, and the hook pushing on mount, pushing on a toggle change, **pushing for a non-Settings-originated store write** (the guard described above), not re-pushing when nothing changed, and swallowing a rejected push.
+- `tsc --noEmit` clean; `pnpm build` succeeds.
+- Browser-verified: with the hook mounted, changing settings at runtime produced zero console errors — the mount-time and change-time pushes both fail silently in a browser preview (no Tauri runtime), which is the designed behavior.
+
+### Note on this release's provenance
+- The Rust half of this phase was written in a prior session that was interrupted before committing. It was found uncommitted in the working tree, reviewed, and verified from scratch here rather than rewritten — the frontend half, its tests, and the hook extraction are new in this session.
+
 ## [0.39.0] - 2026-08-06
 
 ### Added

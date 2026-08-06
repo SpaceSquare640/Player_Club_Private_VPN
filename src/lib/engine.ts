@@ -101,9 +101,28 @@ export function getConnection(): Promise<ConnectionInfo> {
 /**
  * Begin the hole-punch handshake to the negotiated peer. `settings` (split-tunnel
  * forwarding + FEC redundancy, Phase B.3) applies once, for this connection.
+ * To change the live-toggleable subset afterwards, see
+ * {@link updateConnectionSettings}.
  */
 export function connectPeer(settings: ConnectionSettings): Promise<void> {
   return invoke("connect_peer", { settings });
+}
+
+/**
+ * Push a settings change into every already-live link (Phase B.4).
+ *
+ * Only the broadcast/multicast toggles take effect mid-session — they are
+ * pure local packet filtering, invisible to the peer. FEC redundancy and
+ * extra routed networks still apply only at the next Connect (the former is
+ * a wire-format agreement with the peer, the latter needs elevation to
+ * change OS routes). The whole `ConnectionSettings` object is sent anyway:
+ * the engine ignores the parts it can't apply live, which keeps this call
+ * from drifting out of sync with the type as it grows.
+ *
+ * A no-op when nothing is connected.
+ */
+export function updateConnectionSettings(settings: ConnectionSettings): Promise<void> {
+  return invoke("update_connection_settings", { settings });
 }
 
 /** Tear down the live peer link. */

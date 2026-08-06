@@ -17,6 +17,7 @@ import {
   isEngineActive,
   startEngine,
   stopEngine,
+  updateConnectionSettings,
 } from "./engine";
 import type { ConnectionSettings, EngineState } from "../types/telemetry";
 
@@ -96,5 +97,18 @@ describe("command contract", () => {
     expect(invokeMock).toHaveBeenCalledWith("connect_peer", { settings });
     await disconnectPeer();
     expect(invokeMock).toHaveBeenCalledWith("disconnect_peer");
+  });
+
+  it("update_connection_settings carries the whole settings object under `settings`", async () => {
+    const settings: ConnectionSettings = {
+      forwardBroadcast: false,
+      forwardMulticast: false,
+      fecParityShards: 3,
+      extraRoutes: ["192.168.50.0/24"],
+    };
+    await updateConnectionSettings(settings);
+    // The engine ignores the parts it can't apply live rather than the
+    // frontend hand-picking a subset — see the wrapper's doc comment.
+    expect(invokeMock).toHaveBeenCalledWith("update_connection_settings", { settings });
   });
 });

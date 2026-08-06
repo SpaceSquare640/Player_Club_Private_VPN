@@ -6,6 +6,7 @@ import SettingsOverlay from "../settings/SettingsOverlay";
 import { Skeleton } from "../common/Skeleton";
 import { useAppStore, type RouteId } from "../../stores/appStore";
 import { useEngineTelemetry } from "../../hooks/useEngineTelemetry";
+import { useLiveConnectionSettings } from "../../hooks/useLiveConnectionSettings";
 import i18n from "../../i18n";
 
 const ROUTE_PATHS: Record<RouteId, string> = {
@@ -44,6 +45,10 @@ export default function AppShell() {
   useEffect(() => {
     void i18n.changeLanguage(language);
   }, [language]);
+
+  // Live settings push (Phase B.4) — app-wide for the same reason as the
+  // telemetry subscription above: it must outlive whichever page is showing.
+  useLiveConnectionSettings();
 
   // Captured once at first render — the persisted route, before the location
   // sync effect below reconciles the store to the URL.

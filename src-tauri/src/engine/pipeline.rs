@@ -144,11 +144,15 @@ pub async fn run(
     peer_public: Vec<u8>,
     peer_candidates: Vec<SocketAddr>,
     dataplane_src: DataPlaneSource,
-    settings: ConnectionSettings,
+    settings_rx: watch::Receiver<ConnectionSettings>,
     sink: Box<dyn TelemetrySink>,
     link: Arc<Mutex<LinkState>>,
     mut cancel: watch::Receiver<bool>,
 ) {
+    // Snapshot for everything decided once at setup (FEC geometry, the
+    // adapter's routes). The live-toggleable subset is re-read from
+    // `settings_rx` inside `drive` — see `SplitPolicy::set_forward_broadcast`.
+    let settings = settings_rx.borrow().clone();
     sink.state(EngineState::Connecting);
 
     // Phase 1 — hole-punch-as-handshake.
@@ -281,6 +285,7 @@ pub async fn run(
         fec_enc,
         fec_dec,
         split_policy,
+        settings_rx,
         sink.as_ref(),
         &mut cancel,
     )
@@ -311,9 +316,13 @@ async fn drive(
     mut fec_enc: Option<RsEncoder>,
     mut fec_dec: Option<RsDecoder>,
     split_policy: Option<SplitPolicy>,
+    mut settings_rx: watch::Receiver<ConnectionSettings>,
     sink: &dyn TelemetrySink,
     cancel: &mut watch::Receiver<bool>,
 ) {
+    // Mutable so a live settings change can flip its toggles in place — see
+    // the `settings_rx.changed()` arm in the select loop below.
+    let mut split_policy = split_policy;
     let started = Instant::now();
     let mut tracker = RttTracker::new();
     let mut ticker = time::interval(KEEPALIVE_INTERVAL);
@@ -328,9 +337,31 @@ async fn drive(
     let mut fec_recovered = 0u32;
     let mut policy_blocked = 0u32;
     let mut last_emit = Instant::now();
+    // Guards the settings-watch select branch; see its comment below.
+    let mut settings_live = true;
 
     loop {
         tokio::select! {
+            // Live settings change (Phase B.4). Only the broadcast/multicast
+            // toggles are applied — they are pure local packet filtering, so
+            // flipping one mid-session is invisible to the peer. FEC geometry
+            // and extra routes are deliberately *not* live-applied here: see
+            // `SplitPolicy::set_forward_broadcast`'s doc comment.
+            // The guard matters: once every sender is dropped, `changed()`
+            // returns `Err` immediately and forever, which would spin this
+            // loop at full tilt. Disabling the branch retires it for good —
+            // the link keeps running on the settings it already has.
+            changed = settings_rx.changed(), if settings_live => {
+                if changed.is_err() {
+                    settings_live = false;
+                } else {
+                    let latest = settings_rx.borrow_and_update().clone();
+                    if let Some(policy) = split_policy.as_mut() {
+                        policy.set_forward_broadcast(latest.forward_broadcast);
+                        policy.set_forward_multicast(latest.forward_multicast);
+                    }
+                }
+            }
             _ = ticker.tick() => {
                 // Encrypted keepalive ping to the nominated endpoint.
                 let seq = tracker.next_ping();
@@ -756,6 +787,12 @@ mod integration {
         b_link: Arc<Mutex<LinkState>>,
         a_cancel: watch::Sender<bool>,
         b_cancel: watch::Sender<bool>,
+        /// Kept alive for the pair's lifetime so the pipeline's
+        /// settings-watch branch stays armed (dropping every sender retires
+        /// it), and so a test can push a live settings change mid-session.
+        a_settings_tx: watch::Sender<ConnectionSettings>,
+        #[allow(dead_code)]
+        b_settings_tx: watch::Sender<ConnectionSettings>,
         a_task: tokio::task::JoinHandle<()>,
         b_task: tokio::task::JoinHandle<()>,
     }
@@ -781,6 +818,8 @@ mod integration {
         let b_link = Arc::new(Mutex::new(LinkState::Connecting));
         let (a_cancel, a_rx) = watch::channel(false);
         let (b_cancel, b_rx) = watch::channel(false);
+        let (a_settings_tx, a_settings_rx) = watch::channel(a_settings);
+        let (b_settings_tx, b_settings_rx) = watch::channel(b_settings);
 
         let a_task = tokio::spawn(run(
             a_tx,
@@ -789,7 +828,7 @@ mod integration {
             b_pub,
             vec![dead, b_addr],
             DataPlaneSource::Device(a_tun.device(), tun_cfg(1)),
-            a_settings,
+            a_settings_rx,
             Box::new(NullSink),
             a_link.clone(),
             a_rx,
@@ -801,7 +840,7 @@ mod integration {
             a_pub,
             vec![a_addr],
             DataPlaneSource::Device(b_tun.device(), tun_cfg(2)),
-            b_settings,
+            b_settings_rx,
             Box::new(NullSink),
             b_link.clone(),
             b_rx,
@@ -814,7 +853,18 @@ mod integration {
         })
         .await;
 
-        Pair { a_tun, b_tun, a_link, b_link, a_cancel, b_cancel, a_task, b_task }
+        Pair {
+            a_tun,
+            b_tun,
+            a_link,
+            b_link,
+            a_cancel,
+            b_cancel,
+            a_settings_tx,
+            b_settings_tx,
+            a_task,
+            b_task,
+        }
     }
 
     /// The handshake completes through the real fan-out, ignoring a dead
@@ -942,6 +992,51 @@ mod integration {
         let got = p.b_tun.injected();
         assert_eq!(got.len(), 1, "only the extra-route packet should have crossed");
         assert_eq!(got[0], via_extra_route);
+
+        let _ = p.a_cancel.send(true);
+        let _ = p.b_cancel.send(true);
+        let _ = p.a_task.await;
+        let _ = p.b_task.await;
+    }
+
+    /// ⭐ Phase B.4: flipping the broadcast toggle takes effect on an
+    /// **already-connected** link, with no reconnect. The link starts with
+    /// broadcast forwarding on (a broadcast packet crosses), then the toggle
+    /// is pushed live, and a subsequent broadcast packet is dropped while
+    /// unicast keeps flowing — proving the change reached the running
+    /// pipeline's policy rather than merely being stored for the next
+    /// Connect, and that it narrowed only what it was supposed to.
+    #[tokio::test]
+    async fn a_live_settings_change_applies_to_an_already_connected_link() {
+        let p = connect_pair(ConnectionSettings::default(), ConnectionSettings::default()).await;
+
+        // Baseline: with the default settings, broadcast crosses.
+        let before = ipv4([10, 77, 0, 1], [10, 77, 0, 255], b"broadcast, before the toggle");
+        p.a_tun.send_from_host(before.clone());
+        let b = p.b_tun.clone();
+        until(10, "the pre-toggle broadcast packet to arrive", move || !b.injected().is_empty()).await;
+        assert_eq!(p.b_tun.injected(), vec![before]);
+
+        // Push the change into the live link.
+        p.a_settings_tx
+            .send(ConnectionSettings { forward_broadcast: false, ..ConnectionSettings::default() })
+            .unwrap();
+
+        // Now a broadcast must be dropped while a unicast still crosses. The
+        // unicast is what makes this a real assertion rather than a race: it
+        // is sent *after* the broadcast, so its arrival proves the pipeline
+        // processed both, and the broadcast's absence is a decision, not a
+        // packet still in flight.
+        p.a_tun.send_from_host(ipv4([10, 77, 0, 1], [10, 77, 0, 255], b"broadcast, must be blocked"));
+        let allowed = ipv4([10, 77, 0, 1], [10, 77, 0, 2], b"unicast, still allowed");
+        p.a_tun.send_from_host(allowed.clone());
+
+        let b = p.b_tun.clone();
+        until(10, "the post-toggle unicast packet to arrive", move || b.injected().len() >= 2).await;
+
+        let got = p.b_tun.injected();
+        assert_eq!(got.len(), 2, "the post-toggle broadcast must not have crossed: {got:?}");
+        assert_eq!(got[1], allowed);
 
         let _ = p.a_cancel.send(true);
         let _ = p.b_cancel.send(true);

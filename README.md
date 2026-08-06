@@ -65,6 +65,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Frontend test foundation — vitest + testing-library, pure logic and store coverage (B.1) | ✅ Done |
 | Network page — peer-connection management moved off Diagnostics, first component tests (B.2) | ✅ Done |
 | Connection settings — split-tunnel broadcast/multicast + FEC redundancy wired to Settings UI (B.3) | ✅ Done |
+| Live split-tunnel toggles — broadcast/multicast changes apply to an already-connected link, no reconnect (B.4) | ✅ Done |
 | Multi-language (i18n) — English, Traditional Chinese, Simplified Chinese, react-i18next, live switching, persisted | ✅ Done |
 | Windows network integration — adapter set to Private, scoped firewall allow-rule, best-effort (E.2) | ✅ Done |
 | OS route management — extra `address/prefix` networks steered into the tunnel via `New-NetRoute`, symmetric split-tunnel policy widening (E.2) | ✅ Done |
@@ -117,7 +118,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 - ✅ **Spectrum chart** — a live tx/rx throughput line chart (hand-rolled SVG, hover crosshair + tooltip) over the most recent samples.
 
 ### Settings
-- ✅ **Connection settings** — split-tunnel broadcast/multicast forwarding, FEC redundancy (`r`), and extra routed networks (`address/prefix`, comma-separated), applied at the next Connect.
+- ✅ **Connection settings** — split-tunnel broadcast/multicast forwarding, FEC redundancy (`r`), and extra routed networks (`address/prefix`, comma-separated). The **broadcast/multicast toggles apply live** to an already-connected link (no reconnect); FEC redundancy and extra routes still take effect at the next Connect, because the former is a wire-format agreement with the peer and the latter needs elevation to change OS routes.
 - ✅ **Layered access** — Basic mode shows Theme + Language; an Expert toggle reveals Connection settings. Purely a display filter — a setting stays in effect whether or not its section is currently shown.
 - ✅ **JSON profile import/export** — save or load the current connection settings (broadcast/multicast forwarding, FEC redundancy) as a versioned JSON file via native save/open dialogs; malformed or incompatible files are rejected with an inline error, never silently coerced.
 - ✅ **Dedicated Minecraft page** — its own sidebar entry, showing the current effective connection settings and a one-click preset button (broadcast + multicast forwarding on, FEC redundancy `r = 2`). A manual shortcut, not background process detection — no process scanning, no new OS permissions. Uses a neutral placeholder icon (lucide's `Gamepad2`) pending resolution of Minecraft-branded artwork licensing.

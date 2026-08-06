@@ -20,7 +20,7 @@ use commands::{
     accept_answer, accept_offer, connect_peer, create_network, create_offer, disconnect_peer,
     get_connection, get_identity, get_network_status, get_packet_log, get_privilege_status,
     get_snapshot, get_status, join_network, leave_network, request_elevation, start_engine,
-    stop_engine,
+    stop_engine, update_connection_settings,
 };
 use engine::connection::ConnectionManager;
 use engine::crypto::Identity;
@@ -66,6 +66,7 @@ pub fn run() {
             get_connection,
             connect_peer,
             disconnect_peer,
+            update_connection_settings,
             create_network,
             join_network,
             leave_network,

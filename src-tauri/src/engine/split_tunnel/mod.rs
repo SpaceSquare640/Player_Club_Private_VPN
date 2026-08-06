@@ -209,6 +209,26 @@ impl SplitPolicy {
         self
     }
 
+    /// In-place counterparts to the chainable setters above, for applying a
+    /// settings change to an **already-running** link (Phase B.4 — live
+    /// toggles) without rebuilding the policy from its `TunConfig`.
+    ///
+    /// Only the broadcast/multicast toggles get in-place setters, and that
+    /// asymmetry is deliberate: they are pure *local* packet filtering, so
+    /// flipping one mid-session affects nothing but what this side forwards.
+    /// FEC geometry and `extra_routes` are not live-changeable — the former
+    /// is a wire-format agreement with the peer (changing `r` unilaterally
+    /// desynchronises the encoder/decoder), the latter mutates the OS
+    /// routing table and needs elevation. See the [0.40.0] changelog entry.
+    pub fn set_forward_broadcast(&mut self, on: bool) {
+        self.forward_broadcast = on;
+    }
+
+    /// See [`set_forward_broadcast`](Self::set_forward_broadcast).
+    pub fn set_forward_multicast(&mut self, on: bool) {
+        self.forward_multicast = on;
+    }
+
     /// Admit additional prefixes into the tunnel beyond the peer's own
     /// virtual-LAN subnet (Phase E.2 — OS route management). Chainable, and
     /// additive: widens egress ([`classify`](Self::classify)/
