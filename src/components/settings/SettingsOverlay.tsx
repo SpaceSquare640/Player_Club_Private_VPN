@@ -37,6 +37,9 @@ export default function SettingsOverlay() {
   const setForwardMulticast = useAppStore((s) => s.setForwardMulticast);
   const fecParityShards = useAppStore((s) => s.fecParityShards);
   const setFecParityShards = useAppStore((s) => s.setFecParityShards);
+  const extraRoutes = useAppStore((s) => s.extraRoutes);
+  const setExtraRoutes = useAppStore((s) => s.setExtraRoutes);
+  const [extraRoutesText, setExtraRoutesText] = useState(() => extraRoutes.join(", "));
   const [importError, setImportError] = useState<string | null>(null);
 
   const handleExportProfile = async () => {
@@ -47,7 +50,7 @@ export default function SettingsOverlay() {
       filters: [{ name: "JSON", extensions: ["json"] }],
     });
     if (!path) return;
-    const json = serializeConnectionProfile({ forwardBroadcast, forwardMulticast, fecParityShards });
+    const json = serializeConnectionProfile({ forwardBroadcast, forwardMulticast, fecParityShards, extraRoutes });
     await writeTextFile(path, json);
   };
 
@@ -68,6 +71,19 @@ export default function SettingsOverlay() {
     setForwardBroadcast(result.settings.forwardBroadcast);
     setForwardMulticast(result.settings.forwardMulticast);
     setFecParityShards(result.settings.fecParityShards);
+    setExtraRoutes(result.settings.extraRoutes);
+    setExtraRoutesText(result.settings.extraRoutes.join(", "));
+  };
+
+  /** Commit the free-text field as a parsed route list on blur, not on
+   * every keystroke — typing "192.168.50.0/2" mid-edit is not yet a valid
+   * entry, and the store shouldn't churn through invalid intermediate states. */
+  const commitExtraRoutesText = () => {
+    const routes = extraRoutesText
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    setExtraRoutes(routes);
   };
 
   return (
@@ -259,6 +275,19 @@ export default function SettingsOverlay() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="mt-4">
+              <span className="text-sm text-ink">{t("settings.extraRoutesHeading")}</span>
+              <p className="mt-1 text-xs text-ink-muted">{t("settings.extraRoutesSubtitle")}</p>
+              <input
+                data-testid="settings-extra-routes"
+                value={extraRoutesText}
+                onChange={(e) => setExtraRoutesText(e.target.value)}
+                onBlur={commitExtraRoutesText}
+                placeholder={t("settings.extraRoutesPlaceholder")}
+                className="mt-2 w-full rounded bg-black/40 p-2 font-mono text-xs text-ink placeholder:text-ink-muted"
+              />
             </div>
 
             <div className="mt-4 flex flex-col gap-2">

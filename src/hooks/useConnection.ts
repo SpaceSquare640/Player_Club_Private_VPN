@@ -65,8 +65,8 @@ export function useConnection(): ConnectionController {
     try {
       // Read fresh at connect time (not subscribed) — these apply once, to this
       // connection, not retroactively, so there is nothing to react to mid-link.
-      const { forwardBroadcast, forwardMulticast, fecParityShards } = useAppStore.getState();
-      const settings: ConnectionSettings = { forwardBroadcast, forwardMulticast, fecParityShards };
+      const { forwardBroadcast, forwardMulticast, fecParityShards, extraRoutes } = useAppStore.getState();
+      const settings: ConnectionSettings = { forwardBroadcast, forwardMulticast, fecParityShards, extraRoutes };
       await connectPeer(settings);
       await refreshConn();
     } catch (e) {

@@ -15,8 +15,10 @@
 //!     packet is never leaked to the peer).
 //!
 //! The policy is a pure function of the destination address, so it is fully
-//! unit-testable without any adapter or elevation. OS route management (steering
-//! additional prefixes into the adapter) is Phase E.2.
+//! unit-testable without any adapter or elevation. OS route management
+//! (steering additional prefixes into the adapter, Phase E.2) widens the
+//! same `included` allow-list via [`SplitPolicy::extra_routes`] — actually
+//! adding those routes to Windows' routing table is `tun::windows`'s job.
 
 use std::net::Ipv4Addr;
 
@@ -35,6 +37,32 @@ impl Ipv4Cidr {
         let m = mask(self.prefix);
         (u32::from(ip) & m) == (u32::from(self.addr) & m)
     }
+
+    /// Parses `"a.b.c.d/prefix"`. Rejects a missing/invalid address or a
+    /// prefix outside `0..=32` — the caller decides what "invalid" means for
+    /// its context (reject the whole input vs. drop just this entry).
+    pub fn parse(s: &str) -> Result<Self, String> {
+        let (addr_str, prefix_str) =
+            s.split_once('/').ok_or_else(|| format!("expected \"address/prefix\", got {s:?}"))?;
+        let addr: Ipv4Addr =
+            addr_str.trim().parse().map_err(|_| format!("invalid address: {:?}", addr_str.trim()))?;
+        let prefix: u8 =
+            prefix_str.trim().parse().map_err(|_| format!("invalid prefix: {:?}", prefix_str.trim()))?;
+        if prefix > 32 {
+            return Err(format!("prefix out of range (0..=32): {prefix}"));
+        }
+        Ok(Self { addr, prefix })
+    }
+}
+
+/// Parses every entry in `raw`, silently dropping any that don't parse —
+/// used on the data-plane path (`ConnectionSettings::extra_routes` arrives
+/// as unvalidated strings over the Tauri IPC boundary), where a single
+/// malformed route must not take down the whole connection. Strict
+/// validation with a real error belongs at the settings-entry UI layer, not
+/// here.
+pub fn parse_extra_routes(raw: &[String]) -> Vec<Ipv4Cidr> {
+    raw.iter().filter_map(|s| Ipv4Cidr::parse(s).ok()).collect()
 }
 
 /// The routing decision for one outbound packet.
@@ -56,6 +84,21 @@ pub struct SplitPolicy {
     local_ip: Ipv4Addr,
     forward_broadcast: bool,
     forward_multicast: bool,
+    /// Networks steered into the tunnel beyond the peer's own subnet (Phase
+    /// E.2), kept **separate** from `included` rather than merged into it.
+    /// The two get different ingress treatment: `included` is the
+    /// point-to-point base subnet, where the *only* valid inbound
+    /// destination is `local_ip` itself (any other in-subnet host is a
+    /// phantom the OS might forward off-box — see `admits_inbound`).
+    /// `extra_routes` is explicitly "I am willing to receive-and-forward
+    /// traffic addressed to this network," so its entries widen the
+    /// *destination* side of the inbound check too, not just egress and the
+    /// source side. Conflating the two would either let a phantom in-subnet
+    /// host through (if `extra_routes` widened `included` outright) or leave
+    /// this feature unable to actually deliver anything (if it only ever
+    /// widened egress) — see the [0.35.0] changelog entry for the bug this
+    /// separation fixes.
+    extra_routes: Vec<Ipv4Cidr>,
 }
 
 impl SplitPolicy {
@@ -82,6 +125,7 @@ impl SplitPolicy {
             local_ip: cfg.virtual_ip,
             forward_broadcast: true,
             forward_multicast: true,
+            extra_routes: Vec::new(),
         }
     }
 
@@ -95,7 +139,7 @@ impl SplitPolicy {
         if dst.is_multicast() {
             return toggle(self.forward_multicast);
         }
-        if self.included.iter().any(|c| c.contains(dst)) {
+        if self.included.iter().any(|c| c.contains(dst)) || self.extra_routes.iter().any(|c| c.contains(dst)) {
             Decision::Tunnel
         } else {
             Decision::Drop
@@ -120,10 +164,13 @@ impl SplitPolicy {
     /// could forge a source (`127.0.0.1`, or our own address) and reach services
     /// that trust loopback or the local subnet. We therefore require:
     ///
-    ///   * the **source** to be a plausible peer on the virtual LAN, and never
-    ///     our own address (no self-spoofing);
-    ///   * the **destination** to be us, or a broadcast/multicast we accept —
-    ///     never a phantom host, which the OS might forward off-box.
+    ///   * the **source** to be a plausible peer on the virtual LAN or one of
+    ///     our accepted [`extra_routes`](Self::extra_routes), and never our
+    ///     own address (no self-spoofing);
+    ///   * the **destination** to be us, an [`extra_routes`](Self::extra_routes)
+    ///     network we've explicitly opted to receive-and-forward toward, or a
+    ///     broadcast/multicast we accept — never a phantom host on the base
+    ///     peer subnet, which the OS might forward off-box.
     ///
     /// Note this assumes the current point-to-point (two-node) LAN; supporting
     /// more peers would widen the destination test to the other members.
@@ -131,10 +178,12 @@ impl SplitPolicy {
         let (Some(src), Some(dst)) = (src_ipv4(frame), dst_ipv4(frame)) else {
             return false;
         };
-        if src == self.local_ip || !self.included.iter().any(|c| c.contains(src)) {
+        let src_trusted =
+            self.included.iter().any(|c| c.contains(src)) || self.extra_routes.iter().any(|c| c.contains(src));
+        if src == self.local_ip || !src_trusted {
             return false;
         }
-        if dst == self.local_ip {
+        if dst == self.local_ip || self.extra_routes.iter().any(|c| c.contains(dst)) {
             return true;
         }
         if dst.is_broadcast() || dst == self.subnet_broadcast {
@@ -157,6 +206,18 @@ impl SplitPolicy {
     /// Chainable — call after [`from_tun`], which defaults both toggles to `true`.
     pub fn forward_multicast(mut self, on: bool) -> Self {
         self.forward_multicast = on;
+        self
+    }
+
+    /// Admit additional prefixes into the tunnel beyond the peer's own
+    /// virtual-LAN subnet (Phase E.2 — OS route management). Chainable, and
+    /// additive: widens egress ([`classify`](Self::classify)/
+    /// [`admits`](Self::admits)) and both the source and destination sides
+    /// of ingress ([`admits_inbound`](Self::admits_inbound)) — see the field
+    /// doc comment for why this is a separate list from `included`, not a
+    /// merge into it.
+    pub fn extra_routes(mut self, routes: Vec<Ipv4Cidr>) -> Self {
+        self.extra_routes.extend(routes);
         self
     }
 }
@@ -420,5 +481,90 @@ mod tests {
         let mut v6 = [0u8; 40];
         v6[0] = 0x60;
         assert!(!p.admits(&v6)); // IPv6 not admitted
+    }
+
+    #[test]
+    fn ipv4_cidr_parse_accepts_well_formed_input() {
+        let c = Ipv4Cidr::parse("192.168.50.0/24").unwrap();
+        assert_eq!(c.addr, Ipv4Addr::new(192, 168, 50, 0));
+        assert_eq!(c.prefix, 24);
+        assert_eq!(Ipv4Cidr::parse(" 10.0.0.0 / 8 ").unwrap().prefix, 8); // tolerates whitespace
+        assert_eq!(Ipv4Cidr::parse("0.0.0.0/0").unwrap().prefix, 0); // /0 is syntactically valid here
+    }
+
+    #[test]
+    fn ipv4_cidr_parse_rejects_malformed_input() {
+        assert!(Ipv4Cidr::parse("192.168.50.0").is_err()); // missing prefix
+        assert!(Ipv4Cidr::parse("not-an-ip/24").is_err());
+        assert!(Ipv4Cidr::parse("192.168.50.0/33").is_err()); // out of range
+        assert!(Ipv4Cidr::parse("192.168.50.0/abc").is_err());
+        assert!(Ipv4Cidr::parse("").is_err());
+    }
+
+    #[test]
+    fn parse_extra_routes_silently_drops_malformed_entries() {
+        let routes = parse_extra_routes(&[
+            "192.168.50.0/24".to_string(),
+            "garbage".to_string(),
+            "10.0.5.0/24".to_string(),
+        ]);
+        assert_eq!(routes.len(), 2);
+        assert_eq!(routes[0].addr, Ipv4Addr::new(192, 168, 50, 0));
+        assert_eq!(routes[1].addr, Ipv4Addr::new(10, 0, 5, 0));
+    }
+
+    #[test]
+    fn extra_routes_widens_the_included_allow_list_additively() {
+        let extra = Ipv4Cidr { addr: Ipv4Addr::new(192, 168, 50, 0), prefix: 24 };
+        let p = policy().extra_routes(vec![extra]);
+
+        // The original peer subnet still works.
+        assert_eq!(p.classify(Ipv4Addr::new(10, 77, 0, 5)), Decision::Tunnel);
+        // The extra route is now admitted too.
+        assert_eq!(p.classify(Ipv4Addr::new(192, 168, 50, 42)), Decision::Tunnel);
+        // Still fail-closed for anything outside both.
+        assert_eq!(p.classify(Ipv4Addr::new(8, 8, 8, 8)), Decision::Drop);
+    }
+
+    #[test]
+    fn extra_routes_widens_the_inbound_source_check_too() {
+        let extra = Ipv4Cidr { addr: Ipv4Addr::new(192, 168, 50, 0), prefix: 24 };
+        let p = policy().extra_routes(vec![extra]); // local_ip 10.77.0.1
+
+        // A peer relaying traffic that genuinely originates from the extra
+        // route is admitted — that's the point of adding the route.
+        assert!(p.admits_inbound(&frame([192, 168, 50, 7], [10, 77, 0, 1])));
+        // Still rejects sources outside every included network.
+        assert!(!p.admits_inbound(&frame([8, 8, 8, 8], [10, 77, 0, 1])));
+    }
+
+    /// The other half of the fix: without this, `extra_routes` could steer a
+    /// packet *into* the tunnel on the sending side but the peer would just
+    /// drop it on arrival — the feature would compile, pass a narrower test,
+    /// and still not work. See the `extra_routes` field's doc comment.
+    #[test]
+    fn extra_routes_widens_the_inbound_destination_check() {
+        let extra = Ipv4Cidr { addr: Ipv4Addr::new(192, 168, 50, 0), prefix: 24 };
+        let p = policy().extra_routes(vec![extra]); // local_ip 10.77.0.1
+        let peer = [10, 77, 0, 2];
+
+        // A packet from the peer bound for the extra-routed network is now
+        // deliverable, not just "unicast to us."
+        assert!(p.admits_inbound(&frame(peer, [192, 168, 50, 42])));
+        // A destination in neither included nor any extra route is still dropped.
+        assert!(!p.admits_inbound(&frame(peer, [172, 16, 0, 1])));
+    }
+
+    /// `extra_routes` must never loosen the base peer subnet's own ingress
+    /// rule: a phantom host elsewhere in the /24 stays rejected even once
+    /// extra routes exist for a completely different network. Guards against
+    /// accidentally merging `extra_routes` back into `included`, which would
+    /// silently regress `inbound_restricts_destinations_to_us_or_group_traffic`.
+    #[test]
+    fn extra_routes_do_not_loosen_the_base_subnet_phantom_host_rule() {
+        let extra = Ipv4Cidr { addr: Ipv4Addr::new(192, 168, 50, 0), prefix: 24 };
+        let p = policy().extra_routes(vec![extra]);
+        let peer = [10, 77, 0, 2];
+        assert!(!p.admits_inbound(&frame(peer, [10, 77, 0, 99])));
     }
 }

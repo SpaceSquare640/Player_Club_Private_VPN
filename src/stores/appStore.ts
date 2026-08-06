@@ -46,6 +46,8 @@ interface AppState {
   forwardMulticast: boolean;
   /** FEC parity shards per group of 8 (1 = the historical default). */
   fecParityShards: number;
+  /** Additional "address/prefix" networks routed into the tunnel (Phase E.2). */
+  extraRoutes: string[];
 
   setActiveRoute: (route: RouteId) => void;
   setTheme: (theme: ThemeId) => void;
@@ -55,6 +57,7 @@ interface AppState {
   setForwardBroadcast: (on: boolean) => void;
   setForwardMulticast: (on: boolean) => void;
   setFecParityShards: (n: number) => void;
+  setExtraRoutes: (routes: string[]) => void;
 }
 
 /** localStorage key under which the persisted UI slice is stored. */
@@ -82,6 +85,7 @@ export const useAppStore = create<AppState>()(
       forwardBroadcast: DEFAULT_CONNECTION_SETTINGS.forwardBroadcast,
       forwardMulticast: DEFAULT_CONNECTION_SETTINGS.forwardMulticast,
       fecParityShards: DEFAULT_CONNECTION_SETTINGS.fecParityShards,
+      extraRoutes: DEFAULT_CONNECTION_SETTINGS.extraRoutes,
 
       setActiveRoute: (route) => set({ activeRoute: route }),
       setTheme: (theme) => set({ theme }),
@@ -92,6 +96,7 @@ export const useAppStore = create<AppState>()(
       setForwardBroadcast: (on) => set({ forwardBroadcast: on }),
       setForwardMulticast: (on) => set({ forwardMulticast: on }),
       setFecParityShards: (n) => set({ fecParityShards: n }),
+      setExtraRoutes: (routes) => set({ extraRoutes: routes }),
     }),
     {
       name: STORAGE_KEY,
@@ -106,6 +111,7 @@ export const useAppStore = create<AppState>()(
         forwardBroadcast: state.forwardBroadcast,
         forwardMulticast: state.forwardMulticast,
         fecParityShards: state.fecParityShards,
+        extraRoutes: state.extraRoutes,
       }),
     },
   ),

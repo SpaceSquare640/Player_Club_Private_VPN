@@ -242,7 +242,7 @@ impl MeshOrchestrator {
                         peer_candidates,
                         self.identity.clone(),
                         sink_factory(),
-                        self.settings,
+                        self.settings.clone(),
                     )
                     .map_err(MeshError::Connect)?;
                 Ok(())
@@ -262,7 +262,7 @@ impl MeshOrchestrator {
                         peer_candidates,
                         self.identity.clone(),
                         sink_factory(),
-                        self.settings,
+                        self.settings.clone(),
                     )
                     .map_err(MeshError::Connect)?;
                 Ok(())
@@ -676,7 +676,12 @@ mod tests {
         let session = MeshSession::default();
         let manager = Arc::new(ConnectionManager::default());
         let identity = Arc::new(Identity::generate().unwrap());
-        let settings = ConnectionSettings { forward_broadcast: true, forward_multicast: true, fec_parity_shards: 2 };
+        let settings = ConnectionSettings {
+            forward_broadcast: true,
+            forward_multicast: true,
+            fec_parity_shards: 2,
+            extra_routes: Vec::new(),
+        };
 
         session
             .create(

@@ -7,6 +7,9 @@ export interface ConnectionProfileFile {
   forwardBroadcast: boolean;
   forwardMulticast: boolean;
   fecParityShards: number;
+  /** Optional: added in Phase E.2. Absent in older exported profiles, which
+   * remain valid — parsing treats a missing field as `[]`, not an error. */
+  extraRoutes?: string[];
 }
 
 /** Mirrors the Rust-side `RsEncoder` clamp (`fec/rs.rs`'s `MAX_R`). */
@@ -19,7 +22,8 @@ export type ProfileValidationError =
   | "unsupported-version"
   | "invalid-forward-broadcast"
   | "invalid-forward-multicast"
-  | "invalid-fec-parity-shards";
+  | "invalid-fec-parity-shards"
+  | "invalid-extra-routes";
 
 export type ProfileParseResult =
   | { ok: true; settings: ConnectionSettings }
@@ -31,6 +35,7 @@ export function serializeConnectionProfile(settings: ConnectionSettings): string
     forwardBroadcast: settings.forwardBroadcast,
     forwardMulticast: settings.forwardMulticast,
     fecParityShards: settings.fecParityShards,
+    extraRoutes: settings.extraRoutes,
   };
   return JSON.stringify(file, null, 2);
 }
@@ -65,6 +70,12 @@ export function parseConnectionProfile(raw: string): ProfileParseResult {
   ) {
     return { ok: false, error: "invalid-fec-parity-shards" };
   }
+  if (
+    file.extraRoutes !== undefined &&
+    (!Array.isArray(file.extraRoutes) || !file.extraRoutes.every((r) => typeof r === "string"))
+  ) {
+    return { ok: false, error: "invalid-extra-routes" };
+  }
 
   return {
     ok: true,
@@ -72,6 +83,7 @@ export function parseConnectionProfile(raw: string): ProfileParseResult {
       forwardBroadcast: file.forwardBroadcast,
       forwardMulticast: file.forwardMulticast,
       fecParityShards: file.fecParityShards,
+      extraRoutes: (file.extraRoutes as string[] | undefined) ?? [],
     },
   };
 }

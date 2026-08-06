@@ -137,6 +137,9 @@
     "fecRedundancyHeading": "FEC 冗餘度",
     "fecRedundancyValue": "r = {{n}}",
     "fecRedundancySubtitle": "每 8 個封包一組,最多可復原 r 個遺失封包,但會增加頻寬用量。",
+    "extraRoutesHeading": "額外路由網段",
+    "extraRoutesSubtitle": "除了對等節點自己的子網路外,額外導入隧道的網段(「位址/前綴長度」,以逗號分隔)。需要系統管理員權限才會在 Windows 上實際生效;格式錯誤的項目會被靜默略過,不會導致失敗。",
+    "extraRoutesPlaceholder": "192.168.50.0/24, 10.0.5.0/24",
     "languageHeading": "語言",
     "languageEnglish": "English",
     "languageZhHant": "繁體中文",
@@ -153,7 +156,8 @@
       "unsupported-version": "此設定檔由不相容的應用程式版本儲存。",
       "invalid-forward-broadcast": "此設定檔中的廣播轉發數值無效。",
       "invalid-forward-multicast": "此設定檔中的多播轉發數值無效。",
-      "invalid-fec-parity-shards": "此設定檔中的 FEC 冗餘度數值無效。"
+      "invalid-fec-parity-shards": "此設定檔中的 FEC 冗餘度數值無效。",
+      "invalid-extra-routes": "此設定檔中的額外路由網段數值無效。"
     }
   },
   "minecraft": {

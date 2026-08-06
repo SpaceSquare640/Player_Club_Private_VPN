@@ -137,6 +137,9 @@
     "fecRedundancyHeading": "FEC redundancy",
     "fecRedundancyValue": "r = {{n}}",
     "fecRedundancySubtitle": "Recovers up to r lost packets per group of 8, at more bandwidth.",
+    "extraRoutesHeading": "Extra routed networks",
+    "extraRoutesSubtitle": "Additional networks (\"address/prefix\", comma-separated) to route into the tunnel beyond the peer's own subnet. Needs Administrator to actually take effect on Windows; a malformed entry is silently skipped, not rejected.",
+    "extraRoutesPlaceholder": "192.168.50.0/24, 10.0.5.0/24",
     "languageHeading": "Language",
     "languageEnglish": "English",
     "languageZhHant": "繁體中文",
@@ -153,7 +156,8 @@
       "unsupported-version": "This profile was saved by an incompatible app version.",
       "invalid-forward-broadcast": "The forward-broadcast value in this profile is invalid.",
       "invalid-forward-multicast": "The forward-multicast value in this profile is invalid.",
-      "invalid-fec-parity-shards": "The FEC redundancy value in this profile is invalid."
+      "invalid-fec-parity-shards": "The FEC redundancy value in this profile is invalid.",
+      "invalid-extra-routes": "The extra-routed-networks value in this profile is invalid."
     }
   },
   "minecraft": {

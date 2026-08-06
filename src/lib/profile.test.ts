@@ -6,6 +6,7 @@ const SETTINGS: ConnectionSettings = {
   forwardBroadcast: false,
   forwardMulticast: true,
   fecParityShards: 3,
+  extraRoutes: ["192.168.50.0/24"],
 };
 
 describe("serializeConnectionProfile", () => {
@@ -81,6 +82,31 @@ describe("parseConnectionProfile", () => {
     expect(parseConnectionProfile(json)).toEqual({
       ok: false,
       error: "invalid-fec-parity-shards",
+    });
+  });
+
+  it("rejects a non-array extraRoutes", () => {
+    const json = JSON.stringify({ ...SETTINGS, formatVersion: 1, extraRoutes: "192.168.50.0/24" });
+    expect(parseConnectionProfile(json)).toEqual({
+      ok: false,
+      error: "invalid-extra-routes",
+    });
+  });
+
+  it("rejects an extraRoutes array with a non-string entry", () => {
+    const json = JSON.stringify({ ...SETTINGS, formatVersion: 1, extraRoutes: ["192.168.50.0/24", 42] });
+    expect(parseConnectionProfile(json)).toEqual({
+      ok: false,
+      error: "invalid-extra-routes",
+    });
+  });
+
+  it("treats a missing extraRoutes as an empty list — older exported profiles remain valid", () => {
+    const { extraRoutes: _extraRoutes, ...withoutExtraRoutes } = SETTINGS;
+    const json = JSON.stringify({ ...withoutExtraRoutes, formatVersion: 1 });
+    expect(parseConnectionProfile(json)).toEqual({
+      ok: true,
+      settings: { ...withoutExtraRoutes, extraRoutes: [] },
     });
   });
 });

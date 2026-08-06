@@ -25,7 +25,11 @@ use super::tun::{privilege, TunConfig};
 
 /// The point-to-point virtual LAN a connected pair shares (C5). Each side takes
 /// a distinct host address by role so in-subnet traffic routes to the other.
-fn dataplane_source_for(role: Role) -> pipeline::DataPlaneSource {
+/// `extra_routes` (Phase E.2) is threaded into the adapter config so
+/// `tun::windows::WintunDevice::open` can add them to the OS routing table —
+/// the packet-filtering side of the same setting is applied separately, to
+/// `SplitPolicy`, by the pipeline.
+fn dataplane_source_for(role: Role, extra_routes: Vec<(Ipv4Addr, u8)>) -> pipeline::DataPlaneSource {
     // A real data plane needs a real adapter → Windows + elevation. Otherwise
     // the link stays control-only (encrypted keepalive).
     if !privilege::status().can_create_tun {
@@ -38,6 +42,7 @@ fn dataplane_source_for(role: Role) -> pipeline::DataPlaneSource {
     };
     pipeline::DataPlaneSource::Adapter(TunConfig {
         virtual_ip,
+        extra_routes,
         ..TunConfig::default()
     })
 }
@@ -46,7 +51,7 @@ fn dataplane_source_for(role: Role) -> pipeline::DataPlaneSource {
 /// [`ConnectionManager::connect`] — **not** retroactively to an already-live
 /// link. Live toggling would need a control channel into the running pipeline
 /// task and is deferred (see the [0.15.0] changelog entry).
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionSettings {
     /// Forward broadcast traffic (LAN discovery) into the tunnel.
@@ -60,6 +65,14 @@ pub struct ConnectionSettings {
     /// this to `1..=16` regardless of what is supplied here.
     #[serde(default = "default_fec_parity_shards")]
     pub fec_parity_shards: u8,
+    /// Additional `"address/prefix"` networks to route into the tunnel
+    /// beyond the peer's own virtual-LAN subnet (Phase E.2 — OS route
+    /// management). Unvalidated strings from the IPC boundary — parsed with
+    /// `split_tunnel::parse_extra_routes`, which silently drops any entry
+    /// that doesn't parse rather than failing the whole connection over one
+    /// typo.
+    #[serde(default)]
+    pub extra_routes: Vec<String>,
 }
 
 fn default_true() -> bool {
@@ -78,6 +91,7 @@ impl Default for ConnectionSettings {
             forward_broadcast: true,
             forward_multicast: true,
             fec_parity_shards: 1,
+            extra_routes: Vec::new(),
         }
     }
 }
@@ -359,6 +373,11 @@ impl ConnectionManager {
             }
         }
 
+        let extra_routes = super::split_tunnel::parse_extra_routes(&settings.extra_routes)
+            .into_iter()
+            .map(|c| (c.addr, c.prefix))
+            .collect();
+
         let (cancel, cancel_rx) = watch::channel(false);
         let link = Arc::new(Mutex::new(LinkState::Connecting));
         let handle = async_runtime::spawn(pipeline::run(
@@ -367,7 +386,7 @@ impl ConnectionManager {
             identity,
             peer_public,
             peer_candidates,
-            dataplane_source_for(role),
+            dataplane_source_for(role, extra_routes),
             settings,
             sink,
             link.clone(),

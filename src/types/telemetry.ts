@@ -136,11 +136,19 @@ export interface ConnectionSettings {
   forwardMulticast: boolean;
   /** FEC parity shards per group of 8 — recovers up to this many losses per group. Default `1`. */
   fecParityShards: number;
+  /**
+   * Additional `"address/prefix"` networks to route into the tunnel beyond
+   * the peer's own virtual-LAN subnet (Phase E.2 — OS route management).
+   * Unvalidated strings — the Rust side silently drops any entry that
+   * doesn't parse rather than failing the whole connection. Default `[]`.
+   */
+  extraRoutes: string[];
 }
 
-/** Matches the values that were hardcoded before Phase B.3. */
+/** Matches the values that were hardcoded before Phase B.3 (plus E.2's empty default). */
 export const DEFAULT_CONNECTION_SETTINGS: ConnectionSettings = {
   forwardBroadcast: true,
   forwardMulticast: true,
   fecParityShards: 1,
+  extraRoutes: [],
 };

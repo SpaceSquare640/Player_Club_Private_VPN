@@ -90,6 +90,7 @@ describe("command contract", () => {
       forwardBroadcast: false,
       forwardMulticast: true,
       fecParityShards: 2,
+      extraRoutes: [],
     };
     await connectPeer(settings);
     expect(invokeMock).toHaveBeenCalledWith("connect_peer", { settings });

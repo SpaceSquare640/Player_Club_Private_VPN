@@ -8,11 +8,18 @@
 //! blocks the very traffic this app exists to carry (see the "ping fails"
 //! entry in `DOC/Two_Machine_Verification.md`). [`configure_network_integration`]
 //! sets it to `Private` and adds an inbound allow rule scoped to exactly this
-//! interface. This is OS hygiene, not routing: it does not touch what traffic
-//! reaches the adapter (that remains `split_tunnel`'s job) or install any route
-//! beyond the adapter's own subnet — steering additional prefixes through a
-//! peer (site-to-site LAN sharing) is a materially different, higher-risk
-//! feature that was deliberately scoped out (see the E.2 planning notes).
+//! interface. This is OS hygiene, not routing — what traffic *reaches* the
+//! adapter is `split_tunnel`'s job either way.
+//!
+//! E.2 also adds OS route management: [`add_extra_routes`] steers
+//! caller-supplied prefixes (`TunConfig::extra_routes`) into the adapter via
+//! `New-NetRoute`, beyond the adapter's own peer subnet, so a user can reach
+//! e.g. another machine's LAN through their peer. This is narrower than
+//! full site-to-site LAN sharing (which would additionally need the *peer's*
+//! OS to forward traffic on our behalf) — that remains out of scope; this is
+//! just "let me route a network I already know the address of through the
+//! tunnel," symmetric with what `split_tunnel::SplitPolicy::extra_routes`
+//! already does on the packet-filtering side.
 
 use std::io;
 use std::net::Ipv4Addr;
@@ -31,6 +38,12 @@ pub struct WintunDevice {
     _adapter: Arc<Adapter>,
     _wintun: Wintun,
     info: DeviceInfo,
+    /// Routes `open` actually added, so `Drop` removes exactly those — not
+    /// whatever `TunConfig` says *now* if it somehow differed (it can't
+    /// today, since nothing mutates it after `open`, but tracking what was
+    /// actually done rather than re-deriving it from config is the more
+    /// robust invariant to hold as this code evolves).
+    extra_routes: Vec<(Ipv4Addr, u8)>,
 }
 
 impl WintunDevice {
@@ -50,9 +63,11 @@ impl WintunDevice {
 
         assign_ip(&cfg.name, cfg.virtual_ip, cfg.prefix_len)?;
 
-        // Best-effort (E.2): never abort adapter creation over this — see the
-        // doc comment on `configure_network_integration`.
+        // Best-effort (E.2): never abort adapter creation over either of
+        // these — see the doc comments on `configure_network_integration`
+        // and `add_extra_routes`.
         let _ = configure_network_integration(&cfg.name);
+        let _ = add_extra_routes(&cfg.name, &cfg.extra_routes);
 
         let session = Arc::new(
             adapter
@@ -68,6 +83,7 @@ impl WintunDevice {
                 name: cfg.name.clone(),
                 mtu: cfg.mtu,
             },
+            extra_routes: cfg.extra_routes.clone(),
         })
     }
 }
@@ -103,15 +119,18 @@ impl TunDevice for WintunDevice {
 }
 
 impl Drop for WintunDevice {
-    /// Remove the firewall rule `configure_network_integration` added. This
-    /// runs before the field-order teardown below it (`session`, `_adapter`,
-    /// `_wintun`) — removing the rule does not depend on any of them still
-    /// being alive, so the ordering is inconsequential here. Best-effort: a
-    /// `Drop` cannot propagate an error, and one is not warranted — leaving a
-    /// stale allow-rule for an adapter that no longer exists is inert, not
-    /// a security regression.
+    /// Remove the firewall rule `configure_network_integration` added and any
+    /// routes `add_extra_routes` added. This runs before the field-order
+    /// teardown below it (`session`, `_adapter`, `_wintun`) — neither removal
+    /// depends on any of them still being alive, so the ordering is
+    /// inconsequential here. Best-effort: a `Drop` cannot propagate an error,
+    /// and one is not warranted — leaving a stale allow-rule or route for an
+    /// adapter that no longer exists is inert, not a security regression
+    /// (Windows removes routes bound to a deleted interface automatically in
+    /// practice; this is defense in depth, not the only cleanup path).
     fn drop(&mut self) {
         let _ = remove_network_integration(&self.info.name);
+        remove_extra_routes(&self.info.name, &self.extra_routes);
     }
 }
 
@@ -198,6 +217,45 @@ fn remove_network_integration(adapter_name: &str) -> io::Result<()> {
     ))
 }
 
+/// Steers `routes` (each `(network, prefix)`) into `adapter_name` via
+/// `New-NetRoute`, scoped to that interface by alias — same reasoning as
+/// `configure_network_integration`'s firewall rule: `route add`/`netsh`
+/// route commands don't offer a clean by-interface-name scope the way the
+/// PowerShell `NetTCPIP` cmdlets do. Best-effort and non-fatal per route: one
+/// malformed or conflicting entry must not block the others, or take down
+/// adapter creation over what is fundamentally a convenience feature.
+fn add_route_script(adapter_name: &str, network: Ipv4Addr, prefix: u8) -> String {
+    format!(
+        "New-NetRoute -DestinationPrefix {} -InterfaceAlias {} -ErrorAction Stop | Out-Null",
+        ps_quote(&format!("{network}/{prefix}")),
+        ps_quote(adapter_name),
+    )
+}
+
+fn remove_route_script(adapter_name: &str, network: Ipv4Addr, prefix: u8) -> String {
+    format!(
+        "Remove-NetRoute -DestinationPrefix {} -InterfaceAlias {} -Confirm:$false -ErrorAction SilentlyContinue",
+        ps_quote(&format!("{network}/{prefix}")),
+        ps_quote(adapter_name),
+    )
+}
+
+fn add_extra_routes(adapter_name: &str, routes: &[(Ipv4Addr, u8)]) -> io::Result<()> {
+    for (network, prefix) in routes {
+        let _ = run_powershell(&add_route_script(adapter_name, *network, *prefix));
+    }
+    Ok(())
+}
+
+/// Remove the routes `add_extra_routes` added. Best-effort, like its
+/// counterpart — see `Drop for WintunDevice`. Does not return a `Result`
+/// since every call site already treats it as fire-and-forget.
+fn remove_extra_routes(adapter_name: &str, routes: &[(Ipv4Addr, u8)]) {
+    for (network, prefix) in routes {
+        let _ = run_powershell(&remove_route_script(adapter_name, *network, *prefix));
+    }
+}
+
 fn prefix_to_mask(prefix_len: u8) -> Ipv4Addr {
     let bits: u32 = if prefix_len == 0 {
         0
@@ -260,5 +318,31 @@ mod tests {
         assert_eq!(firewall_rule_name("PlayerClubVPN"), "PlayerClubVPN-PlayerClubVPN");
         // Same input always produces the same name, so teardown can find it.
         assert_eq!(firewall_rule_name("x"), firewall_rule_name("x"));
+    }
+
+    #[test]
+    fn add_route_script_scopes_by_interface_alias_and_prefix() {
+        let script = add_route_script("PlayerClubVPN", Ipv4Addr::new(192, 168, 50, 0), 24);
+        assert!(script.starts_with("New-NetRoute"));
+        assert!(script.contains("-DestinationPrefix '192.168.50.0/24'"));
+        assert!(script.contains("-InterfaceAlias 'PlayerClubVPN'"));
+    }
+
+    #[test]
+    fn remove_route_script_matches_the_same_prefix_it_was_added_with() {
+        let added = add_route_script("PlayerClubVPN", Ipv4Addr::new(10, 0, 5, 0), 24);
+        let removed = remove_route_script("PlayerClubVPN", Ipv4Addr::new(10, 0, 5, 0), 24);
+        assert!(added.contains("-DestinationPrefix '10.0.5.0/24'"));
+        assert!(removed.contains("-DestinationPrefix '10.0.5.0/24'"));
+        assert!(removed.starts_with("Remove-NetRoute"));
+    }
+
+    /// The escaping guard already proven for the firewall path (`ps_quote`)
+    /// applies here too — a hostile adapter name must not break out of the
+    /// quoted `-InterfaceAlias` argument.
+    #[test]
+    fn add_route_script_escapes_a_hostile_adapter_name() {
+        let script = add_route_script("'; Remove-Item C:\\ -Recurse; '", Ipv4Addr::new(1, 2, 3, 0), 24);
+        assert!(script.contains("-InterfaceAlias '''; Remove-Item C:\\ -Recurse; '''"));
     }
 }

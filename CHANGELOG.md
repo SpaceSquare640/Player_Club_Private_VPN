@@ -10,12 +10,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned
-- **Engine (Rust) — Phase D.2/E.2:** Reed-Solomon FEC (multiple-loss recovery per group, slotting in behind the D.1 XOR call sites), and OS route management for split tunneling (steering additional prefixes into the adapter via `netsh`, Windows + elevation).
-- **Diagnostics:** a dedicated "FEC recovered" stat tile (recoveries currently surface in the packet log) and split-tunnel broadcast/multicast toggles in Settings.
-- **Diagnostics:** interactive topology map and spectrum monitoring (the live telemetry readout shipped in 0.4.0).
+- **Split tunneling — OS route management (E.2's original, narrower scope shipped instead):** steering additional prefixes into the adapter via `netsh`, Windows + elevation.
 - **Elevation:** privileged helper-service backend (replacing the relaunch-elevated path behind the existing seam).
+- **Site-to-site LAN sharing:** deferred — unverifiable without 3 physical hosts.
 
 ---
+
+## [0.35.0] - 2026-08-06
+
+### Added
+- **OS route management (E.2's remaining scope).** `ConnectionSettings.extraRoutes` (a comma-separated list of `"address/prefix"` entries in Settings' Expert → Connection section) steers additional networks into the tunnel beyond the peer's own virtual-LAN subnet. On Windows, `tun::windows::add_extra_routes`/`remove_extra_routes` add/remove the routes via `New-NetRoute`/`Remove-NetRoute`, scoped to the adapter's interface alias (same reasoning as E.2's firewall rule — `netsh` can't scope a route by interface name the way the `NetTCPIP` PowerShell cmdlets can). `SplitPolicy::extra_routes` widens the packet-filtering side symmetrically.
+- `split_tunnel::Ipv4Cidr::parse`/`parse_extra_routes` — the former does strict `Result`-returning validation (for a future settings-entry UI to give real errors); the latter silently drops unparseable entries, used on the data-plane path where a single malformed route must not take down the whole connection.
+- JSON connection-profile export/import (Settings) now round-trips `extraRoutes`; an older exported profile without the field remains valid (treated as `[]`, not rejected).
+
+### Fixed (pre-release, caught while writing this phase's own live end-to-end test)
+- **`extra_routes` initially only widened egress, not ingress delivery.** The first implementation merged extra routes into `SplitPolicy`'s existing `included` list, which widened what a sender's own OS could route *into* the tunnel — but the peer's `admits_inbound` never checked destinations against anything but its own address, broadcast, and multicast, so the receiving side just dropped the traffic. The feature would have compiled, passed a narrower unit test, and silently done nothing end to end. Fixed by giving `extra_routes` its own field, separate from `included`, and widening `admits_inbound`'s *destination* check (not just its source check) — while explicitly *not* merging it into `included`, which would have reintroduced the phantom-in-subnet-host vulnerability `admits_inbound` was written to prevent (an existing regression test guards this: `extra_routes_do_not_loosen_the_base_subnet_phantom_host_rule`). The realistic shape of this feature, as a result: whoever can actually reach a network opts their own inbound side in to deliver traffic toward it, and the sender opts their own outbound side in to route there — each side configures the routes it needs, symmetric with how the manual paste flow already requires both peers to act.
+
+### Scope
+- Narrower than full site-to-site LAN sharing: this lets a peer that already knows a network's address route traffic to it through the tunnel (assuming both sides configure it), not full transparent forwarding of a peer's entire real LAN. That distinction — and *why* it's the line drawn here — is unchanged from E.2's original scoping notes.
+- No conflict detection against existing system routes; the user is expected to avoid overlaps.
+
+### Verified
+- `cargo test --lib`: 113/113 passing (13 new): `Ipv4Cidr::parse` accepts/rejects well- and malformed input, `parse_extra_routes` drops bad entries without failing the batch, `SplitPolicy::extra_routes` widens egress classify/admits and both sides of `admits_inbound` (with an explicit regression guard that it does *not* loosen the base-subnet phantom-host rule), a live two-pipeline test proves a packet bound for an extra-routed network crosses end to end when both sides configure it (and one outside every route still doesn't), and the `New-NetRoute`/`Remove-NetRoute` PowerShell script builders are scoped by interface alias and correctly escape a hostile adapter name (same `ps_quote` guard already proven for the firewall path).
+- `cargo check`: zero warnings.
+- `pnpm test`: 127/127 passing (10 new): the Settings text field commits on blur (not per keystroke) with whitespace/empty entries stripped, an empty field commits an empty list, export/import round-trips `extraRoutes`, a profile missing the field imports as `[]` rather than erroring, and a profile with a non-array or non-string-array `extraRoutes` is rejected.
+- `tsc --noEmit` clean; `pnpm build` succeeds.
+- Browser-verified live: typed a comma-separated route list into the new field, confirmed it commits to the store on blur (not while typing), confirmed the Minecraft page's own settings panel is unaffected. Zero console errors.
+- **Not verified in this session:** an actual `New-NetRoute` call succeeding, or traffic actually reaching a real extra-routed network — this environment has no Administrator privileges, the same standing limitation as every other Windows-elevation-dependent feature in this project (E.2's firewall integration, adapter creation itself). The PowerShell script generation is unit-tested; its real-world execution is not.
 
 ## [0.34.0] - 2026-08-06
 

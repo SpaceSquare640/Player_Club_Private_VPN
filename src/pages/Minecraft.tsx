@@ -11,7 +11,7 @@ import { cn } from "../lib/cn";
  * both stay on; FEC is nudged one step above the default for a bit more
  * resilience on typical home connections without maxing it out.
  */
-const MINECRAFT_PRESET = { forwardBroadcast: true, forwardMulticast: true, fecParityShards: 2 } as const;
+const MINECRAFT_PRESET = { forwardBroadcast: true, forwardMulticast: true, fecParityShards: 2, extraRoutes: [] as string[] };
 
 export default function Minecraft() {
   const { t } = useTranslation();

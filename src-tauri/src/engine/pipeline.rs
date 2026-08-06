@@ -39,7 +39,7 @@ use crate::engine::crypto::session::CryptoSession;
 use crate::engine::dataplane;
 use crate::engine::fec::{RsDecoder, RsEncoder, RsParity};
 use crate::engine::notice::EngineNotice;
-use crate::engine::split_tunnel::SplitPolicy;
+use crate::engine::split_tunnel::{parse_extra_routes, SplitPolicy};
 use crate::engine::state::EngineState;
 use crate::engine::telemetry::metrics::TelemetrySnapshot;
 use crate::engine::telemetry::packet_log::{Direction, PacketLogEntry};
@@ -225,7 +225,8 @@ pub async fn run(
             let vip = cfg.virtual_ip;
             let policy = SplitPolicy::from_tun(&cfg)
                 .forward_broadcast(settings.forward_broadcast)
-                .forward_multicast(settings.forward_multicast);
+                .forward_multicast(settings.forward_multicast)
+                .extra_routes(parse_extra_routes(&settings.extra_routes));
             match dataplane::open(cfg, cancel.clone()).await {
                 Ok(dp) => {
                     let r = settings.fec_parity_shards;
@@ -250,7 +251,8 @@ pub async fn run(
         DataPlaneSource::Device(dev, cfg) => {
             let policy = SplitPolicy::from_tun(&cfg)
                 .forward_broadcast(settings.forward_broadcast)
-                .forward_multicast(settings.forward_multicast);
+                .forward_multicast(settings.forward_multicast)
+                .extra_routes(parse_extra_routes(&settings.extra_routes));
             let dp = dataplane::spawn_bridge(dev, cancel.clone(), cfg.mtu as usize);
             (Some(dp), Some(policy))
         }
@@ -910,6 +912,36 @@ mod integration {
         let got = p.b_tun.injected();
         assert_eq!(got.len(), 1, "the broadcast packet must never have crossed");
         assert_eq!(got[0], allowed);
+
+        let _ = p.a_cancel.send(true);
+        let _ = p.b_cancel.send(true);
+        let _ = p.a_task.await;
+        let _ = p.b_task.await;
+    }
+
+    /// Phase E.2: an extra route widens what the live split-tunnel policy
+    /// admits, end to end. Both sides configure the same extra route — the
+    /// realistic shape of this feature: whoever can actually reach
+    /// `192.168.50.0/24` opts their *inbound* side in to deliver traffic
+    /// toward it (not just any peer's say-so), and the sender opts their
+    /// *outbound* side in to route there in the first place. A destination
+    /// outside every included/extra network is still dropped either way.
+    #[tokio::test]
+    async fn extra_routes_widen_what_the_live_policy_admits() {
+        let extra = ConnectionSettings { extra_routes: vec!["192.168.50.0/24".to_string()], ..ConnectionSettings::default() };
+        let p = connect_pair(extra.clone(), extra).await;
+
+        let out_of_any_route = ipv4([10, 77, 0, 1], [8, 8, 8, 8], b"outside every route, blocked");
+        p.a_tun.send_from_host(out_of_any_route);
+        let via_extra_route = ipv4([10, 77, 0, 1], [192, 168, 50, 42], b"inside the extra route, allowed");
+        p.a_tun.send_from_host(via_extra_route.clone());
+
+        let b = p.b_tun.clone();
+        until(10, "the extra-route packet to arrive", move || !b.injected().is_empty()).await;
+
+        let got = p.b_tun.injected();
+        assert_eq!(got.len(), 1, "only the extra-route packet should have crossed");
+        assert_eq!(got[0], via_extra_route);
 
         let _ = p.a_cancel.send(true);
         let _ = p.b_cancel.send(true);

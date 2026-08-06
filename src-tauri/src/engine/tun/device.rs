@@ -17,6 +17,14 @@ pub struct TunConfig {
     pub prefix_len: u8,
     /// Link MTU.
     pub mtu: u16,
+    /// Additional `(network, prefix)` pairs to route into this adapter
+    /// beyond the peer's own virtual-LAN subnet (Phase E.2 — OS route
+    /// management). A plain tuple rather than `split_tunnel::Ipv4Cidr`: that
+    /// type lives in a module that itself depends on `TunConfig`, so pulling
+    /// it in here would be circular. `engine::connection` converts between
+    /// the two where both are in scope.
+    #[serde(default)]
+    pub extra_routes: Vec<(Ipv4Addr, u8)>,
 }
 
 impl Default for TunConfig {
@@ -26,6 +34,7 @@ impl Default for TunConfig {
             virtual_ip: Ipv4Addr::new(10, 77, 0, 1),
             prefix_len: 24,
             mtu: 1420,
+            extra_routes: Vec::new(),
         }
     }
 }

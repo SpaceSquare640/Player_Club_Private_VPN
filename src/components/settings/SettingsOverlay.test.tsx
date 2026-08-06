@@ -43,6 +43,7 @@ beforeEach(() => {
     forwardBroadcast: DEFAULT_CONNECTION_SETTINGS.forwardBroadcast,
     forwardMulticast: DEFAULT_CONNECTION_SETTINGS.forwardMulticast,
     fecParityShards: DEFAULT_CONNECTION_SETTINGS.fecParityShards,
+    extraRoutes: DEFAULT_CONNECTION_SETTINGS.extraRoutes,
   });
 });
 
@@ -86,6 +87,31 @@ describe("SettingsOverlay — Connection section (Phase B.3)", () => {
     expect(screen.getByTestId("settings-fec-1")).toHaveAttribute("aria-pressed", "false");
   });
 
+});
+
+describe("SettingsOverlay — extra routed networks (Phase E.2)", () => {
+  it("commits a comma-separated list to the store on blur, trimmed and without empty entries", () => {
+    render(<SettingsOverlay />);
+    const input = screen.getByTestId("settings-extra-routes");
+    fireEvent.change(input, { target: { value: " 192.168.50.0/24 , 10.0.5.0/24 ,  " } });
+    fireEvent.blur(input);
+    expect(useAppStore.getState().extraRoutes).toEqual(["192.168.50.0/24", "10.0.5.0/24"]);
+  });
+
+  it("does not touch the store while still typing (only on blur)", () => {
+    render(<SettingsOverlay />);
+    fireEvent.change(screen.getByTestId("settings-extra-routes"), { target: { value: "192.168.50.0/2" } });
+    expect(useAppStore.getState().extraRoutes).toEqual([]);
+  });
+
+  it("an empty field commits an empty list", () => {
+    useAppStore.setState({ extraRoutes: ["192.168.50.0/24"] });
+    render(<SettingsOverlay />);
+    const input = screen.getByTestId("settings-extra-routes");
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.blur(input);
+    expect(useAppStore.getState().extraRoutes).toEqual([]);
+  });
 });
 
 describe("SettingsOverlay — language switching (i18n)", () => {
@@ -181,6 +207,7 @@ describe("SettingsOverlay — JSON profile import/export", () => {
       forwardBroadcast: true,
       forwardMulticast: true,
       fecParityShards: 1,
+      extraRoutes: [],
     });
   });
 
@@ -211,7 +238,30 @@ describe("SettingsOverlay — JSON profile import/export", () => {
     await waitFor(() => expect(useAppStore.getState().fecParityShards).toBe(3));
     expect(useAppStore.getState().forwardBroadcast).toBe(false);
     expect(useAppStore.getState().forwardMulticast).toBe(false);
+    // The old profile has no extraRoutes field — must default to empty, not error.
+    expect(useAppStore.getState().extraRoutes).toEqual([]);
     expect(screen.queryByTestId("settings-import-error")).not.toBeInTheDocument();
+  });
+
+  it("imports extraRoutes from a profile that includes them, and reflects them in the text field", async () => {
+    openMock.mockResolvedValue("C:/fake/profile.json");
+    readTextFileMock.mockResolvedValue(
+      JSON.stringify({
+        formatVersion: 1,
+        forwardBroadcast: true,
+        forwardMulticast: true,
+        fecParityShards: 1,
+        extraRoutes: ["192.168.50.0/24", "10.0.5.0/24"],
+      }),
+    );
+    render(<SettingsOverlay />);
+
+    fireEvent.click(screen.getByTestId("settings-import-profile"));
+
+    await waitFor(() =>
+      expect(useAppStore.getState().extraRoutes).toEqual(["192.168.50.0/24", "10.0.5.0/24"]),
+    );
+    expect(screen.getByTestId("settings-extra-routes")).toHaveValue("192.168.50.0/24, 10.0.5.0/24");
   });
 
   it("shows an inline error and leaves the store untouched for a malformed profile", async () => {

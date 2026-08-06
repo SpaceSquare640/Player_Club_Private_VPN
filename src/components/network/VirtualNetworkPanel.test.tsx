@@ -99,7 +99,7 @@ describe("VirtualNetworkPanel — not in a network", () => {
   });
 
   it("passes a fixed gameTag and settings through to create_network", async () => {
-    const minecraftSettings = { forwardBroadcast: true, forwardMulticast: true, fecParityShards: 2 };
+    const minecraftSettings = { forwardBroadcast: true, forwardMulticast: true, fecParityShards: 2, extraRoutes: [] };
     render(<VirtualNetworkPanel gameTag="minecraft" settings={minecraftSettings} />);
     fireEvent.change(screen.getByTestId("vn-create-name"), { target: { value: "party" } });
     fireEvent.change(screen.getByTestId("vn-create-password"), { target: { value: "secret" } });
