@@ -16,6 +16,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.40.1] - 2026-08-06
+
+### Security
+Cleared every known dependency vulnerability on both sides of the stack — **9 total (5 high, 4 moderate)**, which GitHub had been flagging on the default branch for some time. For a VPN, shipping known-vulnerable dependencies is not a cosmetic issue, so this took priority over new features.
+
+**JavaScript — 7 → 0** (`pnpm audit`):
+- `react-router` (5 advisories: an unauthenticated DoS, an open redirect via backslash in `<Link>`/`useNavigate`, arbitrary constructor injection, an `RSCErrorHandler` protocol gap, and an RSC-mode CSRF bypass).
+- `postcss` ×2 (path traversal via a previous source map, plus an incomplete-fix follow-up). This one needed no version bump of `vite` at all — vite 6.4.3 already allows `^8.5.3`; the lockfile was simply pinned to a stale 8.5.15. Re-resolving moved it to 8.5.25.
+
+**Rust — 2 → 0** (`cargo audit`):
+- `quick-xml` ×2 (both 7.5 high: quadratic runtime on duplicate attribute names, and unbounded namespace-declaration allocation enabling memory-exhaustion DoS). Reached via `plist` → `tauri-utils`; updating `plist` 1.9.0 → 1.10.0 pulled `quick-xml` 0.39.4 → 0.41.0. No Tauri version change was needed.
+- `anyhow` 1.0.102 → 1.0.104 additionally cleared an `Error::downcast_mut()` unsoundness warning.
+
+### Changed
+- **Migrated `react-router-dom` → `react-router` v8.3.0.** The last remaining advisory (RSC-mode CSRF bypass) is only patched in `react-router` ≥8.3.0, but `react-router-dom@7.18.2` hard-pins `react-router@7.18.2`, so no amount of updating `react-router-dom` could reach it — and `react-router-dom` has no 8.x release at all. Since v7 merged the DOM exports into the main package, `react-router-dom` is now a thin shim, and the migration was a contained one: five APIs (`createHashRouter`, `RouterProvider`, `Outlet`, `useLocation`, `useNavigate`) across four files, changing only the import specifier.
+
+### Verified
+- `pnpm audit` and `cargo audit`: **no known vulnerabilities** on either side.
+- `pnpm test` 133/133; `cargo test --lib` 139/139; `tsc --noEmit` clean; `pnpm build` succeeds; `cargo check --bins --lib` zero warnings.
+- Browser-verified the router v8 migration specifically, since a major-version bump is exactly where routing would break silently: navigated all four routes, confirming the hash URL, the lazy-loaded page, and the breadcrumb all update together. Zero console errors. (One intermediate probe appeared to show a stale breadcrumb — that was a 250 ms snapshot taken before React had re-rendered, not a defect; the settled state was correct.)
+
+### Remaining audit warnings — not vulnerabilities, and why they stay
+`cargo audit` still reports 17 `unmaintained` and 1 `unsound` **warnings** (it exits clean; these are not advisories against us):
+- 14 are the **gtk-rs GTK3 bindings** (`gtk`, `gdk*`, `atk*`, `glib`) that Tauri pulls in for its **Linux** backend. This project targets Windows; they are never compiled into a shipped artifact here. They are Tauri's to replace, not ours.
+- The rest (`unic-*`, `instant`, `proc-macro-error`) are build-time/transitive and have no upstream replacement available at our dependency depth.
+Recording these rather than suppressing them: an empty audit achieved by an ignore-list would be less honest than a clean one with a documented tail.
+
 ## [0.40.0] - 2026-08-06
 
 ### Added

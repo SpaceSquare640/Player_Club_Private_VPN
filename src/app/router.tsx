@@ -1,5 +1,5 @@
 import { lazy } from "react";
-import { createHashRouter } from "react-router-dom";
+import { createHashRouter } from "react-router";
 import AppShell from "../components/layout/AppShell";
 
 // Lazy-loaded page stubs — rendered inside AppShell's <Suspense> boundary,

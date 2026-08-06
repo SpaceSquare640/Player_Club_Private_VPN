@@ -70,7 +70,7 @@ time, each under its own licence as declared by its publisher:
 - **JavaScript / TypeScript packages** — declared in
   [`package.json`](package.json) and pinned in
   [`pnpm-lock.yaml`](pnpm-lock.yaml). Notable direct dependencies include
-  `react`, `react-dom`, `react-router-dom`, `zustand`, `@tauri-apps/api`,
+  `react`, `react-dom`, `react-router`, `zustand`, `@tauri-apps/api`,
   `tailwindcss`, `vite`, and — for localization (Phase i18n) — `i18next` and
   `react-i18next` (both MIT). `@tauri-apps/plugin-dialog` and
   `@tauri-apps/plugin-fs` (both MIT/Apache-2.0) back the native save/open

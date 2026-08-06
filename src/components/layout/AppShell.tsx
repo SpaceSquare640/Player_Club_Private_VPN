@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useState } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router";
 import Sidebar from "./Sidebar";
 import Breadcrumb from "./Breadcrumb";
 import SettingsOverlay from "../settings/SettingsOverlay";

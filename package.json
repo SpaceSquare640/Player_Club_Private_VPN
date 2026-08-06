@@ -1,7 +1,7 @@
 {
   "name": "player-club-private-vpn",
   "private": true,
-  "version": "0.40.0",
+  "version": "0.40.1",
   "description": "Player Club Private VPN — a high-performance Gaming Virtual Network.",
   "type": "module",
   "scripts": {
@@ -22,7 +22,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-i18next": "^17.0.11",
-    "react-router-dom": "^7.17.0",
+    "react-router": "^8.3.0",
     "tailwind-merge": "^3.6.0",
     "zustand": "^5.0.14"
   },
