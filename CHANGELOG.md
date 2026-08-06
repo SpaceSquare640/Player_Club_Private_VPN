@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.41.0] - 2026-08-06
+
+### Added
+**Test coverage for the app shell's routing** — `Sidebar`, `Breadcrumb`, and `AppShell` had none. That gap became concrete in `[0.40.1]`: migrating `react-router-dom` → `react-router` v8 crossed a major version, and the only thing verifying navigation still worked was a manual browser walkthrough. Manual checks don't persist; the next router bump would have had nothing guarding it. 23 new tests (156 total, up from 133):
+
+- **`Sidebar`** — every nav item renders, each one navigates to its *exact* path (asserting the argument, not just that a click fired — a wrong path is precisely the failure a router migration produces while everything still renders), active state is marked via both `aria-current` and `data-active`, the settings button opens the overlay without navigating, and buttons carry real translated `aria-label`s rather than raw i18n keys.
+- **`Breadcrumb`** — each `RouteId` renders a genuinely translated label. A missing translation surfaces as the raw key (`"nav.network"`), which a plain text assertion would happily pass, so the test explicitly rejects any output containing `"nav."`.
+- **`AppShell`** — mounted on a **real** `createMemoryRouter`/`RouterProvider`, not mocked, because that integration is exactly what a major-version bump breaks: URL→store sync for all four routes, page and breadcrumb rendering together, the last-route restore on launch, and — the case worth pinning — an explicit deep link winning over the persisted route, so opening the app *at* a route doesn't bounce you to wherever you were last time.
+
+### Verified
+- `pnpm test`: 156/156 passing; `tsc --noEmit` clean; `cargo check --bins --lib` zero warnings.
+- **Mutation-tested the new tests rather than trusting a green run.** Two deliberate defects were injected — deleting AppShell's `/minecraft` path mapping, and pointing Sidebar's network item at a wrong path — and confirmed to fail exactly 3 tests, in exactly the relevant files, before being reverted. A test that cannot fail is not a guard, and a green suite alone doesn't distinguish the two.
+
 ## [0.40.1] - 2026-08-06
 
 ### Security

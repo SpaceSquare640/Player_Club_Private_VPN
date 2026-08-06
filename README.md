@@ -63,6 +63,7 @@ communicates with the engine over Tauri's IPC command/event bridge.
 | Split tunneling — data-plane policy gating unicast/broadcast/multicast into the tunnel (E.1) | ✅ Done |
 | Full-path integration harness — two live pipelines over loopback with mock adapters (F.0) | ✅ Done |
 | Frontend test foundation — vitest + testing-library, pure logic and store coverage (B.1) | ✅ Done |
+| App-shell routing tests — Sidebar/Breadcrumb/AppShell on a real router, mutation-verified | ✅ Done |
 | Network page — peer-connection management moved off Diagnostics, first component tests (B.2) | ✅ Done |
 | Connection settings — split-tunnel broadcast/multicast + FEC redundancy wired to Settings UI (B.3) | ✅ Done |
 | Live split-tunnel toggles — broadcast/multicast changes apply to an already-connected link, no reconnect (B.4) | ✅ Done |
