@@ -9,7 +9,7 @@
 [![Engine](https://img.shields.io/badge/engine-Rust-orange)](#technology-stack)
 [![UI](https://img.shields.io/badge/UI-Tauri%20%2B%20React%20%2B%20TS-blue)](#technology-stack)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows-0078D6)](#technology-stack)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-0078D6)](PLATFORM-SUPPORT.md)
 
 ---
 
@@ -37,11 +37,13 @@ wiki page for the full, itemised build state.
 | UI framework | React + TypeScript |
 | Styling | Tailwind CSS |
 | CI / packaging | GitHub Actions + `tauri-action` |
-| Platform | **Windows** (shipping today) · macOS, Linux planned |
+| Platform | Windows, Linux, macOS — installers built for all three; **real VPN tunnel is Windows-only today** |
 
-> The virtual-adapter code (`src-tauri/src/engine/tun/mod.rs`) is currently
-> `#[cfg(windows)]`-only, so that's the only platform CI packages installers
-> for. See [Architecture](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/Architecture) for why.
+> ⚠️ **Linux and macOS builds are UI-only previews.** The virtual-adapter code
+> (`src-tauri/src/engine/tun/mod.rs`) is currently `#[cfg(windows)]`-only, so
+> the app runs on Linux/macOS but cannot yet create a real tunnel there. See
+> [`PLATFORM-SUPPORT.md`](PLATFORM-SUPPORT.md) for the exact breakdown and
+> [Architecture](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/Architecture) for why.
 
 ## Quick Start
 
@@ -57,9 +59,11 @@ of using the app, see the **[Getting Started](https://github.com/SpaceSquare640/
 and **[User Manual](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/User-Manual)**
 wiki pages.
 
-CI builds Windows installers automatically on every `v*` tag push (see
-[`.github/workflows/release.yml`](.github/workflows/release.yml)) and
-publishes them as a **draft** GitHub Release for review.
+CI builds Windows, Linux, and macOS installers automatically on every `v*` tag
+push (see [`.github/workflows/release.yml`](.github/workflows/release.yml))
+and publishes them as a **draft** GitHub Release for review — with release
+notes generated automatically from `CHANGELOG.md` plus the platform-support
+disclaimer below, every time.
 
 ## Documentation
 
@@ -71,6 +75,7 @@ publishes them as a **draft** GitHub Release for review.
 | Architecture & project structure | [Wiki: Architecture](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/Architecture) |
 | FAQ | [Wiki: FAQ](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/FAQ) |
 | Change history | [`CHANGELOG.md`](./CHANGELOG.md) |
+| Platform support (what works where) | [`PLATFORM-SUPPORT.md`](./PLATFORM-SUPPORT.md) |
 | Third-party components | [`THIRD-PARTY-NOTICES.md`](./THIRD-PARTY-NOTICES.md) |
 
 ## Community

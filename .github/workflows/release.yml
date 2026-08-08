@@ -1,10 +1,13 @@
-name: Release (Windows)
+name: Release
 
-# Builds the Windows installers (.msi / .exe) via Tauri and publishes them to
-# a GitHub Release whenever a `v*` tag is pushed. Linux/macOS packaging is
-# intentionally out of scope for now: the virtual-adapter code in
-# src-tauri/src/engine/tun/mod.rs is `#[cfg(windows)]`-gated, so a build on
-# those platforms would produce a UI shell with no working VPN core.
+# Builds installers for Windows, Linux, and macOS via Tauri and publishes them
+# to a single GitHub Release whenever a `v*` tag is pushed.
+#
+# Platform support note: the real virtual-adapter code in
+# src-tauri/src/engine/tun/mod.rs is `#[cfg(windows)]`-gated — on Linux and
+# macOS that path is a stub, so those builds are UI-only previews with no
+# working VPN core yet. See PLATFORM-SUPPORT.md and the workflow's
+# release-notes job below, which stamps that disclaimer into every release.
 on:
   push:
     tags:
@@ -15,10 +18,54 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    runs-on: windows-latest
+  notes:
+    runs-on: ubuntu-latest
+    outputs:
+      body: ${{ steps.build-notes.outputs.body }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Extract CHANGELOG section and assemble release notes
+        id: build-notes
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          SECTION="$(awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { found=1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md)"
+
+          if [ -z "$SECTION" ]; then
+            SECTION="_No CHANGELOG.md entry found for $VERSION yet — see the [full changelog](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)._"
+          fi
+
+          {
+            echo "body<<RELEASE_NOTES_EOF"
+            echo "> ⚠️ **Platform support:** the real virtual network adapter is Windows-only today (\`src-tauri/src/engine/tun/mod.rs\` is \`#[cfg(windows)]\`-gated). The **Linux and macOS builds below are UI-only previews** — the app runs, but the actual VPN tunnel does not yet work on those platforms. See [PLATFORM-SUPPORT.md](https://github.com/${{ github.repository }}/blob/main/PLATFORM-SUPPORT.md)."
+            echo ""
+            echo "$SECTION"
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: notes
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+          - platform: ubuntu-latest
+          - platform: macos-latest
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux packaging dependencies
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf build-essential
 
       - uses: pnpm/action-setup@v4
         with:
@@ -40,5 +87,6 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Player Club Private VPN ${{ github.ref_name }}"
+          releaseBody: ${{ needs.notes.outputs.body }}
           releaseDraft: true
           prerelease: false
