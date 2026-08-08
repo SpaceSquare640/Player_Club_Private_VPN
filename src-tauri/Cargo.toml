@@ -1,10 +1,19 @@
 [package]
 name = "player-club-private-vpn"
-version = "0.42.0"
+version = "0.42.1"
 description = "Player Club Private VPN — a high-performance Gaming Virtual Network."
 authors = ["Player Club"]
 edition = "2021"
 rust-version = "1.77.2"
+# Required because this crate has a second binary target (src/bin/helper.rs,
+# the elevation helper) alongside the main GUI app (src/main.rs). Without an
+# explicit default-run, Tauri's bundler cannot reliably tell which compiled
+# binary is "the app" to package — and got it wrong, bundling helper.exe as
+# the installed application in v0.42.0's release (see CHANGELOG). This must
+# stay in sync with `[package].name`; a bin target only auto-inherits the
+# package name when it comes from `src/main.rs`, so nothing else here needs
+# to change if the package is ever renamed.
+default-run = "player-club-private-vpn"
 
 # The library is shared between the desktop binary and the mobile entry points.
 [lib]

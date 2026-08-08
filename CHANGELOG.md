@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.42.1] - 2026-08-09
+
+### Fixed
+**Critical: the v0.42.0 installers on all three platforms bundled the wrong binary.** `src-tauri/Cargo.toml` has two binary targets — the main GUI app (`src/main.rs`) and the elevation helper (`src/bin/helper.rs`) — and had no `default-run` set. Without it, Tauri's bundler can't reliably tell which compiled binary is "the app," and in the v0.42.0 release build it guessed wrong: the installers packaged `helper.exe` (a small utility that just prints a message and exits when run outside the elevation flow) instead of the real application. Installing v0.42.0 and launching it did nothing, because there was no GUI binary in the package to launch.
+
+A user reported this directly — installed v0.42.0 on Windows, the Start Menu shortcut launched nothing, and the install directory turned out to contain only `helper.exe` and `uninstall.exe`, no main executable. Root-caused via the release workflow's build log (`Built application at: ...\helper.exe`, confirming the bundler's own binary selection was wrong, not an antivirus or install corruption issue) and fixed by adding `default-run = "player-club-private-vpn"` to `[package]` in `Cargo.toml` — the documented fix for this exact multi-binary-crate ambiguity in Tauri.
+
+**Verified, not just fixed:** ran a full local `pnpm tauri build` after the change and confirmed the build log now reads `Built application at: ...\player-club-private-vpn.exe`, then launched the resulting binary directly and confirmed the process starts and stays running, before cutting this release.
+
+**v0.42.0 is broken on all three platforms and should not be used** — delete/skip it in favor of this release.
+
+---
+
 ## [0.42.0] - 2026-08-09
 
 ### Added
