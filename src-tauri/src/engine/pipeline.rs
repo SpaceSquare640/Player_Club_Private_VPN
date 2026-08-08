@@ -342,6 +342,36 @@ async fn drive(
 
     loop {
         tokio::select! {
+            // `biased`, with branch order now deliberate top-to-bottom
+            // priority rather than incidental:
+            //
+            //   1. `cancel` — shutdown must never be starved by a busy link.
+            //      This branch used to sit last; under `biased` that would
+            //      make it lose every tie against a hot branch above it. It
+            //      did, and did so badly: with the test clock paused and
+            //      auto-advancing, `ticker`/`fec_flush` become ready again
+            //      the instant they're polled, so `cancel` never got a turn
+            //      and `cancel_returns_both_sides_to_idle` hung forever
+            //      instead of failing — caught before merge, not after.
+            //   2. `settings_rx` — must win its specific race against the
+            //      `uplink` branch below (see the comment on that arm) but
+            //      has no other ordering requirement, so second place is
+            //      exactly enough.
+            //   3+. Everything else, in whatever order — none of them have a
+            //      documented ordering requirement against each other.
+            //
+            // The lesson `biased` teaches here generalizes: it turns branch
+            // *order* from cosmetic into load-bearing. Any branch appended
+            // below without thinking about where it lands relative to
+            // `cancel` risks reintroducing exactly this hang.
+            biased;
+
+            changed = cancel.changed() => {
+                if changed.is_err() || *cancel.borrow() {
+                    break;
+                }
+            }
+
             // Live settings change (Phase B.4). Only the broadcast/multicast
             // toggles are applied — they are pure local packet filtering, so
             // flipping one mid-session is invisible to the peer. FEC geometry
@@ -503,11 +533,6 @@ async fn drive(
                     }
                     // STUN replies and leftover punch Pings/Pongs: ignore.
                     _ => {}
-                }
-            }
-            changed = cancel.changed() => {
-                if changed.is_err() || *cancel.borrow() {
-                    break;
                 }
             }
         }

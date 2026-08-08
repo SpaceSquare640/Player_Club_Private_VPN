@@ -1,13 +1,30 @@
 import { useState } from "react";
-import { X } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { save, open as openDialog } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useAppStore } from "../../stores/appStore";
 import { THEMES } from "../../theme/themes";
 import { cn } from "../../lib/cn";
 import type { SupportedLanguage } from "../../i18n";
 import { parseConnectionProfile, serializeConnectionProfile } from "../../lib/profile";
+
+const WIKI_BASE = "https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki";
+const REPO_BASE = "https://github.com/SpaceSquare640/Player_Club_Private_VPN/blob/main";
+
+/** Traditional Chinese has translated legal docs and wiki pages; Simplified
+ * Chinese does not yet, so it falls back to the English originals rather
+ * than link to a page that doesn't exist. */
+function legalLinks(language: SupportedLanguage) {
+  const zh = language === "zh-Hant";
+  return {
+    userManual: `${WIKI_BASE}/${zh ? "User-Manual-zh-Hant" : "User-Manual"}`,
+    termsOfService: `${REPO_BASE}/${zh ? "TERMS_OF_SERVICE.zh-Hant.md" : "TERMS_OF_SERVICE.md"}`,
+    privacyPolicy: `${REPO_BASE}/${zh ? "PRIVACY_POLICY.zh-Hant.md" : "PRIVACY_POLICY.md"}`,
+    wiki: zh ? `${WIKI_BASE}/Home-zh-Hant` : WIKI_BASE,
+  };
+}
 
 /**
  * Frosted-glass (Mica-style) Settings overlay. Slides in from the right and
@@ -104,7 +121,7 @@ export default function SettingsOverlay() {
       <aside
         data-testid="settings-overlay"
         className={cn(
-          "absolute right-0 top-0 h-full w-[380px] border-l border-white/10 p-6 shadow-2xl",
+          "absolute right-0 top-0 h-full w-[380px] overflow-y-auto border-l border-white/10 p-6 shadow-2xl",
           "bg-surface-2/70 backdrop-blur-xl backdrop-saturate-150",
           "transition-transform duration-200",
           open ? "translate-x-0" : "translate-x-full",
@@ -317,6 +334,33 @@ export default function SettingsOverlay() {
             </div>
           </section>
         )}
+
+        <section className="mt-6" data-testid="settings-about">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
+            {t("settings.aboutHeading")}
+          </h3>
+          <div className="mt-3 flex flex-col gap-1">
+            {(
+              [
+                ["userManual", "userManualLink"],
+                ["termsOfService", "termsOfServiceLink"],
+                ["privacyPolicy", "privacyPolicyLink"],
+                ["wiki", "wikiLink"],
+              ] as const
+            ).map(([linkKey, labelKey]) => (
+              <button
+                key={linkKey}
+                type="button"
+                data-testid={`settings-about-${linkKey}`}
+                onClick={() => openUrl(legalLinks(language)[linkKey])}
+                className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-ink-muted transition-colors hover:bg-white/5 hover:text-ink"
+              >
+                {t(`settings.${labelKey}`)}
+                <ExternalLink size={14} />
+              </button>
+            ))}
+          </div>
+        </section>
       </aside>
     </div>
   );

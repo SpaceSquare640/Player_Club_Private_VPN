@@ -158,7 +158,12 @@
       "invalid-forward-multicast": "此設定檔中的多播轉發數值無效。",
       "invalid-fec-parity-shards": "此設定檔中的 FEC 冗餘度數值無效。",
       "invalid-extra-routes": "此設定檔中的額外路由網段數值無效。"
-    }
+    },
+    "aboutHeading": "關於與法律",
+    "userManualLink": "使用者手冊",
+    "termsOfServiceLink": "使用條款",
+    "privacyPolicyLink": "私隱政策",
+    "wikiLink": "Wiki 與支援"
   },
   "minecraft": {
     "title": "Minecraft",

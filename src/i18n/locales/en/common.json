@@ -158,7 +158,12 @@
       "invalid-forward-multicast": "The forward-multicast value in this profile is invalid.",
       "invalid-fec-parity-shards": "The FEC redundancy value in this profile is invalid.",
       "invalid-extra-routes": "The extra-routed-networks value in this profile is invalid."
-    }
+    },
+    "aboutHeading": "About & Legal",
+    "userManualLink": "User Manual",
+    "termsOfServiceLink": "Terms of Service",
+    "privacyPolicyLink": "Privacy Policy",
+    "wikiLink": "Wiki & Support"
   },
   "minecraft": {
     "title": "Minecraft",

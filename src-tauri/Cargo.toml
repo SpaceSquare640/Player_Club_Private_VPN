@@ -43,6 +43,10 @@ crc32fast = "1"
 reed-solomon-erasure = "6"
 tauri-plugin-dialog = "2.7.2"
 tauri-plugin-fs = "2.5.1"
+# Opens Terms of Service / Privacy Policy / Wiki links in the user's default
+# browser from the About/Legal settings section, rather than navigating the
+# app's own webview away from the UI.
+tauri-plugin-opener = "2"
 tokio-tungstenite = "0.29.0"
 futures-util = "0.3.33"
 
