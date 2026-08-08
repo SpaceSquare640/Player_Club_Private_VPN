@@ -1,363 +1,102 @@
 # Player Club Private VPN
 
-> A high-performance, professional-grade **Gaming Virtual Network**. Player Club
-> Private VPN builds secure, low-latency virtual LANs over the public internet so
-> geographically separated players show up on the same subnet — a **Rust**
-> networking engine paired with a modern **Tauri + React** desktop client.
+> A high-performance **Gaming Virtual Network**. Player Club Private VPN builds
+> secure, low-latency virtual LANs over the public internet so geographically
+> separated players show up on the same subnet — a **Rust** networking engine
+> paired with a **Tauri + React** desktop client.
 
-[![Status](https://img.shields.io/badge/status-alpha-22d3ee)](#project-status)
+[![Status](https://img.shields.io/badge/status-alpha-22d3ee)](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/Project-Status)
 [![Engine](https://img.shields.io/badge/engine-Rust-orange)](#technology-stack)
 [![UI](https://img.shields.io/badge/UI-Tauri%20%2B%20React%20%2B%20TS-blue)](#technology-stack)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows-0078D6)](#target-platforms)
-
----
-
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Project Status](#project-status)
-3. [Key Features](#key-features)
-4. [Technology Stack](#technology-stack)
-5. [Architecture](#architecture)
-6. [Project Structure](#project-structure)
-7. [Getting Started](#getting-started)
-8. [Documentation](#documentation)
-9. [Community](#community)
-10. [Development Protocol](#development-protocol)
-11. [Legal](#legal)
+[![Platform](https://img.shields.io/badge/platform-Windows-0078D6)](#technology-stack)
 
 ---
 
 ## Overview
 
 **Player Club Private VPN** (*PCP-VPN*) emulates a Local Area Network (LAN) over
-the public internet. It lets remote players join the same virtual subnet, so
-that LAN-only multiplayer titles — and any application that expects peers on
-the local network — behave as if everyone were in the same room.
+the public internet, so remote players can join the same virtual subnet and
+LAN-only multiplayer titles work as if everyone were in the same room.
+Connections are direct, peer-to-peer, and encrypted end to end — there's no
+central relay or hosted backend.
 
-The core is a **Rust** engine handling NAT traversal, virtual TUN/TAP adapter
-management, Forward Error Correction (FEC), and split tunneling. The desktop
-client is built with **Tauri**, **React**, **TypeScript**, and **Tailwind
-CSS**, and talks to the engine over Tauri's IPC command/event bridge.
-
-There is no central relay or hosted backend: connections are established
-directly, peer to peer, and encrypted end to end. See
-[`PRIVACY_POLICY.md`](PRIVACY_POLICY.md) for exactly what that means for your
-data.
-
----
-
-## Project Status
-
-> **Alpha — actively building.** The desktop app runs end-to-end (Rust engine boots, frosted-glass shell renders, live telemetry streams to the Diagnostics view). An Expert "real adapter" mode (Windows/Wintun) creates a virtual interface and captures live packets. Two peers can exchange signaling blobs and establish a **direct, authenticated encrypted link** by hole-punching through their NATs (C4); real IP traffic **tunnels between them over that link** through the virtual adapter (C5), with live RTT and throughput. **Forward Error Correction** (Reed-Solomon) rebuilds lost packets without retransmission — any `r` losses per group (D.1 · D.2) — and a **split-tunnel policy** controls which LAN traffic — in-subnet unicast, broadcast, and multicast — the tunnel carries (E.1), with broadcast/multicast forwarding and FEC redundancy user-configurable from Settings (B.3). The app classifies the virtual adapter's network as Private and scopes a firewall allow-rule to it automatically (E.2), and Settings can steer extra `address/prefix` networks into the tunnel via `New-NetRoute` (E.2) — both symmetric (each side must opt its own inbound in for delivery, not just the sender's outbound). Full site-to-site LAN sharing (a peer's whole real LAN reachable without either side pre-declaring it) remains deliberately out of scope, for the same reason relay/TURN is. **Verification note:** the whole path — handshake, crypto, data plane, FEC and split-tunnel policy — is covered end to end by an automated harness (two live pipelines over loopback with mock adapters); **real NAT traversal has not yet been verified on two physical machines** and is the material open risk.
-
-> **Real adapter (Expert, Windows):** creating the Wintun virtual interface requires Administrator privileges. When toggled on without elevation, the engine reports a `Needs Admin` state and offers a one-click relaunch. The signed `wintun.dll` is bundled from [wintun.net](https://www.wintun.net) (see `src-tauri/resources/wintun/NOTICE.txt`).
-
-| Area | State |
-| --- | --- |
-| Repository scaffold & docs | ✅ Done |
-| Tauri 2.x app initialization | ✅ Done |
-| Application Shell — 60px sidebar, breadcrumb, golden-ratio layout, 6 themes, frosted-glass settings overlay | ✅ Done |
-| Persistent UI state — theme, active route & settings restored across restarts (`zustand/persist`) | ✅ Done |
-| Engine telemetry spine — simulated data path + `TelemetrySink` IPC bridge (live stats & packet log) | ✅ Done |
-| Virtual adapter (TUN/TAP) — Wintun integration, real packet capture, elevation handling | ✅ Done |
-| Transport + STUN — shared UDP socket, reflexive discovery, live RTT/jitter/loss (C1) | ✅ Done |
-| Crypto & identity — X25519 identity, Noise IK handshake, AEAD session + anti-replay (C2) | ✅ Done |
-| Manual signaling — paste-robust Offer/Answer blobs (pubkey + candidates, CRC32) (C3) | ✅ Done |
-| Peer link — NAT hole-punch-as-handshake (fan-out + single-winner nomination), encrypted keepalive RTT (C4) | ✅ Done |
-| Data-plane join — virtual adapter ↔ encrypted session, IP packets tunnelled peer-to-peer (C5) | ✅ Done |
-| Forward Error Correction — Reed-Solomon over the data plane, recovers any `r` losses per group without retransmit (D.1 · D.2) | ✅ Done |
-| Split tunneling — data-plane policy gating unicast/broadcast/multicast into the tunnel (E.1) | ✅ Done |
-| Full-path integration harness — two live pipelines over loopback with mock adapters (F.0) | ✅ Done |
-| Frontend test foundation — vitest + testing-library, pure logic and store coverage (B.1) | ✅ Done |
-| App-shell routing tests — Sidebar/Breadcrumb/AppShell on a real router, mutation-verified | ✅ Done |
-| Network page — peer-connection management moved off Diagnostics, first component tests (B.2) | ✅ Done |
-| Connection settings — split-tunnel broadcast/multicast + FEC redundancy wired to Settings UI (B.3) | ✅ Done |
-| Live split-tunnel toggles — broadcast/multicast changes apply to an already-connected link, no reconnect (B.4) | ✅ Done |
-| Multi-language (i18n) — English, Traditional Chinese, Simplified Chinese, react-i18next, live switching, persisted | ✅ Done |
-| Windows network integration — adapter set to Private, scoped firewall allow-rule, best-effort (E.2) | ✅ Done |
-| OS route management — extra `address/prefix` networks steered into the tunnel via `New-NetRoute`, symmetric split-tunnel policy widening (E.2) | ✅ Done |
-| Site-to-site LAN sharing (peer-advertised routes + remote IP forwarding) | ⏳ Deferred — unverifiable without 3 physical hosts; see CHANGELOG |
-| Diagnostics — live telemetry readout ✅ · FEC/policy counters ✅ · two-node topology view ✅ · spectrum chart ✅ | ✅ Done |
-| Settings — layered Basic/Expert access (Connection section gated, display-only) | ✅ Done |
-| Settings — JSON profile import/export (connection settings only) | ✅ Done |
-| Dedicated Minecraft page — settings summary + one-click preset (manual, not process detection) | ✅ Done |
-| Networked signaling server — WebSocket host, network name/password gate, live member roster (G.1) | ✅ Done |
-| Networked signaling client — join a network, track roster + live join/leave events (G.2) | ✅ Done |
-| Offer/answer relay over the signaling connection — transport only (G.3) | ✅ Done |
-| Multi-peer `ConnectionManager` — independent link state per peer, mesh-ready (G.3b) | ✅ Done |
-| Mesh auto-connect orchestration — roster + relay → automatic offer/answer, no manual paste (G.3c) | ✅ Done |
-| Virtual-network UI — create/join network, live member list, integrated into the Network page (G.4) | ✅ Done |
-| Game-tagged networks — Minecraft quick-create panel, generic `gameTag` metadata shown wherever a network is viewed | ✅ Done |
-| Network page's virtual network panel repositioned as pure management — hint + collapsed general-purpose forms | ✅ Done |
-| Elevation helper — IPC protocol + message framing (E.3 step 1) | ✅ Done |
-| Elevation helper — request/response dispatch cycle, generic transport, real `tun::windows` wiring for 4 of 5 operations (E.3 step 2) | ✅ Done |
-| Elevation helper — real named-pipe transport (owner-only ACL), `helper.exe` binary, elevated launch (E.3 step 3) | ✅ Done |
-| Elevation helper — `create_adapter` + `attach_existing` (helper owns the adapter, main process opens it by name) (E.3 step 4) | ✅ Done |
-| Elevation helper — actually replacing whole-app relaunch; blocked on verifying unelevated `WintunOpenAdapter` on a real machine (E.3 step 5) | ⏳ Blocked |
-| CI release pipeline — Windows installers built and published to a draft GitHub Release on tag push | ✅ Done |
-
----
-
-## Key Features
-
-> This is the **intended** feature set — the product vision. Each item is tagged
-> with its current state: **✅ built**, **🚧 in progress**, **⏳ planned**. The
-> [Project Status](#project-status) table above is the authoritative record of
-> what actually runs today.
-
-### Networking Engine (Rust)
-- ✅ **NAT traversal** — UDP hole-punching / STUN-style peer discovery for direct P2P links. *(Implemented; **not yet verified on two physical machines** — see Project Status.)*
-- ✅ **TUN/TAP adapter management** — programmatic creation and lifecycle of the virtual network interface (Windows/Wintun), including automatic Windows network-category and firewall integration (E.2).
-- ✅ **Forward Error Correction (FEC)** — Reed-Solomon recovery of lost packets without retransmission.
-- ✅ **Split tunneling** — a data-plane policy gating which traffic the tunnel carries, with broadcast/multicast forwarding user-configurable from Settings.
-- ✅ **Hamachi/Radmin-style virtual networking, complete end to end (Phase G.1–G.4)** — a "Virtual Network" tab on the Network page (alongside the original manual pairing flow) to create or join a named, password-gated network, plus a Minecraft-specific quick-create panel on the Minecraft page that pre-fills the game's recommended connection settings. Whoever creates a network hosts an embedded WebSocket signaling server themselves — zero hosted infrastructure; actual game traffic stays P2P over the existing NAT hole-punch + encrypted data plane. Every member auto-connects to every other member (a deterministic pubkey tie-break decides who sends the offer, no coordination round-trip needed) — the exact same offer/answer envelope the manual paste flow produces, just relayed instead of copied by hand. Both panels drive the *same* underlying network session — a free-form `gameTag` (e.g. `"minecraft"`) is just metadata shown as a badge wherever the network is viewed, ready to extend to other games later. The panel shows the network name, the host address to share, and a live member list with each person's connection state. A host behind NAT without port forwarding is a known limitation of self-hosting the signaling server — see Project Status.
-
-### Application & UX
-- ✅ **60px icon sidebar** with **breadcrumb** pathing for clear navigation.
-- ✅ **1.618 golden-ratio** layout grid for balanced composition.
-- ✅ **Frosted-glass (Mica) "Settings Overlay"** — theme switcher, language, a Basic/Expert-gated Connection section (split-tunnel forwarding, FEC redundancy), and JSON connection-profile import/export via native save/open dialogs.
-- ✅ **Semantic color system** — Cyan (info / idle), Violet (active / primary), Amber (warning), Red (error / critical).
-- ✅ **Skeleton-screen** loading states for perceived performance.
-
-### Diagnostics
-- ✅ **Live telemetry readout** — RTT / jitter / loss / throughput, FEC-recovered and policy-blocked counters.
-- ✅ **Terminal-style packet logs** for low-level inspection.
-- ✅ **Topology view** — this node and the negotiated peer, with the link colored by state and live RTT annotated once connected. *(Deliberately a two-node view, not a general graph — the product is strictly point-to-point today.)*
-- ✅ **Spectrum chart** — a live tx/rx throughput line chart (hand-rolled SVG, hover crosshair + tooltip) over the most recent samples.
-
-### Settings
-- ✅ **Connection settings** — split-tunnel broadcast/multicast forwarding, FEC redundancy (`r`), and extra routed networks (`address/prefix`, comma-separated). The **broadcast/multicast toggles apply live** to an already-connected link (no reconnect); FEC redundancy and extra routes still take effect at the next Connect, because the former is a wire-format agreement with the peer and the latter needs elevation to change OS routes.
-- ✅ **Layered access** — Basic mode shows Theme + Language; an Expert toggle reveals Connection settings. Purely a display filter — a setting stays in effect whether or not its section is currently shown.
-- ✅ **JSON profile import/export** — save or load the current connection settings (broadcast/multicast forwarding, FEC redundancy) as a versioned JSON file via native save/open dialogs; malformed or incompatible files are rejected with an inline error, never silently coerced.
-- ✅ **Dedicated Minecraft page** — its own sidebar entry, showing the current effective connection settings and a one-click preset button (broadcast + multicast forwarding on, FEC redundancy `r = 2`). A manual shortcut, not background process detection — no process scanning, no new OS permissions. Uses a neutral placeholder icon (lucide's `Gamepad2`) pending resolution of Minecraft-branded artwork licensing.
-
-### Personalization
-- ✅ **6 predefined visual themes** (Midnight, Carbon, Nebula, Abyss, Aurora, Ember).
-- ✅ **Multi-language** support — English, Traditional Chinese (繁體中文), and Simplified Chinese (简体中文), switchable live from Settings, persisted. *(Engine-originated notices and error text remain English — see Scope below.)*
-
----
+**Current status: pre-release / alpha.** The full peer-to-peer data path
+(handshake, encryption, NAT traversal, virtual adapter, FEC, split tunneling)
+runs and is covered by an automated test harness, but real NAT traversal
+between two physical machines has not yet been verified. See the
+**[Project Status](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/Project-Status)**
+wiki page for the full, itemised build state.
 
 ## Technology Stack
 
-| Layer            | Technology                          |
-| ---------------- | ------------------------------------ |
-| Core engine      | Rust                                 |
-| Desktop shell    | Tauri                                |
-| UI framework     | React + TypeScript                   |
-| Styling          | Tailwind CSS                         |
-| Frontend build   | Vite                                 |
-| Backend <-> UI   | Tauri commands & events (IPC)        |
-| Config format    | JSON (connection / game profiles)    |
-| CI / packaging   | GitHub Actions + `tauri-action`      |
-
-### Target Platforms
-
-| Class   | Platforms                                     |
-| ------- | ---------------------------------------------- |
-| Desktop | **Windows** (shipping today) · macOS, Linux (planned) |
-| Mobile  | Android, iOS, iPadOS (Tauri 2.x, planned)      |
+| Layer | Technology |
+| --- | --- |
+| Core engine | Rust |
+| Desktop shell | Tauri |
+| UI framework | React + TypeScript |
+| Styling | Tailwind CSS |
+| CI / packaging | GitHub Actions + `tauri-action` |
+| Platform | **Windows** (shipping today) · macOS, Linux planned |
 
 > The virtual-adapter code (`src-tauri/src/engine/tun/mod.rs`) is currently
-> `#[cfg(windows)]`-only — creating the real network adapter only works on
-> Windows today. CI accordingly builds Windows installers only; see
-> [CI release builds](#ci-release-builds-windows) below.
+> `#[cfg(windows)]`-only, so that's the only platform CI packages installers
+> for. See [Architecture](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/Architecture) for why.
 
----
+## Quick Start
 
-## Architecture
-
-> **Target architecture.** The NAT / TUN / FEC / split-tunnel blocks and the IPC
-> layer are built; **Game Detection** and the **Config / Profile Store** are
-> planned and shown here for the intended shape.
-
-```mermaid
-flowchart TB
-    subgraph UI["Frontend — Tauri WebView (React + TS + Tailwind)"]
-        Nav["Sidebar + Breadcrumb"]
-        Diag["Diagnostics<br/>Topology · Spectrum · Packet Logs"]
-        Set["Settings<br/>Basic / Expert · JSON Profiles"]
-        Pers["Themes (x6) + i18n"]
-    end
-
-    subgraph Core["Backend — Rust Engine (src-tauri)"]
-        CMD["Tauri Command / Event Layer (IPC)"]
-        NAT["NAT Traversal"]
-        TUN["TUN/TAP Adapter Mgmt"]
-        FEC["Forward Error Correction"]
-        SPLIT["Split Tunneling"]
-        GAME["Game Detection"]
-        CFG["Config / Profile Store"]
-    end
-
-    OS[("OS Network Stack<br/>Virtual Adapter")]
-    Peers(("Remote Peers"))
-
-    UI <-->|commands / events| CMD
-    CMD --> NAT
-    CMD --> TUN
-    CMD --> FEC
-    CMD --> SPLIT
-    CMD --> GAME
-    CMD --> CFG
-    TUN <--> OS
-    NAT <-->|UDP hole punching| Peers
-    FEC <--> Peers
-    SPLIT --> OS
-```
-
----
-
-## Project Structure
-
-```text
-.
-├── .github/
-│   ├── workflows/                # CI (Windows release builds)
-│   ├── ISSUE_TEMPLATE/           # Bug report / feature request forms
-│   └── DISCUSSION_TEMPLATE/      # Discussion category forms
-├── src-tauri/                    # Rust / Tauri backend (the networking engine)
-│   ├── src/
-│   │   ├── engine/                # The engine
-│   │   │   ├── crypto/            # X25519 identity, Noise IK, AEAD session, replay
-│   │   │   ├── transport/         # Shared UDP socket, framing, keepalive/RTT
-│   │   │   ├── nat/               # STUN + candidate gathering
-│   │   │   ├── signaling/         # Paste-robust PCPV1 offer/answer blobs
-│   │   │   ├── tun/               # Virtual adapter (Wintun) + elevation
-│   │   │   ├── dataplane/         # Adapter ⇄ async driver bridge
-│   │   │   ├── fec/               # Forward Error Correction (XOR parity)
-│   │   │   ├── split_tunnel/      # Egress / ingress packet policy
-│   │   │   ├── telemetry/         # Metrics, packet log, sink seam
-│   │   │   ├── pipeline.rs        # Handshake → steady-state session driver
-│   │   │   └── connection.rs      # Peer link lifecycle
-│   │   └── commands/              # Tauri IPC command handlers + event bridge
-│   ├── capabilities/              # Tauri permission capabilities
-│   ├── resources/wintun/          # Bundled signed wintun.dll (see THIRD-PARTY-NOTICES)
-│   └── icons/                     # App icons
-├── src/                           # React + TypeScript frontend
-│   ├── components/                # Layout shell, diagnostics, settings, primitives
-│   ├── pages/                     # Routed views
-│   ├── hooks/                     # React hooks
-│   ├── stores/                    # Client state (zustand)
-│   ├── lib/                       # Frontend utilities / IPC wrappers
-│   ├── styles/                    # Global + Tailwind styles
-│   ├── themes/                    # Predefined visual themes
-│   ├── i18n/locales/              # Translations
-│   └── types/                     # Shared TypeScript types
-├── public/                        # Static public files
-├── README.md                      # This file
-├── CHANGELOG.md                   # Versioned change history
-├── LICENSE                        # Proprietary licence + disclaimer — read before use
-├── TERMS_OF_SERVICE.md            # Terms governing use of the software & project
-├── PRIVACY_POLICY.md              # What data the app does/doesn't handle
-├── SECURITY.md                    # Vulnerability reporting policy
-└── THIRD-PARTY-NOTICES.md         # Bundled/third-party component licences
-```
-
----
-
-## Getting Started
-
-The desktop application is initialized and **builds end-to-end**. All commands run from the repository root and use **pnpm**.
-
-### Prerequisites
-- **Rust** (stable, MSVC toolchain) — install via [rustup](https://rustup.rs/)
-- **Visual Studio C++ Build Tools 2022** — provides the MSVC linker Rust needs on Windows
-- **Node.js** 20+ and **pnpm** 10+
-- **WebView2 Runtime** — preinstalled on Windows 11
-
-### Install dependencies
 ```bash
 pnpm install
+pnpm tauri dev        # run in development
+pnpm tauri build       # build release + installers
 ```
 
-### Run in development
-```bash
-pnpm tauri dev
-```
+Requires Rust (MSVC toolchain), Node.js 20+, pnpm 10+, and the VS C++ Build
+Tools on Windows. For prerequisites, troubleshooting, and a full walkthrough
+of using the app, see the **[Getting Started](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/Getting-Started)**
+and **[User Manual](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/User-Manual)**
+wiki pages.
 
-### Build a debug binary (no installer)
-```bash
-pnpm tauri build --no-bundle --debug
-```
-Output: `src-tauri/target/debug/player-club-private-vpn.exe`.
-
-### Build release + installers
-```bash
-pnpm tauri build
-```
-Release artifacts are produced under `src-tauri/target/release/`, then published to `/Package_Program` (executables) and `/Package_Program_Installer` (installers).
-
-> **App icon** — regenerate from source art with `pnpm tauri icon <square.png>` (outputs to `src-tauri/icons/`). The generator requires a square source ≥ 1024×1024.
-
-> **Dependency note** — `Cargo.lock` pins `alloc-stdlib` (0.2.2) and `brotli-decompressor` (5.0.1) so the graph stays on `alloc-no-stdlib 2.0.x`. Avoid an unscoped `cargo update` of these: `alloc-no-stdlib 3.0.0` is incompatible with `brotli 8.0.3` (E0277).
-
-### CI release builds (Windows)
-
-Pushing a `v*` tag (e.g. `v0.42.0`) triggers [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds the Windows installers (`.msi`, `.exe`) via [`tauri-apps/tauri-action`](https://github.com/tauri-apps/tauri-action) and attaches them to a **draft** GitHub Release for review before publishing. It can also be run manually from the Actions tab (`workflow_dispatch`).
-
-Linux and macOS packaging is intentionally not wired up yet: the virtual-adapter code (`src-tauri/src/engine/tun/mod.rs`) is `#[cfg(windows)]`-only, so a build on those platforms would ship a UI with no working VPN core. That work is deferred until cross-platform TUN support exists.
-
----
+CI builds Windows installers automatically on every `v*` tag push (see
+[`.github/workflows/release.yml`](.github/workflows/release.yml)) and
+publishes them as a **draft** GitHub Release for review.
 
 ## Documentation
 
-| Resource                  | Location                                              |
-| -------------------------- | ------------------------------------------------------ |
-| Change history             | [`CHANGELOG.md`](./CHANGELOG.md)                        |
-| Software licence           | [`LICENSE`](./LICENSE)                                  |
-| Terms of Service           | [`TERMS_OF_SERVICE.md`](./TERMS_OF_SERVICE.md)          |
-| Privacy Policy             | [`PRIVACY_POLICY.md`](./PRIVACY_POLICY.md)               |
-| Security policy            | [`SECURITY.md`](./SECURITY.md)                          |
-| Third-party components     | [`THIRD-PARTY-NOTICES.md`](./THIRD-PARTY-NOTICES.md)     |
-| Wiki (user guides, deep dives) | [GitHub Wiki](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki) |
-
----
+| Resource | Location |
+| --- | --- |
+| Full feature list & build status | [Wiki: Project Status](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/Project-Status), [Wiki: Features](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/Features) |
+| Getting started & building from source | [Wiki: Getting Started](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/Getting-Started) |
+| **User manual** (how to use the app) | [Wiki: User Manual](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/User-Manual) |
+| Architecture & project structure | [Wiki: Architecture](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/Architecture) |
+| FAQ | [Wiki: FAQ](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/FAQ) |
+| Change history | [`CHANGELOG.md`](./CHANGELOG.md) |
+| Third-party components | [`THIRD-PARTY-NOTICES.md`](./THIRD-PARTY-NOTICES.md) |
 
 ## Community
 
 | Channel | Use it for |
 | --- | --- |
-| [Issues](https://github.com/SpaceSquare640/Player_Club_Private_VPN/issues) | Bug reports, feature requests. Use the provided templates. **Not** for security reports. |
-| [Discussions](https://github.com/SpaceSquare640/Player_Club_Private_VPN/discussions) | Questions, ideas, show-and-tell, general conversation about the project. |
-| [Wiki](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki) | Longer-form guides and reference material outside the source tree. |
-| [Security Advisories](https://github.com/SpaceSquare640/Player_Club_Private_VPN/security/advisories/new) | Private vulnerability reports — see [`SECURITY.md`](SECURITY.md). |
-
-Participation in any of the above is governed by [`TERMS_OF_SERVICE.md`](TERMS_OF_SERVICE.md).
-
----
-
-## Development Protocol
-
-This project follows a strict protocol:
-
-1. **Plan first.** Every module is preceded by a logic breakdown or Mermaid flowchart before code is written.
-2. **Documentation is mandatory.** `README.md` and `CHANGELOG.md` are updated after **every** modification.
-3. **Double-consent on deletion.** Any destructive operation requires explicit two-step confirmation.
-4. **Professional, modular code.** Clear separation of concerns across the engine and UI.
-
----
+| [Issues](https://github.com/SpaceSquare640/Player_Club_Private_VPN/issues) | Bug reports, feature requests |
+| [Discussions](https://github.com/SpaceSquare640/Player_Club_Private_VPN/discussions) | Questions, ideas, general conversation |
+| [Wiki](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki) | Guides, manuals, and reference material |
+| [Security Advisories](https://github.com/SpaceSquare640/Player_Club_Private_VPN/security/advisories/new) | Private vulnerability reports — see [`SECURITY.md`](SECURITY.md) |
 
 ## Legal
 
-**Proprietary — All Rights Reserved.** See [`LICENSE`](LICENSE) at the repository root.
+**Proprietary — All Rights Reserved.** This is **networking software**: it
+creates a virtual network adapter (Administrator privileges required), performs
+NAT traversal, encrypts traffic between peers, and carries arbitrary IP
+traffic between connected machines. **Misconfiguration or misuse can create
+serious security risk for you and for third parties.** Use it only on
+networks you own or are explicitly authorised to use. It is **pre-release,
+alpha-quality, not security-audited**, provided **"as is" with no warranty**,
+and the copyright holder accepts **no liability** for damage arising from its
+use.
 
-> ⚠️ **Read before use.** This is **networking software**. It creates a virtual network
-> adapter (requiring Administrator privileges), performs NAT traversal, encrypts traffic
-> between peers, and carries arbitrary IP traffic — making remote machines appear on your
-> local network. **Misconfiguration or misuse can create serious security risks for you and
-> for third parties.** Use it only on networks you own or are explicitly authorised to use,
-> and never to circumvent security controls or access systems without permission. The
-> software is **pre-release, alpha-quality and has not been security-audited**; it must not
-> be relied upon to protect sensitive information. It is provided **"as is", without warranty
-> of any kind**, and the copyright holder accepts **no liability** for any damage arising from
-> its use. The full disclaimer, acceptable-use conditions and limitation of liability are in
-> [`LICENSE`](LICENSE) — read it in full before using or distributing this software.
+Read the full terms before using or distributing this software:
+[`LICENSE`](LICENSE) · [`TERMS_OF_SERVICE.md`](TERMS_OF_SERVICE.md) ·
+[`PRIVACY_POLICY.md`](PRIVACY_POLICY.md) · [`SECURITY.md`](SECURITY.md)
 
-Use of the Software and of this Project's GitHub resources is further governed by
-[`TERMS_OF_SERVICE.md`](TERMS_OF_SERVICE.md); what data the app does and doesn't
-handle is described in [`PRIVACY_POLICY.md`](PRIVACY_POLICY.md).
-
-Bundled third-party components (notably **Wintun**) remain under their own licences; see
-[`src-tauri/resources/wintun/NOTICE.txt`](src-tauri/resources/wintun/NOTICE.txt).
+Bundled third-party components (notably **Wintun**) remain under their own
+licences; see [`src-tauri/resources/wintun/NOTICE.txt`](src-tauri/resources/wintun/NOTICE.txt).
