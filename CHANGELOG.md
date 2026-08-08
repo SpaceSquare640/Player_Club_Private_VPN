@@ -16,6 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.41.1] - 2026-08-08
+
+### Added
+**CI release pipeline, three platforms.** `.github/workflows/release.yml` now matrix-builds installers on every `v*` tag push — Windows (`.msi`, NSIS `.exe`), Linux (`.deb`, `.AppImage`), and macOS (`.dmg`) — via `tauri-apps/tauri-action`, and publishes them to a single **draft** GitHub Release for review before going public.
+
+A `notes` job runs first: it extracts the matching `## [version]` section straight out of this file and prepends a platform-support disclaimer, so every release's description is generated automatically — no manual step, and no more forgetting to write one.
+
+**`PLATFORM-SUPPORT.md`** — the real virtual adapter (`src-tauri/src/engine/tun/mod.rs`) is still `#[cfg(windows)]`-only, so this file makes the Linux/macOS gap explicit: installers exist for all three platforms, but only Windows has a working tunnel today. The same disclaimer is stamped into every release's notes automatically, not just the docs.
+
+### Documentation
+Rewrote `README.md`, `LICENSE`, and `SECURITY.md`; added `TERMS_OF_SERVICE.md` and `PRIVACY_POLICY.md`; added GitHub Issue and Discussion templates; set repository About/Topics; and moved the detailed build-status table, full feature list, architecture diagram, and project structure out of the README and into the GitHub Wiki, alongside a new step-by-step **User Manual** page. README is now a short overview + quick start that links out to the Wiki for everything else.
+
+---
+
 ## [0.41.0] - 2026-08-06
 
 ### Added
