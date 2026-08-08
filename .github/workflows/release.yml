@@ -1,0 +1,44 @@
+name: Release (Windows)
+
+# Builds the Windows installers (.msi / .exe) via Tauri and publishes them to
+# a GitHub Release whenever a `v*` tag is pushed. Linux/macOS packaging is
+# intentionally out of scope for now: the virtual-adapter code in
+# src-tauri/src/engine/tun/mod.rs is `#[cfg(windows)]`-gated, so a build on
+# those platforms would produce a UI shell with no working VPN core.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Player Club Private VPN ${{ github.ref_name }}"
+          releaseDraft: true
+          prerelease: false

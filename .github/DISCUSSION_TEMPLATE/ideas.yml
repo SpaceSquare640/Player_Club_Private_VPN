@@ -1,0 +1,15 @@
+labels: ["idea"]
+body:
+  - type: markdown
+    attributes:
+      value: Share an idea for the project. Concrete, ready-to-build requests are better filed as a [feature request issue](https://github.com/SpaceSquare640/Player_Club_Private_VPN/issues/new?template=feature_request.yml).
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why would this help?

@@ -1,217 +1,220 @@
-Player Club Private VPN
+PLAYER CLUB PRIVATE VPN — PROPRIETARY SOFTWARE LICENSE
 Copyright (c) 2026 SpaceSquare640. All Rights Reserved.
 
+Last updated: 2026-08-08
+
 ================================================================================
-1. PROPRIETARY LICENSE — ALL RIGHTS RESERVED
+0. DEFINITIONS
 ================================================================================
 
-This software, including its source code, documentation, build artifacts and
-all associated materials (collectively, the "Software"), is proprietary and
-confidential. All rights are reserved by the copyright holder.
+"Software" means Player Club Private VPN, including its source code, compiled
+binaries, installers, documentation, configuration files, artwork, and any
+other materials distributed alongside it, in any form.
 
-No licence, right, title or interest in the Software is granted to you except
-as expressly and separately agreed in writing by the copyright holder. Without
-such written permission you MAY NOT:
+"You" means the individual or entity exercising any right under this Licence,
+including by downloading, installing, running, or otherwise using the
+Software.
 
-  (a) copy, reproduce, publish or redistribute the Software, in source or
+"Copyright Holder" means SpaceSquare640, the owner of all rights in the
+Software.
+
+"Peer" means any other person, machine, or network reachable through a tunnel
+you establish using the Software.
+
+================================================================================
+1. OWNERSHIP AND GRANT
+================================================================================
+
+The Software is proprietary and confidential. The Copyright Holder owns and
+retains all right, title, and interest in it, including all intellectual
+property rights.
+
+No licence, right, title, or interest in the Software — express or implied —
+is granted to you except as separately agreed in writing by the Copyright
+Holder. Absent such written agreement, you may run the Software for your own
+personal use, subject to Sections 2 and 3, but you may NOT:
+
+  (a) copy, publish, host, mirror, or redistribute the Software, in source or
       binary form, in whole or in part;
-  (b) modify, adapt, translate or create derivative works of the Software;
+  (b) modify, adapt, translate, or create derivative works based on the
+      Software;
   (c) sell, rent, lease, sublicense, or otherwise commercially exploit the
       Software;
-  (d) reverse engineer, decompile or disassemble the Software, except to the
-      extent such restriction is expressly prohibited by applicable law;
-  (e) remove, obscure or alter any copyright, trademark, or other proprietary
-      notice contained in the Software.
+  (d) reverse engineer, decompile, or disassemble the Software, except to the
+      extent such a restriction is expressly prohibited by applicable law;
+  (e) remove, obscure, or alter any copyright, trademark, or other proprietary
+      notice contained in or attached to the Software.
 
-To request a licence for any use not permitted above, contact the copyright
-holder.
+To request permission for anything outside this grant, contact the Copyright
+Holder.
 
 ================================================================================
-2. NATURE OF THE SOFTWARE — READ THIS BEFORE USE
+2. WHAT THIS SOFTWARE DOES
 ================================================================================
 
-The Software is NETWORKING SOFTWARE. It creates encrypted virtual private
-networks between computers, and in doing so it:
+Read this section before installing or running the Software. It is networking
+and cryptographic software, and by design it:
 
   * installs and operates a VIRTUAL NETWORK ADAPTER on the host system, which
-    requires ADMINISTRATOR / ELEVATED PRIVILEGES;
-  * performs NAT TRAVERSAL ("hole punching"), which deliberately opens paths
-    through network address translators and may bypass assumptions made by
-    firewalls and other network controls;
-  * ENCRYPTS traffic between peers, rendering that traffic opaque to network
-    operators, security monitoring and inspection systems;
-  * CARRIES ARBITRARY IP TRAFFIC, including broadcast and multicast, between
-    connected machines, causing remote machines to appear as though they are on
-    your local network.
+    requires ADMINISTRATOR / ELEVATED PRIVILEGES to create;
+  * performs NAT TRAVERSAL ("hole punching"), deliberately opening a path
+    through network address translators that may not match assumptions made
+    by firewalls or other network controls;
+  * ENCRYPTS traffic between Peers, making that traffic opaque to network
+    operators, monitoring tools, and inspection systems on the path;
+  * CARRIES ARBITRARY IP TRAFFIC — including broadcast and multicast, where
+    enabled — between connected machines, making a Peer's machine appear as
+    though it were on your local network, and vice versa.
 
-CONSEQUENTLY, MISCONFIGURATION OR MISUSE OF THE SOFTWARE CAN CREATE SERIOUS
-SECURITY RISKS — NOT ONLY FOR YOU, BUT FOR THIRD PARTIES, FOR THE NETWORKS YOU
-CONNECT TO, AND FOR ANYONE WHOSE SYSTEMS BECOME REACHABLE THROUGH A TUNNEL YOU
-ESTABLISH. Connecting a machine to a peer effectively extends a network
-boundary. You are responsible for understanding that consequence before you
-use the Software.
+Connecting to a Peer extends your network boundary to include that Peer, and
+anything reachable through them. Misconfiguration or misuse can create
+security risk not only for you but for third parties, and for any network you
+or your Peer are attached to. You are responsible for understanding this
+before you use the Software.
 
 ================================================================================
-3. ACCEPTABLE USE — MANDATORY CONDITIONS
+3. ACCEPTABLE USE
 ================================================================================
 
-Any use of the Software is conditional on ALL of the following. You MUST NOT
+Your use of the Software is conditional on all of the following. You must NOT
 use the Software:
 
-  (a) on any network, system or device that you do not own or for which you do
-      not have PRIOR, EXPLICIT AUTHORISATION from the party responsible for it
-      (including your employer, school, institution, or network operator);
-  (b) to circumvent, evade, disable or defeat any firewall, access control,
+  (a) on any network, system, or device you do not own, without PRIOR,
+      EXPLICIT AUTHORISATION from the party responsible for it — including an
+      employer, school, institution, or network operator;
+  (b) to circumvent, evade, disable, or defeat any firewall, access control,
       network policy, content restriction, monitoring system, geographic
       restriction, or other security or compliance control;
-  (c) to obtain unauthorised access to any system, service, account or data, or
-      to facilitate any other person in doing so;
-  (d) to conceal, enable or carry out any unlawful activity, intrusion, attack,
-      denial of service, malware distribution, data exfiltration, fraud, or
-      infringement of the rights of others;
-  (e) in violation of any applicable law, regulation, export control, sanctions
-      regime, or contractual obligation binding upon you.
+  (c) to obtain unauthorised access to any system, service, account, or data,
+      or to help any other person do so;
+  (d) to conceal, enable, or carry out unlawful activity of any kind,
+      including intrusion, attack, denial of service, malware distribution,
+      data exfiltration, fraud, or infringement of the rights of others;
+  (e) in violation of any law, regulation, export control, sanctions regime,
+      or contractual obligation that binds you.
 
-LEGALITY VARIES BY JURISDICTION. The use, import, export, distribution or
-operation of virtual private network and cryptographic software is RESTRICTED
-OR UNLAWFUL in some countries and on some networks. It is SOLELY YOUR
-RESPONSIBILITY to determine and comply with every law and policy that applies
-to you before using the Software. The copyright holder makes no representation
-that the Software is lawful or appropriate for use in any particular location.
+The legality of VPN and cryptographic software varies by country and by
+network. It is solely your responsibility to determine and comply with every
+law and policy applicable to you before using the Software. The Copyright
+Holder makes no representation that the Software is lawful or appropriate for
+use in any particular place.
 
-Your right to use the Software terminates AUTOMATICALLY AND IMMEDIATELY upon
-any breach of this Section.
+Your right to use the Software ends automatically and immediately upon any
+breach of this Section.
 
 ================================================================================
-4. PRE-RELEASE / ALPHA SOFTWARE
+4. DEVELOPMENT STATUS
 ================================================================================
 
 THE SOFTWARE IS UNFINISHED, PRE-RELEASE, ALPHA-QUALITY SOFTWARE UNDERGOING
 ACTIVE DEVELOPMENT. IT HAS NOT BEEN INDEPENDENTLY SECURITY-AUDITED,
-PENETRATION-TESTED, OR CERTIFIED BY ANY PARTY.
+PENETRATION-TESTED, OR CERTIFIED BY ANY THIRD PARTY.
 
-ITS CRYPTOGRAPHIC AND NETWORKING IMPLEMENTATIONS MAY CONTAIN DEFECTS,
-VULNERABILITIES OR DESIGN ERRORS THAT COULD EXPOSE YOUR TRAFFIC, YOUR SYSTEMS
-OR YOUR NETWORK. IT MUST NOT BE RELIED UPON TO PROTECT CONFIDENTIAL, SENSITIVE,
-REGULATED, OR SAFETY-CRITICAL INFORMATION, NOR USED IN ANY PRODUCTION,
-COMMERCIAL, MEDICAL, INDUSTRIAL, FINANCIAL, OR LIFE-CRITICAL ENVIRONMENT.
+Its cryptographic and networking components may contain defects,
+vulnerabilities, or design errors that could expose your traffic, your
+systems, or your network. Do not rely on it to protect confidential,
+regulated, or safety-critical information, and do not deploy it in any
+production, commercial, medical, industrial, financial, or life-critical
+environment.
 
-Interfaces, protocols, file formats and behaviour may change at any time
-without notice or migration path.
+Interfaces, protocols, file formats, and behaviour may change at any time,
+without notice and without a migration path.
 
 ================================================================================
-5. DISCLAIMER OF WARRANTY
+5. NO WARRANTY
 ================================================================================
 
-THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITH ALL FAULTS AND
-DEFECTS, AND WITHOUT WARRANTY OR CONDITION OF ANY KIND, WHETHER EXPRESS,
-IMPLIED, STATUTORY OR OTHERWISE.
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITH ALL FAULTS, AND
+WITHOUT WARRANTY OF ANY KIND, WHETHER EXPRESS, IMPLIED, STATUTORY, OR
+OTHERWISE.
 
-TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE COPYRIGHT HOLDER
-EXPRESSLY DISCLAIMS ALL WARRANTIES AND CONDITIONS, INCLUDING BUT NOT LIMITED TO
-ANY IMPLIED WARRANTIES OR CONDITIONS OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, QUIET ENJOYMENT, ACCURACY, SYSTEM
-INTEGRATION, OR ARISING FROM ANY COURSE OF DEALING, USAGE OR TRADE PRACTICE.
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COPYRIGHT HOLDER DISCLAIMS ALL
+WARRANTIES, INCLUDING ANY IMPLIED WARRANTY OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, OR ACCURACY.
 
-WITHOUT LIMITING THE FOREGOING, THE COPYRIGHT HOLDER DOES NOT WARRANT THAT:
-THE SOFTWARE WILL MEET YOUR REQUIREMENTS; THAT IT WILL OPERATE UNINTERRUPTED,
-TIMELY, SECURELY OR ERROR-FREE; THAT ANY DEFECT WILL BE CORRECTED; THAT IT IS
-FREE OF VULNERABILITIES OR HARMFUL COMPONENTS; OR THAT ANY DATA, TRAFFIC OR
-COMMUNICATION CARRIED, ENCRYPTED OR PROTECTED BY IT WILL BE SECURE, PRIVATE,
-CONFIDENTIAL, AUTHENTIC, COMPLETE OR NOT LOST, INTERCEPTED, ALTERED OR
-DISCLOSED.
-
-NO ADVICE OR INFORMATION, WHETHER ORAL OR WRITTEN, OBTAINED FROM THE COPYRIGHT
-HOLDER OR THROUGH THE SOFTWARE, CREATES ANY WARRANTY NOT EXPRESSLY STATED HERE.
+WITHOUT LIMITING THE ABOVE, THE COPYRIGHT HOLDER DOES NOT WARRANT THAT THE
+SOFTWARE WILL MEET YOUR REQUIREMENTS, OPERATE UNINTERRUPTED OR ERROR-FREE, BE
+FREE OF VULNERABILITIES, OR THAT ANY DATA OR TRAFFIC IT CARRIES OR ENCRYPTS
+WILL REMAIN SECURE, PRIVATE, AUTHENTIC, OR UNALTERED.
 
 ================================================================================
 6. LIMITATION OF LIABILITY
 ================================================================================
 
-TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL THE
-COPYRIGHT HOLDER, ITS AUTHORS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
-INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, PUNITIVE OR CONSEQUENTIAL DAMAGES OF
-ANY KIND WHATSOEVER, INCLUDING BUT NOT LIMITED TO:
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COPYRIGHT HOLDER AND ANY
+CONTRIBUTORS WILL NOT BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING FROM OR
+RELATED TO YOUR USE OF THE SOFTWARE, INCLUDING BUT NOT LIMITED TO: LOST
+PROFITS, REVENUE, OR DATA; SECURITY BREACH OR UNAUTHORISED ACCESS TO ANY
+SYSTEM, WHETHER YOURS OR A THIRD PARTY'S; DAMAGE TO OR MISCONFIGURATION OF ANY
+NETWORK, DEVICE, OR ADAPTER; SERVICE INTERRUPTION; OR ANY THIRD-PARTY CLAIM —
+HOWEVER CAUSED, AND UNDER ANY THEORY OF LIABILITY, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
 
-  LOSS OF PROFITS, REVENUE, BUSINESS, GOODWILL OR ANTICIPATED SAVINGS;
-  LOSS, CORRUPTION, INTERCEPTION OR DISCLOSURE OF DATA OR COMMUNICATIONS;
-  SECURITY BREACH, INTRUSION, UNAUTHORISED ACCESS OR NETWORK COMPROMISE —
-    WHETHER OF YOUR SYSTEMS OR OF ANY THIRD PARTY'S;
-  DAMAGE TO OR MISCONFIGURATION OF ANY NETWORK, DEVICE, ADAPTER OR SYSTEM;
-  SERVICE INTERRUPTION, DOWNTIME, OR COST OF SUBSTITUTE GOODS OR SERVICES;
-  REGULATORY FINES, PENALTIES, OR ANY CLAIM BROUGHT BY A THIRD PARTY,
-
-HOWEVER CAUSED AND UNDER ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-LIABILITY, TORT (INCLUDING NEGLIGENCE) OR OTHERWISE, ARISING IN ANY WAY OUT OF
-THE USE OF, INABILITY TO USE, OR RELIANCE UPON THE SOFTWARE, EVEN IF ADVISED OF
-THE POSSIBILITY OF SUCH DAMAGE AND EVEN IF ANY LIMITED REMEDY IS FOUND TO HAVE
-FAILED OF ITS ESSENTIAL PURPOSE.
-
-THIS ALLOCATION OF RISK IS A FUNDAMENTAL BASIS ON WHICH THE SOFTWARE IS MADE
-AVAILABLE. SOME JURISDICTIONS DO NOT ALLOW CERTAIN EXCLUSIONS OR LIMITATIONS,
-SO SOME OF THE ABOVE MAY NOT APPLY TO YOU; IN THAT CASE LIABILITY IS LIMITED TO
-THE MINIMUM PERMITTED BY LAW.
+Some jurisdictions do not permit certain limitations, in which case liability
+is limited to the minimum extent permitted by law in that jurisdiction.
 
 ================================================================================
 7. ASSUMPTION OF RISK AND INDEMNITY
 ================================================================================
 
-YOU USE THE SOFTWARE ENTIRELY AT YOUR OWN RISK, AND YOU ARE SOLELY AND FULLY
-RESPONSIBLE FOR:
+You use the Software entirely at your own risk. You are solely responsible
+for:
 
   * all activity conducted over, and all traffic carried by, any tunnel you
-    establish, by you or by any other party you connect with;
-  * the security, configuration and lawful operation of every system, device
-    and network you connect to or expose through the Software;
+    establish, whether initiated by you or by any Peer you connect with;
+  * the security, configuration, and lawful operation of every system and
+    network you connect to or expose through the Software;
   * obtaining every authorisation required before use; and
   * all consequences of your use or misuse of the Software.
 
-You agree to indemnify, defend and hold harmless the copyright holder, its
-authors and contributors from and against any and all claims, demands,
-liabilities, losses, damages, penalties, costs and expenses (including
-reasonable legal fees) arising out of or related to your use of the Software or
-your breach of this Licence.
+You agree to indemnify and hold harmless the Copyright Holder and any
+contributors from any claim, loss, liability, or expense (including
+reasonable legal fees) arising from your use of the Software or your breach
+of this Licence.
 
 ================================================================================
 8. THIRD-PARTY COMPONENTS
 ================================================================================
 
-The Software incorporates or bundles third-party components that remain subject
-to their OWN licences, which are NOT superseded by this Licence and which you
-must observe independently. In particular:
+The Software bundles or depends on third-party components that remain subject
+to their own licences, independent of this one. Notably:
 
   * Wintun (WireGuard LLC / Jason A. Donenfeld) — a prebuilt, Authenticode-
     signed userspace TUN driver bundled as a runtime resource. See
-    Source_Code/src-tauri/resources/wintun/NOTICE.txt and the authoritative
-    terms published at https://www.wintun.net/.
-  * Rust crates and JavaScript/TypeScript packages resolved at build time, each
-    under its own licence as declared by its publisher.
+    `src-tauri/resources/wintun/NOTICE.txt` and https://www.wintun.net/.
+  * Rust crates and JavaScript/TypeScript packages resolved at build time,
+    each under the licence declared by its own publisher — see
+    `THIRD-PARTY-NOTICES.md`.
 
-The copyright holder makes no warranty regarding, and accepts no liability for,
-any third-party component.
+The Copyright Holder makes no warranty regarding, and accepts no liability
+for, any third-party component.
 
 ================================================================================
 9. GENERAL
 ================================================================================
 
-TERMINATION. This Licence and all rights granted under it terminate
-automatically upon any breach by you. Sections 5, 6, 7 and this Section survive
-termination.
+TERMINATION. This Licence and every right it grants end automatically upon
+any breach by you. Sections 5, 6, 7, and this Section survive termination.
 
-SEVERABILITY. If any provision is held unenforceable, it shall be modified to
-the minimum extent necessary to make it enforceable, and the remaining
-provisions shall remain in full force and effect.
+SEVERABILITY. If a provision is held unenforceable, it will be limited or cut
+to the minimum extent necessary, and the remaining provisions stay in effect.
 
-NO WAIVER. Failure to enforce any provision is not a waiver of it.
+NO WAIVER. Failure to enforce a provision is not a waiver of it.
 
 ENTIRE AGREEMENT. This Licence is the entire agreement between you and the
-copyright holder concerning the Software and supersedes all prior discussions.
+Copyright Holder regarding the Software, and supersedes any prior discussion.
+
+RELATED DOCUMENTS. Use of the Software, and of any project resources
+associated with it (repository, wiki, discussions, issue tracker), is also
+governed by the project's Terms of Service and Privacy Policy — see
+`TERMS_OF_SERVICE.md` and `PRIVACY_POLICY.md`.
 
 --------------------------------------------------------------------------------
-NOTE: This document is a licence and disclaimer prepared for this project. It is
-not legal advice, and it has not been reviewed by a qualified lawyer. Before
+NOTE: This document is a licence and disclaimer prepared for this project. It
+is not legal advice and has not been reviewed by a qualified lawyer. Before
 relying on it — particularly before any public release, distribution, or
 commercial use, and given that VPN and cryptography laws differ substantially
-between jurisdictions — you should have it reviewed by a legal professional in
-your own jurisdiction.
+between jurisdictions — have it reviewed by a legal professional in your own
+jurisdiction.
 --------------------------------------------------------------------------------

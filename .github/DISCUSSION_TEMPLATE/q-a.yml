@@ -1,0 +1,15 @@
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: Ask anything about setting up, running, or understanding the project. Not a bug report or feature request — those belong under Issues.
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: What have you already tried or read?
