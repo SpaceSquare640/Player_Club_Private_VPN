@@ -1,3 +1,5 @@
+🌐 **English** | [繁體中文](PLATFORM-SUPPORT.zh-Hant.md)
+
 # Platform Support
 
 Last updated: 2026-08-08

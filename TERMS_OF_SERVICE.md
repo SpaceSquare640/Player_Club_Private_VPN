@@ -1,3 +1,5 @@
+🌐 **English (Authoritative)** | [繁體中文（參考譯本）](TERMS_OF_SERVICE.zh-Hant.md)
+
 # Terms of Service
 
 Last updated: 2026-08-08

@@ -1,3 +1,5 @@
+🌐 **English** | [繁體中文](SECURITY.zh-Hant.md)
+
 # Security Policy
 
 Player Club Private VPN creates a virtual network adapter, punches through

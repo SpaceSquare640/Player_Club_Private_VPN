@@ -1,3 +1,5 @@
+🌐 **English** | [繁體中文](README.zh-Hant.md)
+
 # Player Club Private VPN
 
 > A high-performance **Gaming Virtual Network**. Player Club Private VPN builds

@@ -1,3 +1,5 @@
+🌐 **English (Authoritative)** | [繁體中文（參考譯本）](PRIVACY_POLICY.zh-Hant.md)
+
 # Privacy Policy
 
 Last updated: 2026-08-08
