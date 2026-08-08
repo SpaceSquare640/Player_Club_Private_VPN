@@ -1,6 +1,6 @@
 [package]
 name = "player-club-private-vpn"
-version = "0.41.1"
+version = "0.42.0"
 description = "Player Club Private VPN — a high-performance Gaming Virtual Network."
 authors = ["Player Club"]
 edition = "2021"
@@ -46,7 +46,7 @@ tauri-plugin-fs = "2.5.1"
 tokio-tungstenite = "0.29.0"
 futures-util = "0.3.33"
 
-# --- Phase B: TUN/TAP (Windows only) ---------------------------------------
+# --- Phase B: TUN/TAP (Windows backend) -------------------------------------
 # wintun loads the bundled, signed wintun.dll at runtime to create/manage the
 # virtual adapter. windows-sys provides the Win32 calls for elevation detection
 # (token) and relaunch-elevated (ShellExecuteW). IP assignment uses `netsh`.
@@ -61,6 +61,14 @@ windows-sys = { version = "0.59", features = [
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
 ] }
+
+# --- Linux/macOS TUN backends ------------------------------------------------
+# libc gives raw access to open(2)/ioctl(2)/socket(2) etc. — the Linux
+# backend opens /dev/net/tun directly (TUNSETIFF), and the macOS backend
+# talks to the utun kernel-control socket (CTLIOCGINFO). Neither has a safe
+# high-level crate equivalent to `wintun` worth pulling in for this.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 # Dependency pin (enforced via Cargo.lock): alloc-stdlib = 0.2.2 and
 # brotli-decompressor = 5.0.1 keep the whole graph on alloc-no-stdlib 2.0.x.

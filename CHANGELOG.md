@@ -16,6 +16,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.42.0] - 2026-08-09
+
+### Added
+**Real TUN backends for Linux and macOS.** `src-tauri/src/engine/tun/` no longer stubs out `open_device` on non-Windows targets — it now has a real implementation for all three platforms, selected at compile time in `mod.rs`:
+
+- **Linux (`linux.rs`)** — opens `/dev/net/tun` directly via `open(2)` + the `TUNSETIFF` ioctl (`IFF_TUN | IFF_NO_PI`), non-blocking so `read_frame` matches the poll-style contract the rest of the engine already relies on. IP address, MTU, and link-up state are set via `ip` (iproute2), mirroring how the Windows backend shells out to `netsh`.
+- **macOS (`macos.rs`)** — creates a `utun` interface via the `PF_SYSTEM`/`SYSPROTO_CONTROL` kernel-control socket (`CTLIOCGINFO` to resolve `"com.apple.net.utun_control"`, then probing `sc_unit` values until one connects — the same approach WireGuard's own macOS backend uses). Strips/adds the 4-byte address-family header every `utun` frame carries, so the rest of the engine still only ever sees bare IP packets. IP/MTU are set via `ifconfig`.
+- **Privilege detection** (`privilege.rs`) — `is_elevated()` now does a real effective-UID check (`libc::geteuid() == 0`) on Linux/macOS instead of hardcoding `false`; `can_create_tun` reflects that. One-click `relaunch_elevated()` remains Windows-only for now (no single cross-distro/version-safe equivalent to UAC exists) — see `PLATFORM-SUPPORT.md`.
+
+A shared `prefix_to_mask` helper moved from `windows.rs` to `device.rs` so the macOS backend (which also needs a dotted-decimal mask for `ifconfig`) doesn't duplicate it.
+
+**Honesty about verification status:** the Windows backend has been exercised end-to-end; Linux and macOS have not — no one has yet confirmed either actually creates a working adapter and carries traffic against a live peer on physical hardware, only that the code compiles and its pure-logic unit tests (ioctl/struct-layout math, name packing) pass in CI. `PLATFORM-SUPPORT.md`, the release-notes disclaimer, and the README were all updated to say "implemented, unverified" rather than "not implemented" — a real distinction, not a downgrade in caution.
+
+**`.github/workflows/ci.yml`** — new workflow, separate from the release pipeline: runs `cargo check --all-targets` + `cargo test` on `windows-latest`/`ubuntu-latest`/`macos-latest`, plus the frontend type-check + test suite, on every push to `main`. This is what actually verifies the new Linux/macOS code compiles — the author's own machine is Windows-only and cannot cross-compile either backend locally.
+
+### Documentation
+Updated `PLATFORM-SUPPORT.md` (English + Traditional Chinese), `README.md` (+ zh-Hant), and the release workflow's auto-generated disclaimer to reflect "implemented but unverified" rather than "Windows-only."
+
+---
+
 ## [0.41.1] - 2026-08-08
 
 ### Added

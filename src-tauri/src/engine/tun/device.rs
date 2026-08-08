@@ -47,6 +47,21 @@ pub struct DeviceInfo {
     pub mtu: u16,
 }
 
+/// Convert a CIDR prefix length to a dotted-decimal IPv4 subnet mask.
+/// Shared by the Windows (`netsh`) and macOS (`ifconfig`) backends, which
+/// both need a mask rather than a `/prefix` — Linux's `ip addr` command
+/// takes CIDR notation directly and has no use for this.
+pub(crate) fn prefix_to_mask(prefix_len: u8) -> Ipv4Addr {
+    let bits: u32 = if prefix_len == 0 {
+        0
+    } else if prefix_len >= 32 {
+        u32::MAX
+    } else {
+        !(u32::MAX >> prefix_len)
+    };
+    Ipv4Addr::from(bits)
+}
+
 /// A layer-3 virtual network interface.
 ///
 /// `read_frame` is poll-style: it returns `Ok(None)` when no frame is currently

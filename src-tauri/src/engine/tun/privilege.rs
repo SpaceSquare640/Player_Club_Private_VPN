@@ -18,9 +18,10 @@ pub struct ElevationStatus {
 /// Current privilege/capability status.
 pub fn status() -> ElevationStatus {
     let elevated = is_elevated();
+    let has_backend = cfg!(any(windows, target_os = "linux", target_os = "macos"));
     ElevationStatus {
         elevated,
-        can_create_tun: cfg!(windows) && elevated,
+        can_create_tun: has_backend && elevated,
         os: std::env::consts::OS,
     }
 }
@@ -54,7 +55,16 @@ pub fn is_elevated() -> bool {
     }
 }
 
-#[cfg(not(windows))]
+/// Root check via effective UID. Covers both Linux (`CAP_NET_ADMIN` is what
+/// `/dev/net/tun` + `ip` actually need, but in practice that means root for
+/// everyone who isn't hand-granting capabilities) and macOS (the `utun`
+/// control socket and `ifconfig` both require root outright).
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub fn is_elevated() -> bool {
+    unsafe { libc::geteuid() == 0 }
+}
+
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
 pub fn is_elevated() -> bool {
     false
 }
@@ -96,10 +106,19 @@ pub fn relaunch_elevated() -> std::io::Result<()> {
     Ok(())
 }
 
+/// Linux and macOS have real `is_elevated()` support (root via EUID) now
+/// that the TUN backends for both exist, but a one-click relaunch-elevated
+/// (the equivalent of Windows' UAC/`ShellExecuteW` path) is not implemented
+/// yet — there's no single cross-distro/version-safe API for it the way
+/// `runas` is on Windows (the real options are `pkexec`, `sudo` with a
+/// terminal, or a platform-specific auth-services dialog, and none of them
+/// are a drop-in). Until that lands, the app must already be launched with
+/// root (`sudo`) for the real adapter to be available on these platforms —
+/// `status()` reports that accurately via `elevated`/`can_create_tun`.
 #[cfg(not(windows))]
 pub fn relaunch_elevated() -> std::io::Result<()> {
     Err(std::io::Error::new(
         std::io::ErrorKind::Unsupported,
-        "elevation is only supported on Windows",
+        "one-click elevation is not implemented on this platform yet — relaunch with sudo instead",
     ))
 }

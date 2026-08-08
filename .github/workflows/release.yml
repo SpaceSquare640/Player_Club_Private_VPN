@@ -3,11 +3,12 @@ name: Release
 # Builds installers for Windows, Linux, and macOS via Tauri and publishes them
 # to a single GitHub Release whenever a `v*` tag is pushed.
 #
-# Platform support note: the real virtual-adapter code in
-# src-tauri/src/engine/tun/mod.rs is `#[cfg(windows)]`-gated — on Linux and
-# macOS that path is a stub, so those builds are UI-only previews with no
-# working VPN core yet. See PLATFORM-SUPPORT.md and the workflow's
-# release-notes job below, which stamps that disclaimer into every release.
+# Platform support note: src-tauri/src/engine/tun/ now has a real backend for
+# all three platforms (windows.rs, linux.rs, macos.rs), but only the Windows
+# one has been verified against a live peer on real hardware — Linux/macOS
+# are previews until that verification happens. See PLATFORM-SUPPORT.md and
+# the workflow's release-notes job below, which stamps that disclaimer into
+# every release.
 on:
   push:
     tags:
@@ -42,7 +43,7 @@ jobs:
 
           {
             echo "body<<RELEASE_NOTES_EOF"
-            echo "> ⚠️ **Platform support:** the real virtual network adapter is Windows-only today (\`src-tauri/src/engine/tun/mod.rs\` is \`#[cfg(windows)]\`-gated). The **Linux and macOS builds below are UI-only previews** — the app runs, but the actual VPN tunnel does not yet work on those platforms. See [PLATFORM-SUPPORT.md](https://github.com/${{ github.repository }}/blob/main/PLATFORM-SUPPORT.md)."
+            echo "> ⚠️ **Platform support:** all three platforms now have a real virtual-adapter backend, but only **Windows** has been verified against a live peer on real hardware. The **Linux and macOS builds below are previews** — the adapter code is real, not a stub, but it has not yet been confirmed working on physical Linux/macOS machines. See [PLATFORM-SUPPORT.md](https://github.com/${{ github.repository }}/blob/main/PLATFORM-SUPPORT.md)."
             echo ""
             echo "$SECTION"
             echo "RELEASE_NOTES_EOF"

@@ -28,13 +28,14 @@
 | 介面框架 | React + TypeScript |
 | 樣式 | Tailwind CSS |
 | CI／打包 | GitHub Actions + `tauri-action` |
-| 平台 | Windows、Linux、macOS——三平台皆有安裝器；**真實 VPN 通道目前僅支援 Windows** |
+| 平台 | Windows、Linux、macOS——三平台皆已實作真實虛擬介面卡；**目前僅 Windows 已於實機驗證** |
 
-> ⚠️ **Linux 與 macOS 版本目前僅為介面預覽版。** 虛擬介面卡程式碼
-> （`src-tauri/src/engine/tun/mod.rs`）目前僅在 `#[cfg(windows)]` 下實作，因此
-> 該應用程式可在 Linux／macOS 上啟動，但尚無法建立真實通道。詳細說明請見
-> [`PLATFORM-SUPPORT.zh-Hant.md`](PLATFORM-SUPPORT.zh-Hant.md)，原因則見
-> [Wiki：架構](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/Architecture-zh-Hant)。
+> ⚠️ **Linux 與 macOS 版本目前為預覽版。** `src-tauri/src/engine/tun/` 現在
+> 針對三個平台都有真實的介面卡實作（`windows.rs`、`linux.rs`、`macos.rs`），
+> 但目前只有 Windows 版本已在真實對等節點連線上驗證過。Linux／macOS 版本可
+> 編譯、CI 上的單元測試皆通過，理論上正確，但尚未經過端對端的實機驗證。詳細
+> 說明請見 [`PLATFORM-SUPPORT.zh-Hant.md`](PLATFORM-SUPPORT.zh-Hant.md)，原因
+> 則見 [Wiki：架構](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/Architecture-zh-Hant)。
 
 ## 快速開始
 

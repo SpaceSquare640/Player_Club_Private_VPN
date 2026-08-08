@@ -1,0 +1,58 @@
+name: CI
+
+# Compiles and tests the Rust engine on all three platforms on every push to
+# main, and runs the frontend test/type-check suite once. This is what
+# actually verifies the Linux/macOS TUN backends compile — the author's own
+# machine is Windows-only, so this workflow is the only place that exercises
+# `cargo check`/`cargo test` for src-tauri/src/engine/tun/{linux,macos}.rs.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  rust:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+          - platform: ubuntu-latest
+          - platform: macos-latest
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux packaging dependencies
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf build-essential
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo check
+        working-directory: src-tauri
+        run: cargo check --all-targets
+
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm test

@@ -29,7 +29,7 @@ use std::sync::Arc;
 
 use wintun::{Adapter, Session, Wintun};
 
-use super::device::{DeviceInfo, TunConfig, TunDevice};
+use super::device::{prefix_to_mask, DeviceInfo, TunConfig, TunDevice};
 
 pub struct WintunDevice {
     // Field order governs drop order: session, then adapter, then the library.
@@ -311,17 +311,6 @@ pub(crate) fn remove_extra_routes(adapter_name: &str, routes: &[(Ipv4Addr, u8)])
     for (network, prefix) in routes {
         let _ = run_powershell(&remove_route_script(adapter_name, *network, *prefix));
     }
-}
-
-fn prefix_to_mask(prefix_len: u8) -> Ipv4Addr {
-    let bits: u32 = if prefix_len == 0 {
-        0
-    } else if prefix_len >= 32 {
-        u32::MAX
-    } else {
-        !(u32::MAX >> prefix_len)
-    };
-    Ipv4Addr::from(bits)
 }
 
 /// Resolve the bundled `wintun.dll` for the current architecture across both

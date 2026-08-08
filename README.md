@@ -39,11 +39,13 @@ wiki page for the full, itemised build state.
 | UI framework | React + TypeScript |
 | Styling | Tailwind CSS |
 | CI / packaging | GitHub Actions + `tauri-action` |
-| Platform | Windows, Linux, macOS — installers built for all three; **real VPN tunnel is Windows-only today** |
+| Platform | Windows, Linux, macOS — real virtual-adapter backend on all three; **only Windows is verified on real hardware** |
 
-> ⚠️ **Linux and macOS builds are UI-only previews.** The virtual-adapter code
-> (`src-tauri/src/engine/tun/mod.rs`) is currently `#[cfg(windows)]`-only, so
-> the app runs on Linux/macOS but cannot yet create a real tunnel there. See
+> ⚠️ **Linux and macOS builds are previews.** `src-tauri/src/engine/tun/`
+> now has a real backend for all three platforms (`windows.rs`, `linux.rs`,
+> `macos.rs`), but only the Windows one has been exercised against a live
+> peer on real hardware — Linux/macOS compile, pass their unit tests in CI,
+> and are believed correct, but remain unverified end-to-end. See
 > [`PLATFORM-SUPPORT.md`](PLATFORM-SUPPORT.md) for the exact breakdown and
 > [Architecture](https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki/Architecture) for why.
 
