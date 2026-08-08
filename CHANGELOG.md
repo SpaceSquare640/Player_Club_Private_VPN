@@ -31,8 +31,13 @@ A shared `prefix_to_mask` helper moved from `windows.rs` to `device.rs` so the m
 
 **`.github/workflows/ci.yml`** — new workflow, separate from the release pipeline: runs `cargo check --all-targets` + `cargo test` on `windows-latest`/`ubuntu-latest`/`macos-latest`, plus the frontend type-check + test suite, on every push to `main`. This is what actually verifies the new Linux/macOS code compiles — the author's own machine is Windows-only and cannot cross-compile either backend locally.
 
+**In-app "About & Legal" links.** The Settings overlay has a new section linking to the User Manual, Terms of Service, and Privacy Policy — opened in the system browser via the new `tauri-plugin-opener` dependency, not the app's own webview. Links follow the selected UI language where a translation exists (Traditional Chinese has one; Simplified Chinese falls back to English rather than link to a page that doesn't exist).
+
+### Fixed
+**Live-settings-change race in the connection driver.** `pipeline.rs`'s `drive()` loop now uses a `biased` `tokio::select!` with a deliberately-ordered branch priority: `cancel` first (shutdown must never be starved by a busy link), then `settings_rx` (must win its specific race against the uplink packet branch — a settings change and a freshly-arrived packet could previously tie, and the default random tie-break could apply the packet under the stale policy), then everything else. This was the cause of an intermittent CI failure on `a_live_settings_change_applies_to_an_already_connected_link`. Verified with the full suite run three times and the previously-flaky test run 20 times, all clean, before pushing.
+
 ### Documentation
-Updated `PLATFORM-SUPPORT.md` (English + Traditional Chinese), `README.md` (+ zh-Hant), and the release workflow's auto-generated disclaimer to reflect "implemented but unverified" rather than "Windows-only."
+Updated `PLATFORM-SUPPORT.md` (English + Traditional Chinese), `README.md` (+ zh-Hant), and the release workflow's auto-generated disclaimer to reflect "implemented but unverified" rather than "Windows-only." Trimmed the Wiki User Manual to pure step-by-step instructions, moving *why*-explanations to Architecture/FAQ.
 
 ---
 
