@@ -38,7 +38,7 @@ export default function Sidebar() {
 
   return (
     <nav className="flex h-full w-[60px] flex-col items-center gap-1.5 border-r border-white/5 bg-surface-2 py-4">
-      <div className="mb-4 flex size-9 items-center justify-center rounded-xl bg-brand-violet/15 text-xs font-bold text-brand-violet ring-1 ring-brand-violet/20">
+      <div className="mb-4 flex size-9 items-center justify-center rounded-xl bg-brand-violet/15 text-xs font-bold text-brand-violet ring-1 ring-brand-violet/20 shadow-[0_0_20px_-6px_var(--color-brand-violet)]">
         PC
       </div>
 

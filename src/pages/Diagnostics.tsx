@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Ban, Radio, Timer, TrendingDown, Waves, Zap } from "lucide-react";
 import { useTelemetryStore } from "../stores/telemetryStore";
 import { configForMode, requestElevation, startEngine, stopEngine } from "../lib/engine";
 import { cn } from "../lib/cn";
@@ -141,24 +142,32 @@ export default function Diagnostics() {
           label={t("diagnostics.statRttLabel")}
           value={fmt(snapshot?.rttMs)}
           unit="ms"
+          icon={Timer}
+          tone="cyan"
         />
         <StatTile
           testid="stat-jitter"
           label={t("diagnostics.statJitterLabel")}
           value={fmt(snapshot?.jitterMs)}
           unit="ms"
+          icon={Zap}
+          tone="cyan"
         />
         <StatTile
           testid="stat-loss"
           label={t("diagnostics.statLossLabel")}
           value={fmt(snapshot?.lossPct, 2)}
           unit="%"
+          icon={TrendingDown}
+          tone="amber"
         />
         <StatTile
           testid="stat-throughput"
           label={t("diagnostics.statThroughputLabel")}
           value={`${fmt(snapshot?.txKbps, 0)}/${fmt(snapshot?.rxKbps, 0)}`}
           unit="kbps"
+          icon={Waves}
+          tone="violet"
         />
         {/* Cumulative for the session — a per-second figure would read as 0 on a
             healthy link, which is exactly when these numbers should reassure. */}
@@ -168,6 +177,8 @@ export default function Diagnostics() {
           value={count(snapshot?.fecRecovered)}
           unit="pkts"
           title={t("diagnostics.statFecTitle")}
+          icon={Radio}
+          tone="violet"
         />
         <StatTile
           testid="stat-blocked"
@@ -175,6 +186,8 @@ export default function Diagnostics() {
           value={count(snapshot?.policyBlocked)}
           unit="pkts"
           title={t("diagnostics.statBlockedTitle")}
+          icon={Ban}
+          tone="red"
         />
       </div>
 

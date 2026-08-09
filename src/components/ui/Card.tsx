@@ -25,7 +25,11 @@ export default function Card({ variant = "base", className, ...props }: CardProp
         "rounded-2xl border p-6",
         variant === "base"
           ? "border-white/5 bg-surface-2"
-          : "border-white/10 bg-surface-2 shadow-lg shadow-black/20",
+          : // A soft inset top-edge highlight on top of the existing drop shadow —
+            // the "glass" depth cue: a real panel resting above the surface
+            // catches a hint of light on its top edge. `box-shadow` only,
+            // never `backdrop-blur` (expensive, and unnecessary for an opaque panel).
+            "border-white/10 bg-surface-2 shadow-lg shadow-black/20 [box-shadow:inset_0_1px_0_0_rgba(255,255,255,.06),0_10px_15px_-3px_rgb(0_0_0_/_0.2)]",
         className,
       )}
       {...props}

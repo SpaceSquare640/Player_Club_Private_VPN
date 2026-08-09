@@ -1,12 +1,13 @@
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Activity, Gamepad2, Network as NetworkIcon } from "lucide-react";
+import { Activity, Gamepad2, Network as NetworkIcon, Radio, Timer, TrendingDown, Waves } from "lucide-react";
 import { useTelemetryStore } from "../stores/telemetryStore";
 import { ENGINE_STATE_STYLES } from "../lib/engineStateStyles";
 import { cn } from "../lib/cn";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import StatTile from "../components/ui/StatTile";
+import GlowChip from "../components/ui/GlowChip";
 
 /**
  * Home page: a real overview of the live engine state plus shortcuts to the
@@ -52,24 +53,32 @@ export default function Dashboard() {
               label={t("diagnostics.statRttLabel")}
               value={fmt(snapshot?.rttMs)}
               unit="ms"
+              icon={Timer}
+              tone="cyan"
             />
             <StatTile
               testid="dashboard-stat-throughput"
               label={t("diagnostics.statThroughputLabel")}
               value={`${fmt(snapshot?.txKbps, 0)}/${fmt(snapshot?.rxKbps, 0)}`}
               unit="kbps"
+              icon={Waves}
+              tone="violet"
             />
             <StatTile
               testid="dashboard-stat-loss"
               label={t("diagnostics.statLossLabel")}
               value={fmt(snapshot?.lossPct, 2)}
               unit="%"
+              icon={TrendingDown}
+              tone="amber"
             />
             <StatTile
               testid="dashboard-stat-fec"
               label={t("diagnostics.statFecLabel")}
               value={snapshot?.fecRecovered == null ? "—" : String(snapshot.fecRecovered)}
               unit="pkts"
+              icon={Radio}
+              tone="violet"
             />
           </div>
         ) : (
@@ -99,7 +108,9 @@ export default function Dashboard() {
             onClick={() => navigate("/network")}
             className="flex items-center gap-3 rounded-2xl border border-white/5 bg-surface-2 p-4 text-left transition-colors duration-150 hover:border-white/10 hover:bg-white/5"
           >
-            <NetworkIcon size={20} className="shrink-0 text-brand-cyan" />
+            <GlowChip tone="cyan">
+              <NetworkIcon size={18} />
+            </GlowChip>
             <div className="min-w-0">
               <div className="text-sm font-medium text-ink">{t("nav.network")}</div>
               <div className="truncate text-xs text-ink-muted">{t("dashboard.goNetworkHint")}</div>
@@ -112,7 +123,9 @@ export default function Dashboard() {
             onClick={() => navigate("/diagnostics")}
             className="flex items-center gap-3 rounded-2xl border border-white/5 bg-surface-2 p-4 text-left transition-colors duration-150 hover:border-white/10 hover:bg-white/5"
           >
-            <Activity size={20} className="shrink-0 text-brand-violet" />
+            <GlowChip tone="violet">
+              <Activity size={18} />
+            </GlowChip>
             <div className="min-w-0">
               <div className="text-sm font-medium text-ink">{t("nav.diagnostics")}</div>
               <div className="truncate text-xs text-ink-muted">{t("dashboard.goDiagnosticsHint")}</div>
@@ -125,7 +138,9 @@ export default function Dashboard() {
             onClick={() => navigate("/minecraft")}
             className="flex items-center gap-3 rounded-2xl border border-white/5 bg-surface-2 p-4 text-left transition-colors duration-150 hover:border-white/10 hover:bg-white/5"
           >
-            <Gamepad2 size={20} className="shrink-0 text-brand-amber" />
+            <GlowChip tone="amber">
+              <Gamepad2 size={18} />
+            </GlowChip>
             <div className="min-w-0">
               <div className="text-sm font-medium text-ink">{t("nav.minecraft")}</div>
               <div className="truncate text-xs text-ink-muted">{t("dashboard.goMinecraftHint")}</div>

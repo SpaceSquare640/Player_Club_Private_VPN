@@ -16,6 +16,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.50.0] - 2026-08-09
+
+### Changed
+**Visual polish pass, benchmarked against a Claude Design reference the user asked to be exceeded.** The user generated a reference redesign of this app's real pages/components in Claude's Design tool and asked for the shipped app to look better than it. Its visual language — ambient glow behind key icons/status, glass-depth cards, animated pulse/flow on live connections, gradient icon chips, richer stat tiles — directly revisits an earlier call this session (the original redesign, via `baseline-ui`, deliberately avoided glow/gradients as anti-patterns for cleaning up an inconsistent UI). That restraint wasn't a permanent ban — applied deliberately and consistently, the same richer language lifts the ceiling without regressing into noise.
+
+- `Card`'s `raised` variant gains a glass-style inset top-edge highlight; `Button`'s primary variant and `Toggle`'s checked state get a restrained, token-driven glow (`box-shadow` only, no `backdrop-blur`).
+- New `GlowChip` primitive — a small icon container with a soft radial glow colored from the same `--color-brand-*` tokens `Badge` already uses, so every one of the app's 6 themes glows in its own hue automatically. Replaces bare icons on Dashboard's quick actions, and the Minecraft/Relay Server page headers.
+- `StatTile` gains optional `icon`/`tone` props (used across Dashboard and Diagnostics' 6-stat grid) — a leading glow-chip icon plus a colored bottom accent bar, still fully backward compatible for any call site that omits them.
+- `TopologyView` animates a small dot traveling peer-to-peer along the connection line once `Connected` (SVG-native `<animate>`, negligible cost for one small element). `SpectrumChart`'s tx/rx area fills became two-stop gradients instead of flat low-opacity fills — same chart shape and semantics, richer fill only.
+- Zero logic changes, zero `data-testid` changes — this is a styling-only pass.
+
+Full suite: 184/184 frontend (unchanged — every existing test asserts behavior, not styling), 163/163 Rust (unchanged — no Rust touched).
+
+---
+
 ## [0.49.0] - 2026-08-09
 
 ### Added

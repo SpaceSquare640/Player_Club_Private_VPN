@@ -1,9 +1,11 @@
-import { Gamepad2 } from "lucide-react";
+import { Check, Gamepad2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../stores/appStore";
 import VirtualNetworkPanel from "../components/network/VirtualNetworkPanel";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
+import GlowChip from "../components/ui/GlowChip";
+import { cn } from "../lib/cn";
 
 /**
  * Manually-triggered preset, not a background process scan — deliberately
@@ -33,7 +35,9 @@ export default function Minecraft() {
       <div className="flex items-center gap-3">
         {/* Neutral placeholder icon — pending resolution of Minecraft-branded
             artwork licensing before it can ship in this repo. */}
-        <Gamepad2 size={28} className="text-brand-violet" />
+        <GlowChip tone="violet">
+          <Gamepad2 size={20} />
+        </GlowChip>
         <div>
           <h1 className="text-2xl font-semibold text-balance text-ink">{t("minecraft.title")}</h1>
           <p className="text-sm text-pretty text-ink-muted">{t("minecraft.subtitle")}</p>
@@ -43,19 +47,22 @@ export default function Minecraft() {
       <Card data-testid="minecraft-summary">
         <h2 className="text-sm font-medium text-ink-muted">{t("minecraft.currentSettingsHeading")}</h2>
         <ul className="mt-3 space-y-2 text-sm">
-          <li className="text-ink">
+          <li className="flex items-center gap-2 text-ink">
+            <Check size={14} className={cn("shrink-0", forwardBroadcast ? "text-brand-cyan" : "text-ink-muted/40")} />
             {t("settings.forwardBroadcast")}:{" "}
             <span className={forwardBroadcast ? "text-brand-cyan" : "text-ink-muted"}>
               {forwardBroadcast ? t("settings.on") : t("settings.off")}
             </span>
           </li>
-          <li className="text-ink">
+          <li className="flex items-center gap-2 text-ink">
+            <Check size={14} className={cn("shrink-0", forwardMulticast ? "text-brand-cyan" : "text-ink-muted/40")} />
             {t("settings.forwardMulticast")}:{" "}
             <span className={forwardMulticast ? "text-brand-cyan" : "text-ink-muted"}>
               {forwardMulticast ? t("settings.on") : t("settings.off")}
             </span>
           </li>
-          <li className="text-ink">
+          <li className="flex items-center gap-2 text-ink">
+            <Check size={14} className="shrink-0 text-brand-cyan" />
             {t("settings.fecRedundancyHeading")}:{" "}
             <span className="text-brand-cyan">{t("settings.fecRedundancyValue", { n: fecParityShards })}</span>
           </li>

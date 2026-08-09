@@ -68,6 +68,25 @@ export default function TopologyView() {
           <circle cx={NODE_A_X} cy={NODE_Y} r={NODE_R} className="fill-surface-2 stroke-ink-muted/60" strokeWidth="1.5" />
           <circle cx={NODE_B_X} cy={NODE_Y} r={NODE_R} className="fill-surface-2 stroke-ink-muted/60" strokeWidth="1.5" />
 
+          {link === "connected" && (
+            // A single small dot traveling A→B — the "live flow" cue the
+            // connected state otherwise lacks (idle/failed are static by
+            // nature; connecting already reads as live via the dashed
+            // line's `animate-pulse`). Native SVG `<animate>` rather than a
+            // CSS `transform`: it moves in the same viewBox coordinate
+            // space as the line itself with no unit-conversion pitfalls,
+            // and the paint cost of one small circle at this frequency is
+            // negligible next to that correctness.
+            <circle cy={NODE_Y} r="3" className="fill-brand-violet">
+              <animate
+                attributeName="cx"
+                values={`${NODE_A_X + NODE_R};${NODE_B_X - NODE_R};${NODE_A_X + NODE_R}`}
+                dur="2.4s"
+                repeatCount="indefinite"
+              />
+            </circle>
+          )}
+
           <text x={NODE_A_X} y={NODE_Y + VB_HEIGHT * 0.02} textAnchor="middle" className="fill-ink text-[10px] font-medium" style={{ fontSize: 10 }}>
             {t("diagnostics.topologyThisNode")}
           </text>

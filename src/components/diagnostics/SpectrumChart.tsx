@@ -67,12 +67,28 @@ export default function SpectrumChart() {
           onMouseMove={onMove}
           onMouseLeave={() => setHoverIndex(null)}
         >
+          {/* Two-stop gradients (opaque near the line, transparent at the
+              baseline) instead of a flat low-opacity fill — same area-chart
+              shape and semantics, richer fill only. Defined via the same
+              brand tokens as the lines themselves, so every theme's own
+              hues carry through. */}
+          <defs>
+            <linearGradient id="spectrum-tx-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-brand-violet)" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="var(--color-brand-violet)" stopOpacity="0" />
+            </linearGradient>
+            <linearGradient id="spectrum-rx-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-brand-cyan)" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="var(--color-brand-cyan)" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+
           {/* Recessive gridlines — never compete with the data. */}
           <line x1="0" y1={VB_HEIGHT / 2} x2={VB_WIDTH} y2={VB_HEIGHT / 2} className="stroke-white/5" strokeWidth="1" />
           <line x1="0" y1={VB_HEIGHT} x2={VB_WIDTH} y2={VB_HEIGHT} className="stroke-white/10" strokeWidth="1" />
 
-          <path d={txArea} className="fill-brand-violet/10" />
-          <path d={rxArea} className="fill-brand-cyan/10" />
+          <path d={txArea} fill="url(#spectrum-tx-fill)" />
+          <path d={rxArea} fill="url(#spectrum-rx-fill)" />
           <path d={txLine} className="stroke-brand-violet" strokeWidth="2" fill="none" strokeLinejoin="round" strokeLinecap="round" />
           <path d={rxLine} className="stroke-brand-cyan" strokeWidth="2" fill="none" strokeLinejoin="round" strokeLinecap="round" />
 

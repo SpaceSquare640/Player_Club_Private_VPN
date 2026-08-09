@@ -31,9 +31,14 @@ export default function Toggle({ checked, onChange, label, disabled, ...rest }: 
       data-testid={rest["data-testid"]}
       onClick={() => onChange(!checked)}
       className={cn(
-        "relative h-6 w-11 shrink-0 rounded-full transition-colors duration-150",
+        "relative h-6 w-11 shrink-0 rounded-full transition-[background-color,box-shadow] duration-150",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet/60",
-        checked ? "bg-brand-violet" : "bg-white/10",
+        checked
+          ? // The one deliberate, scoped exception to "no glow-as-affordance" in
+            // this app — reserved for the single control whose entire job is
+            // communicating on/off, not applied anywhere decorative.
+            "bg-brand-violet shadow-[0_0_10px_-2px_var(--color-brand-violet)]"
+          : "bg-white/10",
         disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
       )}
     >

@@ -7,6 +7,7 @@ import { wikiPage } from "../lib/externalDocs";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
+import GlowChip from "../components/ui/GlowChip";
 
 /**
  * Lets this machine host a relay (`engine::relay`) for other people's
@@ -29,7 +30,9 @@ export default function RelayServer() {
     <div className="space-y-6" data-testid="page-relay-server">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Router size={28} className="text-brand-violet" />
+          <GlowChip tone="violet">
+            <Router size={20} />
+          </GlowChip>
           <div>
             <h1 className="text-2xl font-semibold text-balance text-ink">{t("relayServer.title")}</h1>
             <p className="text-sm text-pretty text-ink-muted">{t("relayServer.subtitle")}</p>

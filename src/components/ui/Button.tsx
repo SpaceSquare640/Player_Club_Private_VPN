@@ -16,7 +16,8 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
     // several theme accents are light/pastel violets. Each theme's own
     // (very dark) surface color reads at 4.5–7.4:1 against its violet in
     // every theme — a token-driven fix, not a one-off hardcoded color.
-    "bg-brand-violet text-surface hover:bg-brand-violet/90 focus-visible:ring-brand-violet/60 disabled:bg-white/5 disabled:text-ink-muted",
+    // The hover glow is a `box-shadow` transition only (no new animation loop).
+    "bg-brand-violet text-surface hover:bg-brand-violet/90 hover:shadow-[0_0_16px_-4px_var(--color-brand-violet)] focus-visible:ring-brand-violet/60 disabled:bg-white/5 disabled:text-ink-muted disabled:shadow-none",
   secondary:
     "border border-brand-violet/40 text-brand-violet hover:bg-brand-violet/10 focus-visible:ring-brand-violet/60 disabled:border-white/10 disabled:text-ink-muted",
   ghost:
@@ -51,7 +52,7 @@ export default function Button({
       type="button"
       disabled={disabled}
       className={cn(
-        "rounded-xl font-medium transition-colors duration-150",
+        "rounded-xl font-medium transition-[background-color,color,box-shadow] duration-150",
         "focus-visible:outline-none focus-visible:ring-2",
         disabled ? "cursor-not-allowed" : "cursor-pointer",
         VARIANT_CLASSES[variant],
