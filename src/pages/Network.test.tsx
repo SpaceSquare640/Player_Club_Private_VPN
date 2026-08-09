@@ -97,7 +97,7 @@ describe("Network page", () => {
       fireEvent.click(screen.getByTestId("network-mode-virtual"));
 
       expect(screen.queryByTestId("peer-connection")).not.toBeInTheDocument();
-      await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("get_network_status"));
+      await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("get_network_statuses"));
       // Network page's panel collapses its forms by default (see
       // VirtualNetworkPanel's "collapseFormsByDefault" behaviour tests) —
       // the hint is what should show up here, not the forms themselves.

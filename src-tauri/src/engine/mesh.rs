@@ -287,9 +287,15 @@ pub struct MemberSnapshot {
     pub link: LinkState,
 }
 
+/// Identifies one membership among possibly several concurrently-active
+/// networks on the same [`MeshSession`]. Opaque — callers should treat it as
+/// an id to pass back to [`MeshSession::leave`], not parse it.
+pub type NetworkId = String;
+
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct NetworkStatus {
+    pub id: NetworkId,
     pub network_name: String,
     pub is_host: bool,
     /// The host's address, in `ip:port` form — what a joiner needs to type
@@ -327,23 +333,33 @@ fn advertisable_addr(addr: SocketAddr) -> SocketAddr {
     SocketAddr::new(IpAddr::V4(ip), addr.port())
 }
 
-/// One networked-signaling membership at a time (Phase G.4). Owns the
-/// lifecycle Tauri commands drive: `create`/`join` start a
+/// Zero or more concurrent networked-signaling memberships (Phase G.4+).
+/// Owns the lifecycle Tauri commands drive: `create`/`join` each start a
 /// [`SignalingClient`] + [`MeshOrchestrator`] pair (and, for `create`, a
-/// [`SignalingServer`]) in a background task; `leave` tears it all down;
-/// `status` reads the live roster and each member's `ConnectionManager` link
-/// state without needing to reach into the background task at all.
+/// [`SignalingServer`]) in their own background task and register it under a
+/// freshly generated [`NetworkId`]; `leave` tears down just the one
+/// identified by that id; `statuses` reads the live roster and each member's
+/// `ConnectionManager` link state for every active network, without needing
+/// to reach into any background task at all.
+///
+/// Known, accepted limitation: [`ConnectionManager`]'s peer map is keyed only
+/// by remote pubkey (`PeerKey`), shared across every network this session is
+/// a member of. If the same remote peer were ever a member of two of this
+/// node's networks at once, their `PeerLink`/link-state would collide. Real
+/// usage has distinct membership per network, so this isn't hit in practice
+/// and isn't addressed here.
 #[derive(Default)]
 pub struct MeshSession {
-    active: Mutex<Option<ActiveMesh>>,
+    active: Mutex<HashMap<NetworkId, ActiveMesh>>,
 }
 
 impl MeshSession {
     /// Starts hosting a new network: binds a `SignalingServer` on
     /// `bind_addr` (port `0` picks an ephemeral port — the actual bound
     /// address is returned so the UI can show it to share), joins it as the
-    /// first member, and starts auto-connecting. Rejected if already in a
-    /// network.
+    /// first member, and starts auto-connecting. Can be called any number of
+    /// times to host (or join, via [`Self::join`]) several networks at once
+    /// — each gets its own freshly generated [`NetworkId`].
     #[allow(clippy::too_many_arguments)]
     pub async fn create(
         &self,
@@ -355,10 +371,7 @@ impl MeshSession {
         identity: Arc<Identity>,
         manager: Arc<ConnectionManager>,
         sink_factory: impl Fn() -> Box<dyn TelemetrySink> + Send + Sync + 'static,
-    ) -> Result<SocketAddr, String> {
-        if self.active.lock().expect("mesh session lock poisoned").is_some() {
-            return Err("already in a network — leave it first".into());
-        }
+    ) -> Result<(NetworkId, SocketAddr), String> {
         let server = SignalingServer::start(bind_addr, network_name.clone(), &password)
             .await
             .map_err(|e| e.to_string())?;
@@ -377,13 +390,15 @@ impl MeshSession {
         // untouched), only what we connect-to-ourselves-with and advertise
         // changes.
         let host_addr = advertisable_addr(server.local_addr());
-        self.start(host_addr, network_name, password, game_tag, settings, identity, manager, sink_factory, Some(server))
+        let id = self
+            .start(host_addr, network_name, password, game_tag, settings, identity, manager, sink_factory, Some(server))
             .await?;
-        Ok(host_addr)
+        Ok((id, host_addr))
     }
 
-    /// Joins an existing network hosted at `host_addr`. Rejected if already
-    /// in a network.
+    /// Joins an existing network hosted at `host_addr`. Can be called any
+    /// number of times, including while already hosting or having joined
+    /// other networks — see [`Self::create`].
     #[allow(clippy::too_many_arguments)]
     pub async fn join(
         &self,
@@ -395,10 +410,7 @@ impl MeshSession {
         identity: Arc<Identity>,
         manager: Arc<ConnectionManager>,
         sink_factory: impl Fn() -> Box<dyn TelemetrySink> + Send + Sync + 'static,
-    ) -> Result<(), String> {
-        if self.active.lock().expect("mesh session lock poisoned").is_some() {
-            return Err("already in a network — leave it first".into());
-        }
+    ) -> Result<NetworkId, String> {
         self.start(host_addr, network_name, password, game_tag, settings, identity, manager, sink_factory, None).await
     }
 
@@ -414,7 +426,7 @@ impl MeshSession {
         manager: Arc<ConnectionManager>,
         sink_factory: impl Fn() -> Box<dyn TelemetrySink> + Send + Sync + 'static,
         server: Option<SignalingServer>,
-    ) -> Result<(), String> {
+    ) -> Result<NetworkId, String> {
         manager.ensure_socket(STUN_SERVER).await.map_err(|e| e.to_string())?;
         let (client, events) = SignalingClient::join(
             host_addr,
@@ -441,47 +453,58 @@ impl MeshSession {
             }
         });
 
-        *self.active.lock().expect("mesh session lock poisoned") =
-            Some(ActiveMesh { cancel, task, roster, network_name, is_host, host_addr, game_tag });
-        Ok(())
+        let id = new_sid();
+        self.active
+            .lock()
+            .expect("mesh session lock poisoned")
+            .insert(id.clone(), ActiveMesh { cancel, task, roster, network_name, is_host, host_addr, game_tag });
+        Ok(id)
     }
 
-    /// Leaves the current network (idempotent: a no-op if not in one).
-    /// Cancels the orchestrator, disconnects the signaling client, and — if
-    /// this node was the host — shuts down the signaling server, all inside
-    /// the same background task `start` spawned.
-    pub async fn leave(&self) {
-        let active = self.active.lock().expect("mesh session lock poisoned").take();
+    /// Leaves the network identified by `id` (idempotent: a no-op if not a
+    /// member of it, e.g. already left or never joined). Cancels that
+    /// network's orchestrator, disconnects its signaling client, and — if
+    /// this node was its host — shuts down its signaling server, all inside
+    /// the same background task `start` spawned. Other active networks on
+    /// this session are untouched.
+    pub async fn leave(&self, id: &NetworkId) {
+        let active = self.active.lock().expect("mesh session lock poisoned").remove(id);
         if let Some(active) = active {
             let _ = active.cancel.send(true);
             let _ = active.task.await;
         }
     }
 
-    /// The current network's status, or `None` if not in one. Every
-    /// member's link state is read live from `manager` — the roster itself
-    /// says nothing about connection progress, `ConnectionManager` does.
-    pub fn status(&self, manager: &ConnectionManager) -> Option<NetworkStatus> {
-        let active = self.active.lock().expect("mesh session lock poisoned");
-        let active = active.as_ref()?;
-        let members = active
-            .roster
+    /// The status of every currently active network. Every member's link
+    /// state is read live from `manager` — the roster itself says nothing
+    /// about connection progress, `ConnectionManager` does.
+    pub fn statuses(&self, manager: &ConnectionManager) -> Vec<NetworkStatus> {
+        self.active
             .lock()
-            .expect("mesh roster lock poisoned")
+            .expect("mesh session lock poisoned")
             .iter()
-            .map(|m| MemberSnapshot {
-                pubkey: m.pubkey.clone(),
-                fingerprint: m.fingerprint.clone(),
-                link: manager.link_state_of(&m.pubkey),
+            .map(|(id, active)| {
+                let members = active
+                    .roster
+                    .lock()
+                    .expect("mesh roster lock poisoned")
+                    .iter()
+                    .map(|m| MemberSnapshot {
+                        pubkey: m.pubkey.clone(),
+                        fingerprint: m.fingerprint.clone(),
+                        link: manager.link_state_of(&m.pubkey),
+                    })
+                    .collect();
+                NetworkStatus {
+                    id: id.clone(),
+                    network_name: active.network_name.clone(),
+                    is_host: active.is_host,
+                    host_addr: active.host_addr.to_string(),
+                    game_tag: active.game_tag.clone(),
+                    members,
+                }
             })
-            .collect();
-        Some(NetworkStatus {
-            network_name: active.network_name.clone(),
-            is_host: active.is_host,
-            host_addr: active.host_addr.to_string(),
-            game_tag: active.game_tag.clone(),
-            members,
-        })
+            .collect()
     }
 }
 
@@ -661,10 +684,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn mesh_session_status_is_none_when_not_in_a_network() {
+    async fn mesh_session_statuses_is_empty_when_not_in_any_network() {
         let session = MeshSession::default();
         let manager = ConnectionManager::default();
-        assert!(session.status(&manager).is_none());
+        assert!(session.statuses(&manager).is_empty());
     }
 
     #[tokio::test]
@@ -673,7 +696,7 @@ mod tests {
         let manager = Arc::new(ConnectionManager::default());
         let identity = Arc::new(Identity::generate().unwrap());
 
-        let host_addr = session
+        let (id, host_addr) = session
             .create(
                 "127.0.0.1:0".parse().unwrap(),
                 "party".to_string(),
@@ -688,14 +711,17 @@ mod tests {
             .unwrap();
         assert_ne!(host_addr.port(), 0); // an ephemeral port was actually assigned
 
-        let status = session.status(&manager).unwrap();
+        let statuses = session.statuses(&manager);
+        assert_eq!(statuses.len(), 1);
+        let status = &statuses[0];
+        assert_eq!(status.id, id);
         assert_eq!(status.network_name, "party");
         assert!(status.is_host);
         assert_eq!(status.host_addr, host_addr.to_string());
         assert_eq!(status.members.len(), 0); // only member so far is ourselves, never listed
 
-        session.leave().await;
-        assert!(session.status(&manager).is_none());
+        session.leave(&id).await;
+        assert!(session.statuses(&manager).is_empty());
     }
 
     /// Regression test for a real user-hit bug: `create()` with the UI's
@@ -710,7 +736,7 @@ mod tests {
         let manager = Arc::new(ConnectionManager::default());
         let identity = Arc::new(Identity::generate().unwrap());
 
-        let host_addr = session
+        let (id, host_addr) = session
             .create(
                 "0.0.0.0:0".parse().unwrap(),
                 "party".to_string(),
@@ -725,9 +751,9 @@ mod tests {
             .unwrap();
 
         assert_ne!(host_addr.ip(), Ipv4Addr::UNSPECIFIED, "must not advertise/self-join 0.0.0.0");
-        assert!(session.status(&manager).is_some(), "self-join must have actually succeeded");
+        assert!(!session.statuses(&manager).is_empty(), "self-join must have actually succeeded");
 
-        session.leave().await;
+        session.leave(&id).await;
     }
 
     #[tokio::test]
@@ -742,7 +768,7 @@ mod tests {
             extra_routes: Vec::new(),
         };
 
-        session
+        let (id, _) = session
             .create(
                 "127.0.0.1:0".parse().unwrap(),
                 "party".to_string(),
@@ -756,10 +782,10 @@ mod tests {
             .await
             .unwrap();
 
-        let status = session.status(&manager).unwrap();
-        assert_eq!(status.game_tag, Some("minecraft".to_string()));
+        let statuses = session.statuses(&manager);
+        assert_eq!(statuses[0].game_tag, Some("minecraft".to_string()));
 
-        session.leave().await;
+        session.leave(&id).await;
     }
 
     #[tokio::test]
@@ -768,7 +794,7 @@ mod tests {
         let manager = Arc::new(ConnectionManager::default());
         let identity = Arc::new(Identity::generate().unwrap());
 
-        session
+        let (id, _) = session
             .create(
                 "127.0.0.1:0".parse().unwrap(),
                 "party".to_string(),
@@ -782,21 +808,25 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(session.status(&manager).unwrap().game_tag, None);
+        assert_eq!(session.statuses(&manager)[0].game_tag, None);
 
-        session.leave().await;
+        session.leave(&id).await;
     }
 
+    /// The regression this guards: two networks hosted/joined on the same
+    /// `MeshSession` must coexist — `create`/`join` no longer reject a
+    /// second membership, `statuses()` reports both, and leaving one leaves
+    /// the other completely untouched.
     #[tokio::test]
-    async fn mesh_session_create_twice_is_rejected() {
+    async fn mesh_session_supports_two_simultaneous_networks() {
         let session = MeshSession::default();
         let manager = Arc::new(ConnectionManager::default());
         let identity = Arc::new(Identity::generate().unwrap());
 
-        session
+        let (id_a, _) = session
             .create(
                 "127.0.0.1:0".parse().unwrap(),
-                "party".to_string(),
+                "party-a".to_string(),
                 "secret".to_string(),
                 None,
                 ConnectionSettings::default(),
@@ -807,27 +837,38 @@ mod tests {
             .await
             .unwrap();
 
-        let err = session
+        let (id_b, _) = session
             .create(
                 "127.0.0.1:0".parse().unwrap(),
-                "other".to_string(),
+                "party-b".to_string(),
                 "secret".to_string(),
                 None,
                 ConnectionSettings::default(),
                 identity,
-                manager,
+                manager.clone(),
                 || Box::new(NullSink),
             )
             .await
-            .unwrap_err();
-        assert!(err.contains("already in a network"));
+            .unwrap();
 
-        session.leave().await;
+        assert_ne!(id_a, id_b);
+        let statuses = session.statuses(&manager);
+        assert_eq!(statuses.len(), 2);
+        assert!(statuses.iter().any(|s| s.id == id_a && s.network_name == "party-a"));
+        assert!(statuses.iter().any(|s| s.id == id_b && s.network_name == "party-b"));
+
+        session.leave(&id_a).await;
+        let statuses = session.statuses(&manager);
+        assert_eq!(statuses.len(), 1);
+        assert_eq!(statuses[0].id, id_b);
+
+        session.leave(&id_b).await;
+        assert!(session.statuses(&manager).is_empty());
     }
 
     /// The end-to-end proof at the Tauri-facing layer: one `MeshSession`
     /// hosts, another joins it, and — through nothing but `create`/`join` —
-    /// both `status()` calls eventually show the other as `Connected`.
+    /// both `statuses()` calls eventually show the other as `Connected`.
     #[tokio::test]
     async fn two_mesh_sessions_create_and_join_reach_connected() {
         let session_a = MeshSession::default();
@@ -837,7 +878,7 @@ mod tests {
         let identity_a = Arc::new(Identity::generate().unwrap());
         let identity_b = Arc::new(Identity::generate().unwrap());
 
-        let host_addr = session_a
+        let (_, host_addr) = session_a
             .create(
                 "127.0.0.1:0".parse().unwrap(),
                 "party".to_string(),
@@ -866,10 +907,10 @@ mod tests {
             .unwrap();
 
         until(15, "both sides show Connected in status()", move || {
-            let sa = session_a.status(&manager_a);
-            let sb = session_b.status(&manager_b);
-            let a_sees_b = sa.map(|s| s.members.iter().any(|m| m.link == LinkState::Connected)).unwrap_or(false);
-            let b_sees_a = sb.map(|s| s.members.iter().any(|m| m.link == LinkState::Connected)).unwrap_or(false);
+            let sa = session_a.statuses(&manager_a);
+            let sb = session_b.statuses(&manager_b);
+            let a_sees_b = sa.iter().any(|s| s.members.iter().any(|m| m.link == LinkState::Connected));
+            let b_sees_a = sb.iter().any(|s| s.members.iter().any(|m| m.link == LinkState::Connected));
             a_sees_b && b_sees_a
         })
         .await;

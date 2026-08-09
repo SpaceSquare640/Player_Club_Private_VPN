@@ -18,7 +18,7 @@ use tauri::Manager;
 
 use commands::{
     accept_answer, accept_offer, connect_peer, create_network, create_offer, disconnect_peer,
-    get_connection, get_identity, get_network_status, get_packet_log, get_privilege_status,
+    get_connection, get_identity, get_network_statuses, get_packet_log, get_privilege_status,
     get_snapshot, get_status, join_network, leave_network, request_elevation, start_engine,
     stop_engine, update_connection_settings,
 };
@@ -72,7 +72,7 @@ pub fn run() {
             create_network,
             join_network,
             leave_network,
-            get_network_status
+            get_network_statuses
         ])
         .run(tauri::generate_context!())
         .expect("error while running Player Club Private VPN");

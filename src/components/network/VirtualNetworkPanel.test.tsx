@@ -7,15 +7,15 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 import VirtualNetworkPanel from "./VirtualNetworkPanel";
 import { DEFAULT_CONNECTION_SETTINGS, type NetworkStatus } from "../../types/telemetry";
 
-function wireInvoke(status: NetworkStatus | null = null) {
+function wireInvoke(networks: NetworkStatus[] = []) {
   invokeMock.mockImplementation((cmd: string) => {
     switch (cmd) {
-      case "get_network_status":
-        return Promise.resolve(status);
+      case "get_network_statuses":
+        return Promise.resolve(networks);
       case "create_network":
-        return Promise.resolve("127.0.0.1:54321");
+        return Promise.resolve("net-created");
       case "join_network":
-        return Promise.resolve(undefined);
+        return Promise.resolve("net-joined");
       case "leave_network":
         return Promise.resolve(undefined);
       default:
@@ -26,13 +26,13 @@ function wireInvoke(status: NetworkStatus | null = null) {
 
 beforeEach(() => {
   invokeMock.mockReset();
-  wireInvoke(null);
+  wireInvoke([]);
 });
 
-describe("VirtualNetworkPanel — not in a network", () => {
+describe("VirtualNetworkPanel — not in any network", () => {
   it("shows create and join forms", async () => {
     render(<VirtualNetworkPanel />);
-    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("get_network_status"));
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("get_network_statuses"));
     expect(screen.getByTestId("vn-create-btn")).toBeInTheDocument();
     expect(screen.getByTestId("vn-join-btn")).toBeInTheDocument();
   });
@@ -117,7 +117,7 @@ describe("VirtualNetworkPanel — not in a network", () => {
   it("shows an inline error when create_network rejects", async () => {
     invokeMock.mockImplementation((cmd: string) => {
       if (cmd === "create_network") return Promise.reject(new Error("bind failed"));
-      if (cmd === "get_network_status") return Promise.resolve(null);
+      if (cmd === "get_network_statuses") return Promise.resolve([]);
       return Promise.resolve(undefined);
     });
     render(<VirtualNetworkPanel />);
@@ -131,9 +131,9 @@ describe("VirtualNetworkPanel — not in a network", () => {
 });
 
 describe("VirtualNetworkPanel — collapseFormsByDefault", () => {
-  it("shows a hint instead of the forms when not in a network", async () => {
+  it("shows a hint instead of the forms when not in any network", async () => {
     render(<VirtualNetworkPanel collapseFormsByDefault />);
-    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("get_network_status"));
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("get_network_statuses"));
 
     expect(screen.getByTestId("vn-collapsed-hint")).toBeInTheDocument();
     expect(screen.queryByTestId("vn-create-btn")).not.toBeInTheDocument();
@@ -142,7 +142,7 @@ describe("VirtualNetworkPanel — collapseFormsByDefault", () => {
 
   it("reveals the general-purpose forms when expanded", async () => {
     render(<VirtualNetworkPanel collapseFormsByDefault />);
-    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("get_network_status"));
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("get_network_statuses"));
 
     fireEvent.click(screen.getByTestId("vn-expand-general-forms"));
 
@@ -150,14 +150,10 @@ describe("VirtualNetworkPanel — collapseFormsByDefault", () => {
     expect(screen.getByTestId("vn-join-btn")).toBeInTheDocument();
   });
 
-  it("shows the full status view (not the hint) once in a network", async () => {
-    wireInvoke({
-      networkName: "party",
-      isHost: true,
-      hostAddr: "127.0.0.1:54321",
-      gameTag: null,
-      members: [],
-    });
+  it("shows the active-network card (not the hint) once in a network", async () => {
+    wireInvoke([
+      { id: "net-1", networkName: "party", isHost: true, hostAddr: "127.0.0.1:54321", gameTag: null, members: [] },
+    ]);
     render(<VirtualNetworkPanel collapseFormsByDefault />);
 
     expect(await screen.findByTestId("virtual-network-active")).toBeInTheDocument();
@@ -166,7 +162,7 @@ describe("VirtualNetworkPanel — collapseFormsByDefault", () => {
 
   it("does not collapse by default when the prop is omitted", async () => {
     render(<VirtualNetworkPanel />);
-    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("get_network_status"));
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("get_network_statuses"));
 
     expect(screen.getByTestId("vn-create-btn")).toBeInTheDocument();
     expect(screen.queryByTestId("vn-collapsed-hint")).not.toBeInTheDocument();
@@ -175,37 +171,39 @@ describe("VirtualNetworkPanel — collapseFormsByDefault", () => {
 
 describe("VirtualNetworkPanel — game tag badge", () => {
   it("shows a friendly label for a known game tag", async () => {
-    wireInvoke({
-      networkName: "party",
-      isHost: true,
-      hostAddr: "127.0.0.1:54321",
-      gameTag: "minecraft",
-      members: [],
-    });
+    wireInvoke([
+      {
+        id: "net-1",
+        networkName: "party",
+        isHost: true,
+        hostAddr: "127.0.0.1:54321",
+        gameTag: "minecraft",
+        members: [],
+      },
+    ]);
     render(<VirtualNetworkPanel />);
     expect(await screen.findByTestId("vn-game-tag")).toHaveTextContent("Minecraft");
   });
 
   it("falls back to the raw tag for an unrecognized value", async () => {
-    wireInvoke({
-      networkName: "party",
-      isHost: true,
-      hostAddr: "127.0.0.1:54321",
-      gameTag: "some-future-game",
-      members: [],
-    });
+    wireInvoke([
+      {
+        id: "net-1",
+        networkName: "party",
+        isHost: true,
+        hostAddr: "127.0.0.1:54321",
+        gameTag: "some-future-game",
+        members: [],
+      },
+    ]);
     render(<VirtualNetworkPanel />);
     expect(await screen.findByTestId("vn-game-tag")).toHaveTextContent("some-future-game");
   });
 
   it("shows no badge when the network has no game tag", async () => {
-    wireInvoke({
-      networkName: "party",
-      isHost: true,
-      hostAddr: "127.0.0.1:54321",
-      gameTag: null,
-      members: [],
-    });
+    wireInvoke([
+      { id: "net-1", networkName: "party", isHost: true, hostAddr: "127.0.0.1:54321", gameTag: null, members: [] },
+    ]);
     render(<VirtualNetworkPanel />);
     await screen.findByTestId("vn-network-name");
     expect(screen.queryByTestId("vn-game-tag")).not.toBeInTheDocument();
@@ -214,6 +212,7 @@ describe("VirtualNetworkPanel — game tag badge", () => {
 
 describe("VirtualNetworkPanel — in a network", () => {
   const status: NetworkStatus = {
+    id: "net-1",
     networkName: "party",
     isHost: true,
     hostAddr: "127.0.0.1:54321",
@@ -225,7 +224,7 @@ describe("VirtualNetworkPanel — in a network", () => {
   };
 
   it("shows the network name, host badge, address, and member list", async () => {
-    wireInvoke(status);
+    wireInvoke([status]);
     render(<VirtualNetworkPanel />);
 
     expect(await screen.findByTestId("vn-network-name")).toHaveTextContent("party");
@@ -236,19 +235,57 @@ describe("VirtualNetworkPanel — in a network", () => {
   });
 
   it("shows a placeholder when no other members have joined yet", async () => {
-    wireInvoke({ ...status, members: [] });
+    wireInvoke([{ ...status, members: [] }]);
     render(<VirtualNetworkPanel />);
     await waitFor(() => expect(screen.getByTestId("vn-member-list")).toBeInTheDocument());
     expect(screen.queryByTestId("vn-member")).not.toBeInTheDocument();
   });
 
   it("leaves the network on click", async () => {
-    wireInvoke(status);
+    wireInvoke([status]);
     render(<VirtualNetworkPanel />);
     await screen.findByTestId("vn-leave-btn");
 
     fireEvent.click(screen.getByTestId("vn-leave-btn"));
 
-    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("leave_network"));
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("leave_network", { networkId: "net-1" }));
+  });
+
+  it("still shows the create/join forms alongside an active network", async () => {
+    wireInvoke([status]);
+    render(<VirtualNetworkPanel />);
+
+    await screen.findByTestId("virtual-network-active");
+    expect(screen.getByTestId("vn-create-btn")).toBeInTheDocument();
+    expect(screen.getByTestId("vn-join-btn")).toBeInTheDocument();
+  });
+});
+
+describe("VirtualNetworkPanel — multiple simultaneous networks", () => {
+  it("renders one card per active network, each with its own leave button", async () => {
+    wireInvoke([
+      { id: "net-1", networkName: "party-a", isHost: true, hostAddr: "127.0.0.1:1111", gameTag: null, members: [] },
+      { id: "net-2", networkName: "party-b", isHost: false, hostAddr: "127.0.0.1:2222", gameTag: null, members: [] },
+    ]);
+    render(<VirtualNetworkPanel />);
+
+    const cards = await screen.findAllByTestId("virtual-network-active");
+    expect(cards).toHaveLength(2);
+    expect(screen.getByText("party-a")).toBeInTheDocument();
+    expect(screen.getByText("party-b")).toBeInTheDocument();
+    expect(screen.getAllByTestId("vn-leave-btn")).toHaveLength(2);
+  });
+
+  it("leaves only the targeted network", async () => {
+    wireInvoke([
+      { id: "net-1", networkName: "party-a", isHost: true, hostAddr: "127.0.0.1:1111", gameTag: null, members: [] },
+      { id: "net-2", networkName: "party-b", isHost: false, hostAddr: "127.0.0.1:2222", gameTag: null, members: [] },
+    ]);
+    render(<VirtualNetworkPanel />);
+
+    await screen.findAllByTestId("virtual-network-active");
+    fireEvent.click(screen.getAllByTestId("vn-leave-btn")[0]);
+
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("leave_network", { networkId: "net-1" }));
   });
 });

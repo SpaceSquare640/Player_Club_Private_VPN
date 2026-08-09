@@ -136,8 +136,10 @@ export function disconnectPeer(): Promise<void> {
  * Start hosting a new virtual network. `bindAddr` is `ip:port` (port `0`
  * picks an ephemeral port). `gameTag` is display metadata only (e.g.
  * `"minecraft"`); `settings` applies to every auto-connected peer, same as
- * `connectPeer`'s. Resolves to the actual bound `ip:port`, for display so
- * others can join.
+ * `connectPeer`'s. Resolves to the new network's id (its bound `ip:port` is
+ * read back from `getNetworkStatuses`). Can be called while already a
+ * member of other networks — each call adds one more active network rather
+ * than replacing any existing one.
  */
 export function createNetwork(
   bindAddr: string,
@@ -149,25 +151,29 @@ export function createNetwork(
   return invoke("create_network", { bindAddr, networkName, password, gameTag, settings });
 }
 
-/** Join an existing virtual network hosted at `hostAddr` (`ip:port`). */
+/**
+ * Join an existing virtual network hosted at `hostAddr` (`ip:port`).
+ * Resolves to the new network's id. Can be called while already a member of
+ * other networks — see `createNetwork`.
+ */
 export function joinNetwork(
   hostAddr: string,
   networkName: string,
   password: string,
   gameTag: string | null,
   settings: ConnectionSettings,
-): Promise<void> {
+): Promise<string> {
   return invoke("join_network", { hostAddr, networkName, password, gameTag, settings });
 }
 
-/** Leave the current virtual network (idempotent). */
-export function leaveNetwork(): Promise<void> {
-  return invoke("leave_network");
+/** Leave the virtual network identified by `networkId` (idempotent). */
+export function leaveNetwork(networkId: string): Promise<void> {
+  return invoke("leave_network", { networkId });
 }
 
-/** Current virtual-network status, or `null` if not in one. */
-export function getNetworkStatus(): Promise<NetworkStatus | null> {
-  return invoke("get_network_status");
+/** Status of every currently active virtual network (empty if none). */
+export function getNetworkStatuses(): Promise<NetworkStatus[]> {
+  return invoke("get_network_statuses");
 }
 
 // --- Events (engine → UI) --------------------------------------------------

@@ -53,15 +53,16 @@ export interface VirtualNetworkPanelProps {
  * `gameTag`/`settings` — a real independent instance, its own create/join
  * state) and, with a fixed `gameTag`, as a game-specific quick-create panel
  * (e.g. the Minecraft page). Both read/write the *same* underlying
- * `MeshSession` on the Rust side — there is only ever one active network no
- * matter which panel instance you used to create or join it.
+ * `MeshSession` on the Rust side, which supports any number of
+ * simultaneously active networks (hosted and/or joined) — a network created
+ * via one panel instance shows up in the other's list too.
  */
 export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsByDefault }: VirtualNetworkPanelProps) {
   const { t } = useTranslation();
   const language = useAppStore((s) => s.language);
   const [formsExpanded, setFormsExpanded] = useState(!collapseFormsByDefault);
   const {
-    status,
+    networks,
     createName,
     createPassword,
     createBindAddr,
@@ -81,64 +82,72 @@ export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsBy
     onLeave,
   } = useVirtualNetwork(gameTag, settings);
 
-  if (status) {
-    return (
-      <Card variant="raised" className="p-4 text-xs" data-testid="virtual-network-active">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <span data-testid="vn-network-name" className="font-medium text-ink">
-              {status.networkName}
+  const activeNetworksList = networks.length > 0 && (
+    <div className="flex flex-col gap-3">
+      {networks.map((status) => (
+        <Card
+          key={status.id}
+          variant="raised"
+          className="p-4 text-xs"
+          data-testid="virtual-network-active"
+          data-network-id={status.id}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <span data-testid="vn-network-name" className="font-medium text-ink">
+                {status.networkName}
+              </span>
+              {status.isHost && (
+                <Badge tone="violet" className="ml-2">
+                  {t("network.virtualHostBadge")}
+                </Badge>
+              )}
+              {status.gameTag && (
+                <Badge tone="cyan" className="ml-2" data-testid="vn-game-tag">
+                  {status.gameTag in GAME_TAG_LABEL_KEYS ? t(GAME_TAG_LABEL_KEYS[status.gameTag]) : status.gameTag}
+                </Badge>
+              )}
+            </div>
+            <Button
+              variant="danger"
+              size="sm"
+              data-testid="vn-leave-btn"
+              onClick={() => void onLeave(status.id)}
+              disabled={busy}
+            >
+              {t("network.virtualLeave")}
+            </Button>
+          </div>
+
+          <div className="mt-3 flex items-center gap-2 text-ink-muted">
+            <span>{t("network.virtualHostAddr")}:</span>
+            <span data-testid="vn-host-addr" className="font-mono text-ink">
+              {status.hostAddr}
             </span>
-            {status.isHost && (
-              <Badge tone="violet" className="ml-2">
-                {t("network.virtualHostBadge")}
-              </Badge>
-            )}
-            {status.gameTag && (
-              <Badge tone="cyan" className="ml-2" data-testid="vn-game-tag">
-                {status.gameTag in GAME_TAG_LABEL_KEYS ? t(GAME_TAG_LABEL_KEYS[status.gameTag]) : status.gameTag}
-              </Badge>
-            )}
+            <Button variant="ghost" size="sm" onClick={() => void navigator.clipboard?.writeText(status.hostAddr)}>
+              {t("network.virtualCopyAddr")}
+            </Button>
           </div>
-          <Button variant="danger" size="sm" data-testid="vn-leave-btn" onClick={() => void onLeave()} disabled={busy}>
-            {t("network.virtualLeave")}
-          </Button>
-        </div>
 
-        <div className="mt-3 flex items-center gap-2 text-ink-muted">
-          <span>{t("network.virtualHostAddr")}:</span>
-          <span data-testid="vn-host-addr" className="font-mono text-ink">
-            {status.hostAddr}
-          </span>
-          <Button variant="ghost" size="sm" onClick={() => void navigator.clipboard?.writeText(status.hostAddr)}>
-            {t("network.virtualCopyAddr")}
-          </Button>
-        </div>
+          <ul data-testid="vn-member-list" className="mt-3 space-y-1.5">
+            {status.members.length === 0 ? (
+              <li className="text-ink-muted">{t("network.virtualNoMembers")}</li>
+            ) : (
+              status.members.map((m) => (
+                <li key={m.pubkey} data-testid="vn-member" className="flex items-center gap-2">
+                  <span className={cn("size-2 rounded-full", LINK_DOT[m.link])} />
+                  <span className="font-mono text-ink">{m.fingerprint}</span>
+                  <span className="text-ink-muted">{m.link}</span>
+                </li>
+              ))
+            )}
+          </ul>
+        </Card>
+      ))}
+    </div>
+  );
 
-        <ul data-testid="vn-member-list" className="mt-3 space-y-1.5">
-          {status.members.length === 0 ? (
-            <li className="text-ink-muted">{t("network.virtualNoMembers")}</li>
-          ) : (
-            status.members.map((m) => (
-              <li key={m.pubkey} data-testid="vn-member" className="flex items-center gap-2">
-                <span className={cn("size-2 rounded-full", LINK_DOT[m.link])} />
-                <span className="font-mono text-ink">{m.fingerprint}</span>
-                <span className="text-ink-muted">{m.link}</span>
-              </li>
-            ))
-          )}
-        </ul>
-
-        {error && (
-          <div data-testid="vn-error" className="mt-2 text-brand-red">
-            {error}
-          </div>
-        )}
-      </Card>
-    );
-  }
-
-  if (!formsExpanded) {
+  if (networks.length === 0 && !formsExpanded) {
     return (
       <Card className="p-4 text-xs text-ink-muted" data-testid="vn-collapsed-hint">
         <p className="text-pretty">{t("network.virtualCollapsedHint")}</p>
@@ -156,8 +165,10 @@ export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsBy
   }
 
   return (
-    <div className="flex flex-wrap items-start gap-4">
-      <Card className="min-w-[240px] flex-1 p-4 text-xs">
+    <div className="flex flex-col gap-4">
+      {activeNetworksList}
+      <div className="flex flex-wrap items-start gap-4">
+        <Card className="min-w-[240px] flex-1 p-4 text-xs">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
             {t("network.virtualCreateHeading")}
@@ -257,11 +268,12 @@ export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsBy
         </div>
       </Card>
 
-      {error && (
-        <div data-testid="vn-error" className="w-full text-brand-red">
-          {error}
-        </div>
-      )}
+        {error && (
+          <div data-testid="vn-error" className="w-full text-brand-red">
+            {error}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

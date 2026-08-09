@@ -84,8 +84,10 @@ export interface NetworkMember {
   link: LinkState;
 }
 
-/** Status of the current virtual-network membership (Phase G.1–G.4), or `null` if not in one. */
+/** Status of one active virtual-network membership (Phase G.1–G.4+) — a session can have several at once. */
 export interface NetworkStatus {
+  /** Opaque id, unique among the current session's active networks — pass back to `leaveNetwork`. */
+  id: string;
   networkName: string;
   isHost: boolean;
   /** `ip:port` — what a joiner types in. Meaningful for host and joiner alike. */

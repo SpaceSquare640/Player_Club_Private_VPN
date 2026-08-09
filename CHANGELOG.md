@@ -16,6 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.45.0] - 2026-08-09
+
+### Added
+**Multiple simultaneous virtual networks.** Two reports came in that looked like bugs — "can't create more than one network room" and "after hosting a network, can't join a different one" — but reading `MeshSession` showed this was deliberate: it held a single `Mutex<Option<ActiveMesh>>`, one networked-signaling membership at a time, with `create`/`join` explicitly rejecting a second attempt with `"already in a network — leave it first"`. Asked directly, the answer was: not a workaround for an existing bug, but a real request for full multi-network support — host and/or join any number of networks at once, in any combination.
+
+- `MeshSession` now keeps a `HashMap<NetworkId, ActiveMesh>` instead of a single optional slot. `create`/`join` no longer reject on existing membership — each call spins up its own `SignalingClient`/`MeshOrchestrator` (and, for `create`, its own `SignalingServer`) under a freshly generated id, and returns that id. `leave(id)` tears down only the identified network; every other active membership on the same session is untouched.
+- `NetworkStatus` (the Tauri-to-frontend status payload) now carries its own `id`. `get_network_status` (returned at most one status, or `None`) is replaced by `get_network_statuses` (returns every currently active network, `[]` if none).
+- The Network page's Virtual Network panel now renders a card per active network — each with its own member list, host address, and Leave button — instead of a single status view that replaced the create/join forms. The forms themselves are now always visible alongside any active networks, rather than disappearing once you're in one.
+- Known, accepted limitation (not fixed here): `ConnectionManager`'s peer map is keyed only by remote pubkey, shared across every network a session belongs to. If the same remote peer were ever a member of two of this node's networks simultaneously, their link state would collide. Real usage has distinct membership per network, so this isn't hit in practice.
+
+Full suite: 165/165 frontend (up from 162), 142/142 Rust (unchanged count — `mesh_session_create_twice_is_rejected` no longer applies and was replaced by a "two simultaneous networks" regression test; every other `create`/`join`/`leave`/`status` call site was updated for the new signatures).
+
+---
+
 ## [0.44.0] - 2026-08-09
 
 ### Added

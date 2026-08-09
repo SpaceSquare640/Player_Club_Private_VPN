@@ -12,7 +12,7 @@ pub mod telemetry_cmds;
 pub use connection_cmds::{connect_peer, disconnect_peer, update_connection_settings};
 pub use engine_cmds::{get_status, start_engine, stop_engine};
 pub use identity_cmds::get_identity;
-pub use mesh_cmds::{create_network, get_network_status, join_network, leave_network};
+pub use mesh_cmds::{create_network, get_network_statuses, join_network, leave_network};
 pub use privilege_cmds::{get_privilege_status, request_elevation};
 pub use signaling_cmds::{accept_answer, accept_offer, create_offer, get_connection};
 pub use telemetry_cmds::{get_packet_log, get_snapshot};
