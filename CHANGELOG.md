@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.48.0] - 2026-08-09
+
+### Added
+**Host a Relay Server from inside the app.** `[0.47.0]` added relay support so Virtual Networks can work across the internet, including a standalone `relay` binary for whoever wants to run one — but the only way to actually run one was that separate CLI tool. The user wanted a way to do it without leaving the app.
+
+- New **Relay Server** page in the sidebar: enter a port, click Start Hosting, and this app itself runs a relay in the background (reusing `engine::relay::RelayServer` — no new relay logic, just a Tauri-facing lifecycle wrapper, `engine::relay::RelayHost`). Shows the bound port and a live list of network names currently registered against it.
+- New `start_relay`/`stop_relay`/`get_relay_status` Tauri commands, at most one locally-hosted relay at a time (a second machine's relay is something you point *at*, not something meaningful to run several of on one machine simultaneously).
+- Wiki: a new "Running a Relay Server" tutorial (English + Traditional Chinese) covering both ways to run one, linked from the Relay Server page itself and from the existing Create/Join Virtual Network pages' NAT-limitation notes, which previously had no real fix to point to.
+
+Full suite: 180/180 frontend (up from 174), 163/163 Rust (up from 158 — `RelayHost` lifecycle tests, including one proving a real `SignalingServer::start_via_relay` registration shows up in its status).
+
+---
+
 ## [0.47.0] - 2026-08-09
 
 ### Added

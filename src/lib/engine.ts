@@ -16,6 +16,7 @@ import type {
   NetworkStatus,
   PacketLogEntry,
   PrivilegeStatus,
+  RelayHostStatus,
   TelemetrySnapshot,
 } from "../types/telemetry";
 
@@ -184,6 +185,27 @@ export function leaveNetwork(networkId: string): Promise<void> {
 /** Status of every currently active virtual network (empty if none). */
 export function getNetworkStatuses(): Promise<NetworkStatus[]> {
   return invoke("get_network_statuses");
+}
+
+// --- Relay hosting -----------------------------------------------------------
+// Runs a relay (see `engine::relay`) from within this app itself, so other
+// people's `createNetwork`/`joinNetwork` calls (pointed at this machine's
+// reachable address) can find each other across the internet — an
+// alternative to running the separate standalone `relay` binary.
+
+/** Start hosting a relay on `port` (`0` picks an ephemeral port). Resolves to the actual bound port. */
+export function startRelay(port: number): Promise<number> {
+  return invoke("start_relay", { port });
+}
+
+/** Stop hosting the relay (idempotent). */
+export function stopRelay(): Promise<void> {
+  return invoke("stop_relay");
+}
+
+/** Current relay-hosting status, or `null` if not hosting one. */
+export function getRelayStatus(): Promise<RelayHostStatus | null> {
+  return invoke("get_relay_status");
 }
 
 // --- Events (engine → UI) --------------------------------------------------

@@ -4,6 +4,7 @@
     "network": "Network",
     "diagnostics": "Diagnostics",
     "minecraft": "Minecraft",
+    "relayServer": "Relay Server",
     "settings": "Settings"
   },
   "theme": {
@@ -191,5 +192,18 @@
     "presetApplied": "Preset applied",
     "networkHeading": "Virtual network",
     "networkSubtitle": "Create or join a Minecraft-tagged virtual network — broadcast/multicast forwarding and FEC redundancy are pre-filled from the preset above."
+  },
+  "relayServer": {
+    "title": "Relay Server",
+    "subtitle": "Host a relay from this app so other people's Virtual Networks can reach yours across the internet, without the separate relay tool.",
+    "guideLink": "How to set up",
+    "portLabel": "Port",
+    "portTitle": "The port to listen on (every interface). 0 picks one automatically.",
+    "start": "Start Hosting",
+    "stop": "Stop",
+    "running": "Running",
+    "reachabilityHint": "Give people this machine's reachable address (its own IP or hostname, plus the port above) to use as their Relay Server setting. If hosting across the internet, this port needs to be forwarded on your router — this page only starts the process, it can't do that part for you.",
+    "registeredHeading": "Networks using this relay",
+    "noneRegistered": "None yet."
   }
 }

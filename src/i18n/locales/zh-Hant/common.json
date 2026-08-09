@@ -4,6 +4,7 @@
     "network": "網路",
     "diagnostics": "診斷",
     "minecraft": "Minecraft",
+    "relayServer": "中繼伺服器",
     "settings": "設定"
   },
   "theme": {
@@ -191,5 +192,18 @@
     "presetApplied": "已套用建議設定",
     "networkHeading": "虛擬網路",
     "networkSubtitle": "建立或加入標記為 Minecraft 的虛擬網路——廣播/多播轉發與 FEC 冗餘度會預先套用上方的建議設定。"
+  },
+  "relayServer": {
+    "title": "中繼伺服器",
+    "subtitle": "從這個 App 架設中繼伺服器,讓其他人的虛擬網路可以跨網際網路連到你,不需要另外使用獨立的中繼工具。",
+    "guideLink": "如何架設",
+    "portLabel": "連接埠",
+    "portTitle": "監聽的連接埠(所有網路介面)。填 0 會自動指派。",
+    "start": "開始架設",
+    "stop": "停止",
+    "running": "運行中",
+    "reachabilityHint": "把這台機器可被連到的位址(自己的 IP 或主機名稱,加上上方的連接埠)給其他人,讓他們填入自己的「中繼伺服器」設定。若要供網際網路使用,這個連接埠需要在你的路由器上做連接埠轉發——這個頁面只負責啟動程序,無法替你完成路由器設定。",
+    "registeredHeading": "正在使用此中繼的網路",
+    "noneRegistered": "目前沒有。"
   }
 }

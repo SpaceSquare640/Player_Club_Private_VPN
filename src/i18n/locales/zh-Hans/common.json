@@ -4,6 +4,7 @@
     "network": "网络",
     "diagnostics": "诊断",
     "minecraft": "Minecraft",
+    "relayServer": "中继服务器",
     "settings": "设置"
   },
   "theme": {
@@ -191,5 +192,18 @@
     "presetApplied": "已套用建议设置",
     "networkHeading": "虚拟网络",
     "networkSubtitle": "创建或加入标记为 Minecraft 的虚拟网络——广播/多播转发与 FEC 冗余度会预先套用上方的建议设置。"
+  },
+  "relayServer": {
+    "title": "中继服务器",
+    "subtitle": "从这个 App 架设中继服务器，让其他人的虚拟网络可以跨网际网路连到你，不需要另外使用独立的中继工具。",
+    "guideLink": "如何架设",
+    "portLabel": "连接端口",
+    "portTitle": "监听的连接端口（所有网络接口）。填 0 会自动指派。",
+    "start": "开始架设",
+    "stop": "停止",
+    "running": "运行中",
+    "reachabilityHint": "把这台机器可被连到的地址（自己的 IP 或主机名称，加上上方的连接端口）给其他人，让他们填入自己的「中继服务器」设置。若要供网际网路使用，这个连接端口需要在你的路由器上做端口转发——这个页面只负责启动进程，无法替你完成路由器设置。",
+    "registeredHeading": "正在使用此中继的网络",
+    "noneRegistered": "目前没有。"
   }
 }

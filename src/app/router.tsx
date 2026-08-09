@@ -8,6 +8,7 @@ const Dashboard = lazy(() => import("../pages/Dashboard"));
 const Network = lazy(() => import("../pages/Network"));
 const Diagnostics = lazy(() => import("../pages/Diagnostics"));
 const Minecraft = lazy(() => import("../pages/Minecraft"));
+const RelayServer = lazy(() => import("../pages/RelayServer"));
 
 export const router = createHashRouter([
   {
@@ -18,6 +19,7 @@ export const router = createHashRouter([
       { path: "network", element: <Network /> },
       { path: "diagnostics", element: <Diagnostics /> },
       { path: "minecraft", element: <Minecraft /> },
+      { path: "relay-server", element: <RelayServer /> },
     ],
   },
 ]);

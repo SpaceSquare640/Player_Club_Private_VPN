@@ -48,6 +48,7 @@ struct SharedState {
 /// [`shutdown`]: RelayServer::shutdown
 pub struct RelayServer {
     local_addr: SocketAddr,
+    state: Arc<SharedState>,
     cancel: watch::Sender<bool>,
     accept_task: tokio::task::JoinHandle<()>,
 }
@@ -58,12 +59,21 @@ impl RelayServer {
         let local_addr = listener.local_addr()?;
         let state = Arc::new(SharedState::default());
         let (cancel, cancel_rx) = watch::channel(false);
-        let accept_task = tokio::spawn(accept_loop(listener, state, cancel_rx));
-        Ok(Self { local_addr, cancel, accept_task })
+        let accept_task = tokio::spawn(accept_loop(listener, state.clone(), cancel_rx));
+        Ok(Self { local_addr, state, cancel, accept_task })
     }
 
     pub fn local_addr(&self) -> SocketAddr {
         self.local_addr
+    }
+
+    /// Network names currently registered (i.e. with a live host control
+    /// connection) — display-only, e.g. for an in-app "who's using this
+    /// relay right now" status readout. No further detail (member counts,
+    /// addresses) is tracked here; the relay deliberately knows nothing
+    /// about what's happening inside a spliced connection.
+    pub fn registered_network_names(&self) -> Vec<String> {
+        self.state.hosts.lock().expect("relay hosts lock poisoned").keys().cloned().collect()
     }
 
     pub async fn shutdown(self) {

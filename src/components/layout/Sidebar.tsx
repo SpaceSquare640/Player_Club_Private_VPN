@@ -5,6 +5,7 @@ import {
   Gamepad2,
   LayoutDashboard,
   Network as NetworkIcon,
+  Router,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -25,6 +26,7 @@ const NAV_ITEMS: NavItem[] = [
   // Neutral placeholder icon (lucide's Gamepad2) — pending resolution of the
   // Minecraft-branded artwork's licensing before it can ship in this repo.
   { id: "minecraft", labelKey: "nav.minecraft", path: "/minecraft", Icon: Gamepad2 },
+  { id: "relayServer", labelKey: "nav.relayServer", path: "/relay-server", Icon: Router },
 ];
 
 /** Fixed 60px icon rail. Active item marked by a left accent bar + tinted background. */

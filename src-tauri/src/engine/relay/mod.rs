@@ -33,7 +33,9 @@
 //! socket exactly like a freshly dialed one — see
 //! `SignalingServer::start_via_relay` / `SignalingClient::join_via_relay`.
 
+pub mod host;
 pub mod protocol;
 pub mod server;
 
+pub use host::{RelayHost, RelayHostStatus};
 pub use server::RelayServer;

@@ -97,6 +97,14 @@ export interface NetworkStatus {
   members: NetworkMember[];
 }
 
+/** Status of a relay this app itself is hosting (`engine::relay`), or `null` if not hosting one. */
+export interface RelayHostStatus {
+  /** The bound port — give this plus the machine's own reachable address to whoever should use this relay. */
+  port: number;
+  /** Network names currently registered against this relay — display only. */
+  registeredNetworks: string[];
+}
+
 export type SimProfile = "stable" | "congested" | "lossy";
 
 export interface TunConfig {

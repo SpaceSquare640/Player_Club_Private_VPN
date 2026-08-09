@@ -15,12 +15,14 @@ const ROUTE_PATHS: Record<RouteId, string> = {
   network: "/network",
   diagnostics: "/diagnostics",
   minecraft: "/minecraft",
+  relayServer: "/relay-server",
 };
 
 function routeFromPath(pathname: string): RouteId {
   if (pathname.startsWith("/network")) return "network";
   if (pathname.startsWith("/diagnostics")) return "diagnostics";
   if (pathname.startsWith("/minecraft")) return "minecraft";
+  if (pathname.startsWith("/relay-server")) return "relayServer";
   return "dashboard";
 }
 
