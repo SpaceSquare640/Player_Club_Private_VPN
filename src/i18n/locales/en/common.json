@@ -205,6 +205,10 @@
     "start": "Start Hosting",
     "stop": "Stop",
     "running": "Running",
+    "reachableAddrLabel": "Reachable address",
+    "publicIpUnavailable": "Couldn't detect your public IP — check manually at whatismyip.com",
+    "useForSelf": "Use as my Relay Server",
+    "useForSelfDone": "In use",
     "reachabilityHint": "Give people this machine's reachable address (its own IP or hostname, plus the port above) to use as their Relay Server setting. If hosting across the internet, this port needs to be forwarded on your router — this page only starts the process, it can't do that part for you.",
     "registeredHeading": "Networks using this relay",
     "noneRegistered": "None yet."

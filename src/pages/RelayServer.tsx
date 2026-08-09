@@ -20,7 +20,10 @@ import Badge from "../components/ui/Badge";
 export default function RelayServer() {
   const { t } = useTranslation();
   const language = useAppStore((s) => s.language);
-  const { status, port, error, busy, setPort, onStart, onStop } = useRelayHost();
+  const relayServerAddr = useAppStore((s) => s.relayServerAddr);
+  const setRelayServerAddr = useAppStore((s) => s.setRelayServerAddr);
+  const { status, publicIp, port, error, busy, setPort, onStart, onStop } = useRelayHost();
+  const reachableAddr = publicIp && status ? `${publicIp}:${status.port}` : null;
 
   return (
     <div className="space-y-6" data-testid="page-relay-server">
@@ -56,6 +59,31 @@ export default function RelayServer() {
               <Button variant="danger" size="sm" data-testid="relay-server-stop-btn" onClick={() => void onStop()} disabled={busy}>
                 {t("relayServer.stop")}
               </Button>
+            </div>
+
+            <div className="mt-3 flex items-center gap-2 text-ink-muted">
+              <span>{t("relayServer.reachableAddrLabel")}:</span>
+              <span data-testid="relay-server-reachable-addr" className="font-mono text-ink">
+                {reachableAddr ?? t("relayServer.publicIpUnavailable")}
+              </span>
+              {reachableAddr && (
+                <>
+                  <Button variant="ghost" size="sm" onClick={() => void navigator.clipboard?.writeText(reachableAddr)}>
+                    {t("network.virtualCopyAddr")}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    data-testid="relay-server-use-for-self-btn"
+                    onClick={() => setRelayServerAddr(reachableAddr)}
+                    disabled={relayServerAddr === reachableAddr}
+                  >
+                    {relayServerAddr === reachableAddr
+                      ? t("relayServer.useForSelfDone")
+                      : t("relayServer.useForSelf")}
+                  </Button>
+                </>
+              )}
             </div>
             <p className="mt-2 text-xs text-pretty text-ink-muted">{t("relayServer.reachabilityHint")}</p>
 

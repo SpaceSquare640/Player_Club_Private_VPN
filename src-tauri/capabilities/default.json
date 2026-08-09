@@ -9,7 +9,7 @@
     "opener:default",
     {
       "identifier": "http:default",
-      "allow": [{ "url": "https://api.github.com/*" }]
+      "allow": [{ "url": "https://api.github.com/*" }, { "url": "https://api.ipify.org/*" }]
     },
     {
       "identifier": "fs:allow-write-text-file",

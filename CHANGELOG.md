@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.49.0] - 2026-08-09
+
+### Added
+**Auto-detect and display your public IP on the Relay Server page.** Setting up cross-internet relay hosting required finding your own public IP on a third-party site (the classic `whatismyip.com` step) before you could tell anyone — or even your own app — what address to use. The app now looks it up itself.
+
+- New `lib/publicIp.ts` (`api.ipify.org`, best-effort, fails silently like the update check) — while hosting, the Relay Server page shows a "Reachable address" combining this with the bound port, with a **Copy** button.
+- A **Use as my Relay Server** button next to it writes that address straight into `Settings → Connection → Relay Server` — the same setting from `[0.47.0]` that routes your own Create/Join calls through a relay — closing the loop between "I started hosting a relay" and "my own networks actually use it," which previously required manually copying the address across two different pages.
+- `capabilities/default.json`'s `http:default` scope extended to `api.ipify.org` alongside the existing GitHub Releases endpoint — nothing broader.
+
+Full suite: 184/184 frontend (up from 181), 163/163 Rust (unchanged — frontend-only feature, no new Tauri commands).
+
+---
+
 ## [0.48.2] - 2026-08-09
 
 ### Fixed

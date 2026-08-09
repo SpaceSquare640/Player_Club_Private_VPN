@@ -205,6 +205,10 @@
     "start": "開始架設",
     "stop": "停止",
     "running": "運行中",
+    "reachableAddrLabel": "可連到的位址",
+    "publicIpUnavailable": "無法自動偵測公網 IP——請自行到 whatismyip.com 查詢",
+    "useForSelf": "設為我的中繼伺服器",
+    "useForSelfDone": "使用中",
     "reachabilityHint": "把這台機器可被連到的位址(自己的 IP 或主機名稱,加上上方的連接埠)給其他人,讓他們填入自己的「中繼伺服器」設定。若要供網際網路使用,這個連接埠需要在你的路由器上做連接埠轉發——這個頁面只負責啟動程序,無法替你完成路由器設定。",
     "registeredHeading": "正在使用此中繼的網路",
     "noneRegistered": "目前沒有。"

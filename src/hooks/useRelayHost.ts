@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { getRelayStatus, startRelay, stopRelay } from "../lib/engine";
+import { getPublicIp } from "../lib/publicIp";
 import type { RelayHostStatus } from "../types/telemetry";
 
 const STATUS_POLL_MS = 2000;
 
 export interface RelayHostController {
   status: RelayHostStatus | null;
+  /** This machine's public IPv4, best-effort — `null` while looking it up or if the lookup failed. */
+  publicIp: string | null;
   port: string;
   error: string | null;
   busy: boolean;
@@ -26,6 +29,7 @@ export interface RelayHostController {
  */
 export function useRelayHost(): RelayHostController {
   const [status, setStatus] = useState<RelayHostStatus | null>(null);
+  const [publicIp, setPublicIp] = useState<string | null>(null);
   const [port, setPort] = useState("9420");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -46,6 +50,14 @@ export function useRelayHost(): RelayHostController {
       if (pollRef.current) clearInterval(pollRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Looked up once per page visit, not polled — a public IP doesn't change
+  // from one second to the next, and this is a third-party network request
+  // (see `lib/publicIp.ts`), not something to repeat every 2s alongside the
+  // local status poll above.
+  useEffect(() => {
+    void getPublicIp().then(setPublicIp);
   }, []);
 
   const onStart = async () => {
@@ -75,5 +87,5 @@ export function useRelayHost(): RelayHostController {
     }
   };
 
-  return { status, port, error, busy, setPort, onStart, onStop };
+  return { status, publicIp, port, error, busy, setPort, onStart, onStop };
 }

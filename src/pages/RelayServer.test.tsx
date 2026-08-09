@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
+const { invokeMock, getPublicIpMock } = vi.hoisted(() => ({ invokeMock: vi.fn(), getPublicIpMock: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
+vi.mock("../lib/publicIp", () => ({ getPublicIp: getPublicIpMock }));
 
 import RelayServer from "./RelayServer";
+import { useAppStore } from "../stores/appStore";
 import type { RelayHostStatus } from "../types/telemetry";
 
 function wireInvoke(status: RelayHostStatus | null = null) {
@@ -25,6 +27,9 @@ function wireInvoke(status: RelayHostStatus | null = null) {
 beforeEach(() => {
   invokeMock.mockReset();
   wireInvoke(null);
+  getPublicIpMock.mockReset();
+  getPublicIpMock.mockResolvedValue(null);
+  useAppStore.setState({ relayServerAddr: "" });
 });
 
 describe("RelayServer page — not hosting", () => {
@@ -83,5 +88,37 @@ describe("RelayServer page — hosting", () => {
     fireEvent.click(screen.getByTestId("relay-server-stop-btn"));
 
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("stop_relay"));
+  });
+
+  it("shows a fallback when the public IP can't be detected", async () => {
+    wireInvoke(status);
+    render(<RelayServer />);
+
+    expect(await screen.findByTestId("relay-server-reachable-addr")).toHaveTextContent(
+      "Couldn't detect your public IP",
+    );
+  });
+});
+
+describe("RelayServer page — public IP detected", () => {
+  const status: RelayHostStatus = { port: 9420, registeredNetworks: [] };
+
+  it("shows the reachable address combining the public IP and bound port", async () => {
+    wireInvoke(status);
+    getPublicIpMock.mockResolvedValue("203.0.113.10");
+    render(<RelayServer />);
+
+    expect(await screen.findByTestId("relay-server-reachable-addr")).toHaveTextContent("203.0.113.10:9420");
+  });
+
+  it("sets it as the app's own Relay Server setting on click", async () => {
+    wireInvoke(status);
+    getPublicIpMock.mockResolvedValue("203.0.113.10");
+    render(<RelayServer />);
+    await screen.findByTestId("relay-server-reachable-addr");
+
+    fireEvent.click(screen.getByTestId("relay-server-use-for-self-btn"));
+
+    expect(useAppStore.getState().relayServerAddr).toBe("203.0.113.10:9420");
   });
 });
