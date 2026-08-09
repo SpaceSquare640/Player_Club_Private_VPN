@@ -16,6 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.51.3] - 2026-08-10
+
+### Fixed
+**`[0.51.2]`'s relay-based rewrite fixed the *design* flaw but not the *budget* — CI failed again, this time on the final `until(15, ...)` wait, not the earlier port-rebind timing.** The retry loop's backoff schedule (2s → 4s → 8s → 16s, capped at 30s) can burn most of a 15s window on just its first two or three attempts if the very first retry lands microseconds before the host finishes re-registering with the relay — locally this test finishes in ~2.3s because the timing usually works out on the first attempt, but GitHub Actions' `windows-latest` runner was visibly under load in the failing run's log (parallel tests fighting over `Set-NetConnectionProfile`/adapter setup), and a couple of missed windows there is enough to blow a 15s budget even though the reconnect logic itself is working correctly.
+
+- Widened the final `until(...)` in `joiner_reconnects_once_the_host_comes_back_via_the_relay` from 15s to 45s — enough headroom to absorb a couple of retry cycles at CI's pace without changing production backoff behavior (still 2s → 30s capped, doubling) or the test's actual assertions.
+
+Full suite: 199/199 frontend (unchanged), 165/165 Rust (unchanged count).
+
+---
+
 ## [0.51.2] - 2026-08-10
 
 ### Fixed

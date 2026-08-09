@@ -1308,7 +1308,7 @@ mod tests {
             }
         }
 
-        until(15, "joiner reconnects and both sides show Connected again", || {
+        until(45, "joiner reconnects and both sides show Connected again", || {
             let sa = session_a.statuses(&manager_a);
             let sb = session_b.statuses(&manager_b);
             let a_sees_b = sa.iter().any(|s| s.members.iter().any(|m| m.link == LinkState::Connected));
