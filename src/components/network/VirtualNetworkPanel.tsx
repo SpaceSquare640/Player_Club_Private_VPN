@@ -1,7 +1,11 @@
 import { useState } from "react";
+import { ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useVirtualNetwork } from "../../hooks/useVirtualNetwork";
+import { useAppStore } from "../../stores/appStore";
 import { cn } from "../../lib/cn";
+import { wikiPage } from "../../lib/externalDocs";
 import type { ConnectionSettings, LinkState } from "../../types/telemetry";
 
 const LINK_DOT: Record<LinkState, string> = {
@@ -51,6 +55,7 @@ export interface VirtualNetworkPanelProps {
  */
 export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsByDefault }: VirtualNetworkPanelProps) {
   const { t } = useTranslation();
+  const language = useAppStore((s) => s.language);
   const [formsExpanded, setFormsExpanded] = useState(!collapseFormsByDefault);
   const {
     status,
@@ -168,9 +173,20 @@ export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsBy
   return (
     <div className="flex flex-wrap items-start gap-4">
       <div className="min-w-[240px] flex-1 rounded-xl border border-white/10 bg-surface-2/40 p-4 text-xs">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-          {t("network.virtualCreateHeading")}
-        </h3>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
+            {t("network.virtualCreateHeading")}
+          </h3>
+          <button
+            type="button"
+            data-testid="vn-create-guide-link"
+            onClick={() => openUrl(wikiPage(language, "Create-a-Virtual-Network", "Create-a-Virtual-Network-zh-Hant"))}
+            className="flex shrink-0 items-center gap-1 text-ink-muted transition-colors hover:text-ink"
+          >
+            {t("network.createGuideLink")}
+            <ExternalLink size={12} />
+          </button>
+        </div>
         <div className="mt-3 flex flex-col gap-2">
           <input
             data-testid="vn-create-name"
@@ -207,9 +223,20 @@ export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsBy
       </div>
 
       <div className="min-w-[240px] flex-1 rounded-xl border border-white/10 bg-surface-2/40 p-4 text-xs">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-          {t("network.virtualJoinHeading")}
-        </h3>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
+            {t("network.virtualJoinHeading")}
+          </h3>
+          <button
+            type="button"
+            data-testid="vn-join-guide-link"
+            onClick={() => openUrl(wikiPage(language, "Join-a-Virtual-Network", "Join-a-Virtual-Network-zh-Hant"))}
+            className="flex shrink-0 items-center gap-1 text-ink-muted transition-colors hover:text-ink"
+          >
+            {t("network.joinGuideLink")}
+            <ExternalLink size={12} />
+          </button>
+        </div>
         <div className="mt-3 flex flex-col gap-2">
           <input
             data-testid="vn-join-host-addr"

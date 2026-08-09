@@ -9,20 +9,14 @@ import { THEMES } from "../../theme/themes";
 import { cn } from "../../lib/cn";
 import type { SupportedLanguage } from "../../i18n";
 import { parseConnectionProfile, serializeConnectionProfile } from "../../lib/profile";
+import { repoDoc, wikiPage } from "../../lib/externalDocs";
 
-const WIKI_BASE = "https://github.com/SpaceSquare640/Player_Club_Private_VPN/wiki";
-const REPO_BASE = "https://github.com/SpaceSquare640/Player_Club_Private_VPN/blob/main";
-
-/** Traditional Chinese has translated legal docs and wiki pages; Simplified
- * Chinese does not yet, so it falls back to the English originals rather
- * than link to a page that doesn't exist. */
 function legalLinks(language: SupportedLanguage) {
-  const zh = language === "zh-Hant";
   return {
-    userManual: `${WIKI_BASE}/${zh ? "User-Manual-zh-Hant" : "User-Manual"}`,
-    termsOfService: `${REPO_BASE}/${zh ? "TERMS_OF_SERVICE.zh-Hant.md" : "TERMS_OF_SERVICE.md"}`,
-    privacyPolicy: `${REPO_BASE}/${zh ? "PRIVACY_POLICY.zh-Hant.md" : "PRIVACY_POLICY.md"}`,
-    wiki: zh ? `${WIKI_BASE}/Home-zh-Hant` : WIKI_BASE,
+    userManual: wikiPage(language, "User-Manual", "User-Manual-zh-Hant"),
+    termsOfService: repoDoc(language, "TERMS_OF_SERVICE.md", "TERMS_OF_SERVICE.zh-Hant.md"),
+    privacyPolicy: repoDoc(language, "PRIVACY_POLICY.md", "PRIVACY_POLICY.zh-Hant.md"),
+    wiki: wikiPage(language, "", "Home-zh-Hant"),
   };
 }
 

@@ -44,7 +44,9 @@
     "virtualNoMembers": "No other members yet.",
     "gameTagMinecraft": "Minecraft",
     "virtualCollapsedHint": "Not in a network yet. Create or join a game's network from that game's page (e.g. Minecraft).",
-    "virtualExpandGeneralForms": "Or create a general-purpose network"
+    "virtualExpandGeneralForms": "Or create a general-purpose network",
+    "createGuideLink": "How to create",
+    "joinGuideLink": "How to join"
   },
   "nodeIdentity": {
     "label": "This node · fingerprint",
