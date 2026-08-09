@@ -44,6 +44,7 @@ beforeEach(() => {
     forwardMulticast: DEFAULT_CONNECTION_SETTINGS.forwardMulticast,
     fecParityShards: DEFAULT_CONNECTION_SETTINGS.fecParityShards,
     extraRoutes: DEFAULT_CONNECTION_SETTINGS.extraRoutes,
+    relayServerAddr: "",
   });
 });
 
@@ -111,6 +112,21 @@ describe("SettingsOverlay — extra routed networks (Phase E.2)", () => {
     fireEvent.change(input, { target: { value: "" } });
     fireEvent.blur(input);
     expect(useAppStore.getState().extraRoutes).toEqual([]);
+  });
+});
+
+describe("SettingsOverlay — relay server (optional, cross-internet virtual networks)", () => {
+  it("updates the store immediately as the field changes (no separate save step)", () => {
+    render(<SettingsOverlay />);
+    const input = screen.getByTestId("settings-relay-server");
+    fireEvent.change(input, { target: { value: "relay.example.com:9420" } });
+    expect(useAppStore.getState().relayServerAddr).toBe("relay.example.com:9420");
+  });
+
+  it("reflects a persisted value already in the store", () => {
+    useAppStore.setState({ relayServerAddr: "relay.example.com:9420" });
+    render(<SettingsOverlay />);
+    expect(screen.getByTestId("settings-relay-server")).toHaveValue("relay.example.com:9420");
   });
 });
 

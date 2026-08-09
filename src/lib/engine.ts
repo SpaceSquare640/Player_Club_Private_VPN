@@ -140,6 +140,10 @@ export function disconnectPeer(): Promise<void> {
  * read back from `getNetworkStatuses`). Can be called while already a
  * member of other networks — each call adds one more active network rather
  * than replacing any existing one.
+ *
+ * `relayAddr` (`ip:port`), if non-null, registers on that relay instead of
+ * binding `bindAddr` directly — reachable across the internet without port
+ * forwarding. `null`/omitted preserves direct-bind behavior exactly.
  */
 export function createNetwork(
   bindAddr: string,
@@ -147,14 +151,19 @@ export function createNetwork(
   password: string,
   gameTag: string | null,
   settings: ConnectionSettings,
+  relayAddr: string | null = null,
 ): Promise<string> {
-  return invoke("create_network", { bindAddr, networkName, password, gameTag, settings });
+  return invoke("create_network", { bindAddr, networkName, password, gameTag, settings, relayAddr });
 }
 
 /**
  * Join an existing virtual network hosted at `hostAddr` (`ip:port`).
  * Resolves to the new network's id. Can be called while already a member of
  * other networks — see `createNetwork`.
+ *
+ * `relayAddr`, if non-null, connects out to that relay and requests
+ * `networkName` instead of dialing `hostAddr` directly — the same relay
+ * address the host used with `createNetwork`.
  */
 export function joinNetwork(
   hostAddr: string,
@@ -162,8 +171,9 @@ export function joinNetwork(
   password: string,
   gameTag: string | null,
   settings: ConnectionSettings,
+  relayAddr: string | null = null,
 ): Promise<string> {
-  return invoke("join_network", { hostAddr, networkName, password, gameTag, settings });
+  return invoke("join_network", { hostAddr, networkName, password, gameTag, settings, relayAddr });
 }
 
 /** Leave the virtual network identified by `networkId` (idempotent). */

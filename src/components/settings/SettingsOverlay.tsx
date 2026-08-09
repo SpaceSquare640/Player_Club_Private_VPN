@@ -54,6 +54,8 @@ export default function SettingsOverlay() {
   const setFecParityShards = useAppStore((s) => s.setFecParityShards);
   const extraRoutes = useAppStore((s) => s.extraRoutes);
   const setExtraRoutes = useAppStore((s) => s.setExtraRoutes);
+  const relayServerAddr = useAppStore((s) => s.relayServerAddr);
+  const setRelayServerAddr = useAppStore((s) => s.setRelayServerAddr);
   const [extraRoutesText, setExtraRoutesText] = useState(() => extraRoutes.join(", "));
   const [importError, setImportError] = useState<string | null>(null);
   const [currentVersion, setCurrentVersion] = useState<string | null>(null);
@@ -287,6 +289,18 @@ export default function SettingsOverlay() {
                 onChange={(e) => setExtraRoutesText(e.target.value)}
                 onBlur={commitExtraRoutesText}
                 placeholder={t("settings.extraRoutesPlaceholder")}
+                className="mt-2 w-full rounded-lg bg-black/40 p-2 font-mono text-xs text-ink placeholder:text-ink-muted"
+              />
+            </div>
+
+            <div className="mt-4">
+              <span className="text-sm text-ink">{t("settings.relayServerHeading")}</span>
+              <p className="mt-1 text-xs text-pretty text-ink-muted">{t("settings.relayServerSubtitle")}</p>
+              <input
+                data-testid="settings-relay-server"
+                value={relayServerAddr}
+                onChange={(e) => setRelayServerAddr(e.target.value.trim())}
+                placeholder={t("settings.relayServerPlaceholder")}
                 className="mt-2 w-full rounded-lg bg-black/40 p-2 font-mono text-xs text-ink placeholder:text-ink-muted"
               />
             </div>

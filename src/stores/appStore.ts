@@ -48,6 +48,17 @@ interface AppState {
   fecParityShards: number;
   /** Additional "address/prefix" networks routed into the tunnel (Phase E.2). */
   extraRoutes: string[];
+  /**
+   * `ip:port` of a relay server (see `engine::relay`), or `""` for none.
+   * Empty (the default) preserves direct-bind/direct-dial virtual-network
+   * behavior exactly as before — only reachable on the same LAN, or a
+   * manually port-forwarded address. Non-empty routes every
+   * `createNetwork`/`joinNetwork` call through that relay instead, making
+   * virtual networks reachable across the internet without any port
+   * forwarding of the user's own. One setting, applied automatically to
+   * every create/join — not a per-network choice.
+   */
+  relayServerAddr: string;
 
   setActiveRoute: (route: RouteId) => void;
   setTheme: (theme: ThemeId) => void;
@@ -58,6 +69,7 @@ interface AppState {
   setForwardMulticast: (on: boolean) => void;
   setFecParityShards: (n: number) => void;
   setExtraRoutes: (routes: string[]) => void;
+  setRelayServerAddr: (addr: string) => void;
 }
 
 /** localStorage key under which the persisted UI slice is stored. */
@@ -86,6 +98,7 @@ export const useAppStore = create<AppState>()(
       forwardMulticast: DEFAULT_CONNECTION_SETTINGS.forwardMulticast,
       fecParityShards: DEFAULT_CONNECTION_SETTINGS.fecParityShards,
       extraRoutes: DEFAULT_CONNECTION_SETTINGS.extraRoutes,
+      relayServerAddr: "",
 
       setActiveRoute: (route) => set({ activeRoute: route }),
       setTheme: (theme) => set({ theme }),
@@ -97,6 +110,7 @@ export const useAppStore = create<AppState>()(
       setForwardMulticast: (on) => set({ forwardMulticast: on }),
       setFecParityShards: (n) => set({ fecParityShards: n }),
       setExtraRoutes: (routes) => set({ extraRoutes: routes }),
+      setRelayServerAddr: (addr) => set({ relayServerAddr: addr }),
     }),
     {
       name: STORAGE_KEY,
@@ -112,6 +126,7 @@ export const useAppStore = create<AppState>()(
         forwardMulticast: state.forwardMulticast,
         fecParityShards: state.fecParityShards,
         extraRoutes: state.extraRoutes,
+        relayServerAddr: state.relayServerAddr,
       }),
     },
   ),

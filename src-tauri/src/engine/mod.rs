@@ -20,6 +20,7 @@ pub mod mesh;
 pub mod nat;
 pub mod notice;
 pub mod pipeline;
+pub mod relay;
 pub mod signaling;
 pub mod split_tunnel;
 pub mod state;

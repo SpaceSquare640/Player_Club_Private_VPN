@@ -16,6 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.47.0] - 2026-08-09
+
+### Added
+**Relay Server support — Virtual Networks now work across the internet, not just on the same LAN.** A user hit "os error 10060" (connection timed out) joining a network hosted by a friend on a different network entirely. Root cause: `MeshSession::create` has only ever advertised the host's *local LAN IP* as the address to share — reachable from the same network, or a manually port-forwarded one, but never from the open internet otherwise. `SignalingClient::join` dials that address directly, so a joiner anywhere else can only ever time out. This was already a documented, known limitation, not a regression — but the user asked for it to actually be fixed, not just explained.
+
+- New `engine::relay` module: a dumb TCP rendezvous/byte-splicer, one layer *below* the existing WebSocket signaling protocol. Both the host and every joiner make ordinary *outbound* connections to a relay with a public IP; the relay pairs two of those connections and splices their bytes verbatim, and `SignalingServer`/`SignalingClient` run their existing accept/connect handshake completely unmodified over that spliced pipe. Zero protocol changes above this layer — the relay has no idea it's carrying WebSocket, Noise, or anything else.
+- New standalone `relay` binary (`cargo run --bin relay -- --port 9420`, same second-`[[bin]]`-target pattern as the existing elevation `helper`), for whoever wants to run one — a cheap VPS, or a home machine with one port forwarded. Not bundled into the desktop app installer; it's a separate opt-in tool, matching the role the user's own prior `Admin_App.py` project played, just scoped to rendezvous only.
+- `SignalingServer::start_via_relay` / `SignalingClient::join_via_relay`, `MeshSession::create`/`join` gain an optional relay address parameter, and a new Settings → Connection → "Relay Server (optional)" field (`appStore.relayServerAddr`, persisted) applies it automatically to every create/join once set — nothing to configure per-network. Left blank (the default), every existing direct-bind/LAN behavior is unchanged byte-for-byte.
+- Scope boundary, deliberately not addressed here: this fixes *signaling* reachability. The P2P UDP data plane that starts up afterward already attempts direct connection via STUN (`nat/stun.rs`), which succeeds for most home NATs once signaling has connected the two sides. Both peers behind symmetric NAT would still need a second, separate TURN-style UDP relay — a different problem, not built in this pass.
+
+Full suite: 174/174 frontend (up from 172), 158/158 Rust (up from 142 — the new `engine::relay` unit tests, a relay-backed `signaling::client` integration test, and a full `MeshSession` create→join→Connected test running entirely through a `RelayServer`).
+
+---
+
 ## [0.46.0] - 2026-08-09
 
 ### Added

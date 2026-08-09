@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createNetwork, getNetworkStatuses, joinNetwork, leaveNetwork } from "../lib/engine";
+import { useAppStore } from "../stores/appStore";
 import { useSavedNetworksStore, type SavedNetwork } from "../stores/savedNetworksStore";
 import { DEFAULT_CONNECTION_SETTINGS, type ConnectionSettings, type NetworkStatus } from "../types/telemetry";
 
@@ -47,6 +48,12 @@ export interface VirtualNetworkController {
  * network be recreated/rejoined with one click (`onQuickStart`) instead of
  * retyping its name/password/address.
  *
+ * If a Relay Server address is set in Settings → Connection, every
+ * create/join automatically routes through it instead of binding/dialing
+ * directly — this is what makes cross-internet virtual networks reachable
+ * without port forwarding (see `engine::relay`'s doc comment on the Rust
+ * side for why direct binding alone can't do that).
+ *
  * `gameTag` (display metadata, e.g. `"minecraft"`) and `settings` (applied
  * to every auto-connected peer) are fixed for the lifetime of this hook
  * instance — the Network page's general panel omits both (`null` /
@@ -72,6 +79,12 @@ export function useVirtualNetwork(
   const savedNetworks = useSavedNetworksStore((s) => s.networks);
   const remember = useSavedNetworksStore((s) => s.remember);
   const forget = useSavedNetworksStore((s) => s.forget);
+  // Settings → Connection → "Relay Server (optional)" — applied to every
+  // create/join automatically when set, so cross-internet reachability
+  // doesn't need per-network configuration. Empty means direct-bind/dial,
+  // unchanged from before relay support existed.
+  const relayServerAddr = useAppStore((s) => s.relayServerAddr);
+  const relayAddr = relayServerAddr.trim() || null;
 
   const refreshStatus = async () => {
     try {
@@ -94,7 +107,7 @@ export function useVirtualNetwork(
     setError(null);
     setBusy(true);
     try {
-      await createNetwork(bindAddr, networkName, password, gameTag, settings);
+      await createNetwork(bindAddr, networkName, password, gameTag, settings, relayAddr);
       remember({ mode: "create", networkName, password, bindAddr, gameTag });
       await refreshStatus();
     } catch (e) {
@@ -108,7 +121,7 @@ export function useVirtualNetwork(
     setError(null);
     setBusy(true);
     try {
-      await joinNetwork(hostAddr, networkName, password, gameTag, settings);
+      await joinNetwork(hostAddr, networkName, password, gameTag, settings, relayAddr);
       remember({ mode: "join", networkName, password, hostAddr, gameTag });
       await refreshStatus();
     } catch (e) {

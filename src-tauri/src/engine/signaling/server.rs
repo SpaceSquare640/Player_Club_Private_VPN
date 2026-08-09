@@ -21,12 +21,19 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, watch};
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
+use crate::engine::relay::protocol::{read_server_frame, write_client_frame, ClientFrame as RelayClientFrame, ServerFrame as RelayServerFrame};
 use super::protocol::{ClientMessage, JoinRejectReason, MemberInfo, ServerMessage, PROTOCOL_VERSION};
 
 #[derive(Debug, thiserror::Error)]
 pub enum SignalingError {
     #[error("failed to bind signaling server: {0}")]
     Bind(#[source] std::io::Error),
+    #[error("failed to reach relay: {0}")]
+    RelayConnect(#[source] std::io::Error),
+    #[error("relay rejected registration: {0}")]
+    RelayRejected(String),
+    #[error("relay sent an unexpected reply to REGISTER")]
+    RelayMalformedReply,
 }
 
 /// Hex SHA-256 digest of a network password. The server only ever sees and
@@ -86,6 +93,47 @@ impl SignalingServer {
         Ok(Self { local_addr, state, cancel, accept_task })
     }
 
+    /// Like [`start`](Self::start), but reachable across the internet
+    /// without any port forwarding: instead of binding a local listener,
+    /// this registers `network_name` on a [`RelayServer`](crate::engine::relay::RelayServer)
+    /// at `relay_addr` and accepts every member the relay pairs us with from
+    /// there. Everything above this point — the WebSocket accept handshake,
+    /// roster tracking, relay-of-offers (a different, unrelated meaning of
+    /// "relay" — see `mesh.rs`) — is the exact same `handle_connection` the
+    /// direct-bind path uses; only how connections *arrive* differs.
+    ///
+    /// [`local_addr`](Self::local_addr) reports `relay_addr` itself (there's
+    /// no local bind address meaningful to show) — a joiner only needs the
+    /// network name plus this same relay address to reach it.
+    pub async fn start_via_relay(
+        relay_addr: SocketAddr,
+        network_name: impl Into<String>,
+        password: &str,
+    ) -> Result<Self, SignalingError> {
+        let network_name = network_name.into();
+        let mut control = TcpStream::connect(relay_addr).await.map_err(SignalingError::RelayConnect)?;
+        write_client_frame(&mut control, &RelayClientFrame::Register { network_name: network_name.clone() })
+            .await
+            .map_err(SignalingError::RelayConnect)?;
+
+        match read_server_frame(&mut control).await.map_err(SignalingError::RelayConnect)? {
+            Some(RelayServerFrame::Ok) => {}
+            Some(RelayServerFrame::Err { message }) => return Err(SignalingError::RelayRejected(message)),
+            _ => return Err(SignalingError::RelayMalformedReply),
+        }
+
+        let state = Arc::new(SharedState {
+            network_name,
+            password_hash: hash_password(password),
+            members: Mutex::new(HashMap::new()),
+        });
+
+        let (cancel, cancel_rx) = watch::channel(false);
+        let accept_task = tokio::spawn(relay_accept_loop(control, relay_addr, state.clone(), cancel_rx));
+
+        Ok(Self { local_addr: relay_addr, state, cancel, accept_task })
+    }
+
     pub fn local_addr(&self) -> SocketAddr {
         self.local_addr
     }
@@ -118,6 +166,39 @@ async fn accept_loop(listener: TcpListener, state: Arc<SharedState>, mut cancel_
                 let member_cancel_rx = cancel_rx.clone();
                 tokio::spawn(async move {
                     let _ = handle_connection(stream, state, member_cancel_rx).await;
+                });
+            }
+        }
+    }
+}
+
+/// The relay-backed counterpart to [`accept_loop`]: instead of `TcpListener::accept()`
+/// producing new connections, each `NEW_MEMBER` notice on the relay's control
+/// connection does — dial the relay again, `ACCEPT` that session, and hand
+/// the resulting stream to the same [`handle_connection`] the direct path uses.
+async fn relay_accept_loop(
+    mut control: TcpStream,
+    relay_addr: SocketAddr,
+    state: Arc<SharedState>,
+    mut cancel_rx: watch::Receiver<bool>,
+) {
+    loop {
+        tokio::select! {
+            _ = cancel_rx.changed() => break,
+            frame = read_server_frame(&mut control) => {
+                let session_id = match frame {
+                    Ok(Some(RelayServerFrame::NewMember { session_id })) => session_id,
+                    Ok(Some(_)) => continue, // not expected post-registration; ignored, not fatal
+                    Ok(None) | Err(_) => break, // control connection closed — the relay considers us gone
+                };
+                let Ok(mut data) = TcpStream::connect(relay_addr).await else { continue };
+                if write_client_frame(&mut data, &RelayClientFrame::Accept { session_id }).await.is_err() {
+                    continue;
+                }
+                let state = state.clone();
+                let member_cancel_rx = cancel_rx.clone();
+                tokio::spawn(async move {
+                    let _ = handle_connection(data, state, member_cancel_rx).await;
                 });
             }
         }

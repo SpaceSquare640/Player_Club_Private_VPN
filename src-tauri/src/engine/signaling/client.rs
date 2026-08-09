@@ -22,6 +22,10 @@ use tokio::sync::{mpsc, watch};
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
+use crate::engine::relay::protocol::{
+    read_server_frame as read_relay_server_frame, write_client_frame as write_relay_client_frame,
+    ClientFrame as RelayClientFrame, ServerFrame as RelayServerFrame,
+};
 use super::blob;
 use super::message::SignalEnvelope;
 use super::protocol::{ClientMessage, JoinRejectReason, MemberInfo, ServerMessage, PROTOCOL_VERSION};
@@ -44,6 +48,12 @@ pub enum SignalingClientError {
     AlreadyJoined,
     #[error("signaling connection is already closed")]
     Disconnected,
+    #[error("failed to reach relay: {0}")]
+    RelayConnect(#[source] std::io::Error),
+    #[error("relay rejected connect: {0}")]
+    RelayRejected(String),
+    #[error("relay sent an unexpected reply to CONNECT")]
+    RelayMalformedReply,
 }
 
 impl From<JoinRejectReason> for SignalingClientError {
@@ -102,6 +112,52 @@ impl SignalingClient {
         let (ws, _resp) = tokio_tungstenite::connect_async(format!("ws://{host_addr}"))
             .await
             .map_err(SignalingClientError::Connect)?;
+        Self::finish_join(ws, network_name.into(), password, pubkey.into(), fingerprint.into()).await
+    }
+
+    /// Like [`join`](Self::join), but reachable across the internet without
+    /// any port forwarding: instead of dialing `host_addr` directly, this
+    /// connects out to a [`RelayServer`](crate::engine::relay::RelayServer)
+    /// at `relay_addr`, requests `network_name`, and — once the relay pairs
+    /// us with that network's host — runs the exact same WebSocket client
+    /// handshake `join` does, just over the relay-spliced stream instead of
+    /// a directly-dialed one. See `SignalingServer::start_via_relay` for the
+    /// host side of this same relay session.
+    pub async fn join_via_relay(
+        relay_addr: SocketAddr,
+        network_name: impl Into<String>,
+        password: &str,
+        pubkey: impl Into<String>,
+        fingerprint: impl Into<String>,
+    ) -> Result<(Self, mpsc::UnboundedReceiver<MemberEvent>), SignalingClientError> {
+        let network_name = network_name.into();
+        let mut stream = TcpStream::connect(relay_addr).await.map_err(SignalingClientError::RelayConnect)?;
+        write_relay_client_frame(&mut stream, &RelayClientFrame::Connect { network_name: network_name.clone() })
+            .await
+            .map_err(SignalingClientError::RelayConnect)?;
+
+        match read_relay_server_frame(&mut stream).await.map_err(SignalingClientError::RelayConnect)? {
+            Some(RelayServerFrame::Ok) => {}
+            Some(RelayServerFrame::Err { message }) => return Err(SignalingClientError::RelayRejected(message)),
+            _ => return Err(SignalingClientError::RelayMalformedReply),
+        }
+
+        let (ws, _resp) = tokio_tungstenite::client_async(format!("ws://{relay_addr}"), MaybeTlsStream::Plain(stream))
+            .await
+            .map_err(SignalingClientError::Connect)?;
+        Self::finish_join(ws, network_name, password, pubkey.into(), fingerprint.into()).await
+    }
+
+    /// The WebSocket-level Join handshake, common to both the direct-dial
+    /// and relay-spliced transports — everything from here on has no idea
+    /// which one it's running over.
+    async fn finish_join(
+        ws: Socket,
+        network_name: String,
+        password: &str,
+        pubkey: String,
+        fingerprint: String,
+    ) -> Result<(Self, mpsc::UnboundedReceiver<MemberEvent>), SignalingClientError> {
         let (mut ws_tx, mut ws_rx) = ws.split();
 
         let join_msg = ClientMessage::Join {
@@ -446,5 +502,62 @@ mod tests {
         client_a.disconnect().await;
         client_b.disconnect().await;
         server.shutdown().await;
+    }
+
+    /// The end-to-end proof that the relay transport is a true drop-in for
+    /// the direct one: `start_via_relay`/`join_via_relay` run the identical
+    /// WebSocket Join handshake and roster tracking `join` does — same
+    /// assertions as `sees_an_existing_member_in_its_initial_roster` and
+    /// `observes_a_later_join_as_a_live_event_and_in_its_roster`, just with
+    /// a `RelayServer` splicing every connection instead of a direct dial.
+    #[tokio::test]
+    async fn joins_and_tracks_roster_through_a_relay() {
+        use crate::engine::relay::RelayServer;
+
+        let relay = RelayServer::start("127.0.0.1:0".parse().unwrap()).await.unwrap();
+        let server = SignalingServer::start_via_relay(relay.local_addr(), "party", "secret").await.unwrap();
+
+        let (client_a, mut events_a) =
+            SignalingClient::join_via_relay(relay.local_addr(), "party", "secret", "pkA", "PC-AAAA-AAAA-AAAA-AAAA")
+                .await
+                .unwrap();
+        assert_eq!(client_a.members(), vec![]);
+
+        let (client_b, _events_b) =
+            SignalingClient::join_via_relay(relay.local_addr(), "party", "secret", "pkB", "PC-BBBB-BBBB-BBBB-BBBB")
+                .await
+                .unwrap();
+        assert_eq!(
+            client_b.members(),
+            vec![MemberInfo { pubkey: "pkA".to_string(), fingerprint: "PC-AAAA-AAAA-AAAA-AAAA".to_string() }],
+        );
+
+        let event = recv_event(&mut events_a).await;
+        assert_eq!(
+            event,
+            MemberEvent::Joined(MemberInfo {
+                pubkey: "pkB".to_string(),
+                fingerprint: "PC-BBBB-BBBB-BBBB-BBBB".to_string(),
+            })
+        );
+
+        client_a.disconnect().await;
+        client_b.disconnect().await;
+        server.shutdown().await;
+        relay.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn join_via_relay_reports_when_the_network_name_is_unregistered() {
+        use crate::engine::relay::RelayServer;
+
+        let relay = RelayServer::start("127.0.0.1:0".parse().unwrap()).await.unwrap();
+
+        let err = SignalingClient::join_via_relay(relay.local_addr(), "party", "secret", "pkA", "PC-AAAA-AAAA-AAAA-AAAA")
+            .await
+            .unwrap_err();
+        assert!(matches!(err, SignalingClientError::RelayRejected(_)));
+
+        relay.shutdown().await;
     }
 }

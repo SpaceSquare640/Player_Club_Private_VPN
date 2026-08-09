@@ -354,12 +354,20 @@ pub struct MeshSession {
 }
 
 impl MeshSession {
-    /// Starts hosting a new network: binds a `SignalingServer` on
-    /// `bind_addr` (port `0` picks an ephemeral port — the actual bound
-    /// address is returned so the UI can show it to share), joins it as the
-    /// first member, and starts auto-connecting. Can be called any number of
-    /// times to host (or join, via [`Self::join`]) several networks at once
-    /// — each gets its own freshly generated [`NetworkId`].
+    /// Starts hosting a new network. With `relay_addr: None`, binds a
+    /// `SignalingServer` directly on `bind_addr` (port `0` picks an
+    /// ephemeral port — the actual bound address is returned so the UI can
+    /// show it to share) — reachable only from wherever `bind_addr` actually
+    /// is (same LAN, or a manually port-forwarded address). With
+    /// `relay_addr: Some(_)`, `bind_addr` is ignored entirely and the
+    /// network instead registers on a
+    /// [`RelayServer`](super::relay::RelayServer) at that address (see
+    /// `SignalingServer::start_via_relay`) — reachable across the internet
+    /// by anyone who can reach the relay, without any port forwarding of
+    /// their own. Either way this joins the network as its first member and
+    /// starts auto-connecting. Can be called any number of times to host (or
+    /// join, via [`Self::join`]) several networks at once — each gets its
+    /// own freshly generated [`NetworkId`].
     #[allow(clippy::too_many_arguments)]
     pub async fn create(
         &self,
@@ -371,34 +379,63 @@ impl MeshSession {
         identity: Arc<Identity>,
         manager: Arc<ConnectionManager>,
         sink_factory: impl Fn() -> Box<dyn TelemetrySink> + Send + Sync + 'static,
+        relay_addr: Option<SocketAddr>,
     ) -> Result<(NetworkId, SocketAddr), String> {
-        let server = SignalingServer::start(bind_addr, network_name.clone(), &password)
-            .await
-            .map_err(|e| e.to_string())?;
-        // `local_addr()` echoes back the literal bind IP — with the UI's
-        // default `0.0.0.0`, that's `TcpListener::local_addr`'s unspecified
-        // address, not a real interface address. This used to be resolved
-        // only for the *returned/displayed* value while the self-join below
-        // still connected to the raw `0.0.0.0:port`, on the assumption that
-        // `connect()` to `0.0.0.0` gets silently treated as loopback. It
-        // does not on Windows: that connect fails outright with WSAEADDRNOTAVAIL
-        // ("os error 10049"), which is exactly the error a user hit hosting
-        // a Virtual Network with the default bind address — creating a
-        // network never worked at all on Windows, it just hadn't been
-        // exercised for real before. Resolve once, use everywhere: the
-        // server itself still listens on every interface (`bind_addr` is
-        // untouched), only what we connect-to-ourselves-with and advertise
-        // changes.
-        let host_addr = advertisable_addr(server.local_addr());
+        let (server, host_addr) = match relay_addr {
+            Some(relay_addr) => {
+                let server = SignalingServer::start_via_relay(relay_addr, network_name.clone(), &password)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                let host_addr = server.local_addr(); // always `relay_addr` itself — see `start_via_relay`'s doc comment
+                (server, host_addr)
+            }
+            None => {
+                let server = SignalingServer::start(bind_addr, network_name.clone(), &password)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                // `local_addr()` echoes back the literal bind IP — with the
+                // UI's default `0.0.0.0`, that's `TcpListener::local_addr`'s
+                // unspecified address, not a real interface address. This
+                // used to be resolved only for the *returned/displayed*
+                // value while the self-join below still connected to the
+                // raw `0.0.0.0:port`, on the assumption that `connect()` to
+                // `0.0.0.0` gets silently treated as loopback. It does not
+                // on Windows: that connect fails outright with
+                // WSAEADDRNOTAVAIL ("os error 10049"), which is exactly the
+                // error a user hit hosting a Virtual Network with the
+                // default bind address. Resolve once, use everywhere: the
+                // server itself still listens on every interface
+                // (`bind_addr` is untouched), only what we
+                // connect-to-ourselves-with and advertise changes.
+                let host_addr = advertisable_addr(server.local_addr());
+                (server, host_addr)
+            }
+        };
         let id = self
-            .start(host_addr, network_name, password, game_tag, settings, identity, manager, sink_factory, Some(server))
+            .start(
+                host_addr,
+                network_name,
+                password,
+                game_tag,
+                settings,
+                identity,
+                manager,
+                sink_factory,
+                Some(server),
+                relay_addr,
+            )
             .await?;
         Ok((id, host_addr))
     }
 
-    /// Joins an existing network hosted at `host_addr`. Can be called any
-    /// number of times, including while already hosting or having joined
-    /// other networks — see [`Self::create`].
+    /// Joins an existing network. With `relay_addr: None`, dials `host_addr`
+    /// directly (must be reachable — same LAN, or manually port-forwarded).
+    /// With `relay_addr: Some(_)`, `host_addr` is ignored and this instead
+    /// connects out to that relay and requests `network_name` (see
+    /// `SignalingClient::join_via_relay`) — the same relay address the host
+    /// used with `Self::create`. Can be called any number of times,
+    /// including while already hosting or having joined other networks —
+    /// see [`Self::create`].
     #[allow(clippy::too_many_arguments)]
     pub async fn join(
         &self,
@@ -410,8 +447,25 @@ impl MeshSession {
         identity: Arc<Identity>,
         manager: Arc<ConnectionManager>,
         sink_factory: impl Fn() -> Box<dyn TelemetrySink> + Send + Sync + 'static,
+        relay_addr: Option<SocketAddr>,
     ) -> Result<NetworkId, String> {
-        self.start(host_addr, network_name, password, game_tag, settings, identity, manager, sink_factory, None).await
+        // Stored/displayed as whichever address is actually meaningful: the
+        // relay's, when relaying (nothing reachable to show for `host_addr`
+        // itself in that mode), otherwise the direct address as given.
+        let stored_host_addr = relay_addr.unwrap_or(host_addr);
+        self.start(
+            stored_host_addr,
+            network_name,
+            password,
+            game_tag,
+            settings,
+            identity,
+            manager,
+            sink_factory,
+            None,
+            relay_addr,
+        )
+        .await
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -426,17 +480,32 @@ impl MeshSession {
         manager: Arc<ConnectionManager>,
         sink_factory: impl Fn() -> Box<dyn TelemetrySink> + Send + Sync + 'static,
         server: Option<SignalingServer>,
+        relay_addr: Option<SocketAddr>,
     ) -> Result<NetworkId, String> {
         manager.ensure_socket(STUN_SERVER).await.map_err(|e| e.to_string())?;
-        let (client, events) = SignalingClient::join(
-            host_addr,
-            network_name.clone(),
-            &password,
-            identity.public_b64(),
-            identity.peer_address(),
-        )
-        .await
-        .map_err(|e| e.to_string())?;
+        // `host_addr` already *is* `relay_addr` whenever the latter is
+        // `Some` — both call sites above arrange that — so the only thing
+        // left to decide here is which transport speaks to it.
+        let join_result = if relay_addr.is_some() {
+            SignalingClient::join_via_relay(
+                host_addr,
+                network_name.clone(),
+                &password,
+                identity.public_b64(),
+                identity.peer_address(),
+            )
+            .await
+        } else {
+            SignalingClient::join(
+                host_addr,
+                network_name.clone(),
+                &password,
+                identity.public_b64(),
+                identity.peer_address(),
+            )
+            .await
+        };
+        let (client, events) = join_result.map_err(|e| e.to_string())?;
 
         let socket = manager.socket().ok_or("no socket after ensure_socket")?;
         let candidates = manager.local_candidates();
@@ -706,6 +775,7 @@ mod tests {
                 identity,
                 manager.clone(),
                 || Box::new(NullSink),
+                None,
             )
             .await
             .unwrap();
@@ -746,6 +816,7 @@ mod tests {
                 identity,
                 manager.clone(),
                 || Box::new(NullSink),
+                None,
             )
             .await
             .unwrap();
@@ -778,6 +849,7 @@ mod tests {
                 identity,
                 manager.clone(),
                 || Box::new(NullSink),
+                None,
             )
             .await
             .unwrap();
@@ -804,6 +876,7 @@ mod tests {
                 identity,
                 manager.clone(),
                 || Box::new(NullSink),
+                None,
             )
             .await
             .unwrap();
@@ -833,6 +906,7 @@ mod tests {
                 identity.clone(),
                 manager.clone(),
                 || Box::new(NullSink),
+                None,
             )
             .await
             .unwrap();
@@ -847,6 +921,7 @@ mod tests {
                 identity,
                 manager.clone(),
                 || Box::new(NullSink),
+                None,
             )
             .await
             .unwrap();
@@ -888,6 +963,7 @@ mod tests {
                 identity_a,
                 manager_a.clone(),
                 || Box::new(NullSink),
+                None,
             )
             .await
             .unwrap();
@@ -902,6 +978,7 @@ mod tests {
                 identity_b,
                 manager_b.clone(),
                 || Box::new(NullSink),
+                None,
             )
             .await
             .unwrap();
@@ -914,6 +991,69 @@ mod tests {
             a_sees_b && b_sees_a
         })
         .await;
+    }
+
+    /// The reason this whole module exists: proves `create`/`join` reach
+    /// `Connected` through a [`RelayServer`](super::super::relay::RelayServer)
+    /// exactly like `two_mesh_sessions_create_and_join_reach_connected` does
+    /// directly — i.e. this is that same test, with `relay_addr: Some(_)`
+    /// instead of `None`, and neither side able to dial the other's `host_addr`
+    /// (they never even see one — see `create`/`join`'s doc comments on what
+    /// `relay_addr: Some(_)` does to that parameter).
+    #[tokio::test]
+    async fn two_mesh_sessions_create_and_join_reach_connected_through_a_relay() {
+        use crate::engine::relay::RelayServer;
+
+        let relay = RelayServer::start("127.0.0.1:0".parse().unwrap()).await.unwrap();
+        let relay_addr = relay.local_addr();
+
+        let session_a = MeshSession::default();
+        let session_b = MeshSession::default();
+        let manager_a = Arc::new(ConnectionManager::default());
+        let manager_b = Arc::new(ConnectionManager::default());
+        let identity_a = Arc::new(Identity::generate().unwrap());
+        let identity_b = Arc::new(Identity::generate().unwrap());
+
+        session_a
+            .create(
+                "127.0.0.1:0".parse().unwrap(), // ignored — relay_addr wins
+                "party".to_string(),
+                "secret".to_string(),
+                None,
+                ConnectionSettings::default(),
+                identity_a,
+                manager_a.clone(),
+                || Box::new(NullSink),
+                Some(relay_addr),
+            )
+            .await
+            .unwrap();
+
+        session_b
+            .join(
+                "127.0.0.1:0".parse().unwrap(), // ignored — relay_addr wins
+                "party".to_string(),
+                "secret".to_string(),
+                None,
+                ConnectionSettings::default(),
+                identity_b,
+                manager_b.clone(),
+                || Box::new(NullSink),
+                Some(relay_addr),
+            )
+            .await
+            .unwrap();
+
+        until(15, "both sides show Connected in status()", move || {
+            let sa = session_a.statuses(&manager_a);
+            let sb = session_b.statuses(&manager_b);
+            let a_sees_b = sa.iter().any(|s| s.members.iter().any(|m| m.link == LinkState::Connected));
+            let b_sees_a = sb.iter().any(|s| s.members.iter().any(|m| m.link == LinkState::Connected));
+            a_sees_b && b_sees_a
+        })
+        .await;
+
+        relay.shutdown().await;
     }
 
     /// The bug this guards against: hosting with the UI's default

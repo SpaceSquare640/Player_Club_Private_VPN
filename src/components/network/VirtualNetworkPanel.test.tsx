@@ -66,6 +66,7 @@ describe("VirtualNetworkPanel — not in any network", () => {
         password: "secret",
         gameTag: null,
         settings: DEFAULT_CONNECTION_SETTINGS,
+        relayAddr: null,
       }),
     );
   });
@@ -97,6 +98,7 @@ describe("VirtualNetworkPanel — not in any network", () => {
         password: "secret",
         gameTag: null,
         settings: DEFAULT_CONNECTION_SETTINGS,
+        relayAddr: null,
       }),
     );
   });
@@ -326,6 +328,7 @@ describe("VirtualNetworkPanel — saved networks", () => {
         password: "secret",
         gameTag: null,
         settings: DEFAULT_CONNECTION_SETTINGS,
+        relayAddr: null,
       }),
     );
   });
