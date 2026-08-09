@@ -1,7 +1,7 @@
 {
   "name": "player-club-private-vpn",
   "private": true,
-  "version": "0.51.4",
+  "version": "0.51.5",
   "description": "Player Club Private VPN — a high-performance Gaming Virtual Network.",
   "type": "module",
   "scripts": {
