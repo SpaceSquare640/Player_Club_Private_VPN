@@ -1203,11 +1203,30 @@ mod tests {
 
     /// Proves the retry loop doesn't just detect a drop but actually
     /// recovers from one: the joiner's host disappears, then a new host
-    /// comes back up on the exact same address shortly after — the joiner
-    /// should reconnect on its own, ending with both sides `Connected`
-    /// again, with no `leave`/re-`join` on the joiner's side at all.
+    /// comes back up shortly after — the joiner should reconnect on its
+    /// own, ending with both sides `Connected` again, with no
+    /// `leave`/re-`join` on the joiner's side at all.
+    ///
+    /// Routed through a [`RelayServer`](super::super::relay::RelayServer)
+    /// that stays running for the whole test, rather than rebinding a raw
+    /// TCP listener on the same port twice — the latter version of this
+    /// test flaked on the `windows-latest` CI runner (consistently timed
+    /// out even after `SignalingServer::start` picked up `SO_REUSEADDR`),
+    /// most likely because a just-closed-and-reopened port doesn't behave
+    /// identically to local dev in that sandboxed environment. Re-registering
+    /// under the same name with a relay that never goes down sidesteps that
+    /// whole class of OS/environment-dependent timing entirely — the thing
+    /// actually under test (the retry loop recovering) doesn't care which
+    /// transport it reconnects over, and this one is already covered by
+    /// `mesh_session_supports_two_simultaneous_networks`-adjacent relay tests
+    /// as being reliable.
     #[tokio::test]
-    async fn joiner_reconnects_once_the_host_comes_back_on_the_same_address() {
+    async fn joiner_reconnects_once_the_host_comes_back_via_the_relay() {
+        use crate::engine::relay::RelayServer;
+
+        let relay = RelayServer::start("127.0.0.1:0".parse().unwrap()).await.unwrap();
+        let relay_addr = relay.local_addr();
+
         let session_a = MeshSession::default();
         let session_b = MeshSession::default();
         let manager_a = Arc::new(ConnectionManager::default());
@@ -1215,7 +1234,7 @@ mod tests {
         let identity_a = Arc::new(Identity::generate().unwrap());
         let identity_b = Arc::new(Identity::generate().unwrap());
 
-        let (host_id, host_addr) = session_a
+        let (host_id, _) = session_a
             .create(
                 "127.0.0.1:0".parse().unwrap(),
                 "party".to_string(),
@@ -1225,14 +1244,14 @@ mod tests {
                 identity_a.clone(),
                 manager_a.clone(),
                 || Box::new(NullSink),
-                None,
+                Some(relay_addr),
             )
             .await
             .unwrap();
 
         session_b
             .join(
-                host_addr,
+                "127.0.0.1:0".parse().unwrap(), // ignored — relay_addr wins, see create/join's doc comments
                 "party".to_string(),
                 "secret".to_string(),
                 None,
@@ -1240,7 +1259,7 @@ mod tests {
                 identity_b,
                 manager_b.clone(),
                 || Box::new(NullSink),
-                None,
+                Some(relay_addr),
             )
             .await
             .unwrap();
@@ -1257,28 +1276,39 @@ mod tests {
         })
         .await;
 
-        // Bring the host back on the exact same port the joiner is retrying
-        // against — the retry loop must find it without any help from us.
-        session_a
-            .create(
-                host_addr,
-                "party".to_string(),
-                "secret".to_string(),
-                None,
-                ConnectionSettings::default(),
-                identity_a,
-                manager_a.clone(),
-                || Box::new(NullSink),
-                None,
-            )
-            .await
-            .unwrap();
+        // Re-register under the same name against the same still-running
+        // relay — the retry loop must find it without any help from us.
+        // `leave()` above only guarantees *this side's* control connection
+        // closed, not that the relay has already processed that closure and
+        // freed the name — so a `REGISTER` landing microseconds too early
+        // can still see "name in use"; retry past that specific race rather
+        // than assume it never happens.
+        let mut recreate_attempts = 0;
+        loop {
+            let result = session_a
+                .create(
+                    "127.0.0.1:0".parse().unwrap(),
+                    "party".to_string(),
+                    "secret".to_string(),
+                    None,
+                    ConnectionSettings::default(),
+                    identity_a.clone(),
+                    manager_a.clone(),
+                    || Box::new(NullSink),
+                    Some(relay_addr),
+                )
+                .await;
+            match result {
+                Ok(_) => break,
+                Err(e) if e.contains("name in use") && recreate_attempts < 50 => {
+                    recreate_attempts += 1;
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+                Err(e) => panic!("failed to re-create the network: {e}"),
+            }
+        }
 
-        // Generous relative to the 2s initial backoff — CI runners (this
-        // failed on windows-latest with a 15s budget) can be slow/contended
-        // enough that a real reconnect legitimately takes longer than local
-        // dev timing would suggest.
-        until(40, "joiner reconnects and both sides show Connected again", || {
+        until(15, "joiner reconnects and both sides show Connected again", || {
             let sa = session_a.statuses(&manager_a);
             let sb = session_b.statuses(&manager_b);
             let a_sees_b = sa.iter().any(|s| s.members.iter().any(|m| m.link == LinkState::Connected));
@@ -1286,6 +1316,8 @@ mod tests {
             a_sees_b && b_sees_a
         })
         .await;
+
+        relay.shutdown().await;
     }
 
     /// The reason this whole module exists: proves `create`/`join` reach

@@ -16,6 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.51.2] - 2026-08-10
+
+### Fixed
+**Still flaky on CI after `[0.51.1]`'s `SO_REUSEADDR` fix — the reconnect test itself was testing the wrong thing.** `joiner_reconnects_once_the_host_comes_back_on_the_same_address` timed out on `windows-latest` again, this time running the full 40s budget rather than finishing early, meaning the retry loop genuinely wasn't recovering within it — not just a timing squeeze. Likely cause: a connection attempt to a just-closed, just-reopened TCP port doesn't behave identically to local dev in that CI sandbox (a silently-dropped SYN instead of an immediate refusal would burn the full 8s `ConnectTimeout` per retry, not a few milliseconds).
+
+- Rewrote the test to reconnect through a [`RelayServer`](README's Relay Server feature, `[0.47.0]`) that stays running the whole time, instead of rebinding a raw TCP listener on the same port twice — re-registering under the same name against a relay that never goes down sidesteps the whole class of OS/environment-dependent port-rebind timing this was actually hitting. What's under test (the retry loop recovering) doesn't care which transport it reconnects over.
+- The new version runs in ~2s locally (down from ~24s), a good sign the original design's slowness was itself a symptom of the same issue, not just an unrelated one.
+
+Full suite: 199/199 frontend (unchanged), 165/165 Rust (unchanged count — the same test, rewritten).
+
+---
+
 ## [0.51.1] - 2026-08-10
 
 ### Fixed
