@@ -348,4 +348,24 @@ describe("VirtualNetworkPanel — saved networks", () => {
     expect(screen.queryByTestId("vn-saved-list")).not.toBeInTheDocument();
     expect(useSavedNetworksStore.getState().networks).toHaveLength(0);
   });
+
+  it("disables Start for a saved network whose name matches one already active, instead of letting it hit a rebind failure", async () => {
+    useSavedNetworksStore.getState().remember({
+      mode: "create",
+      networkName: "party",
+      password: "secret",
+      bindAddr: "10.14.0.2:49881",
+      gameTag: null,
+    });
+    wireInvoke([
+      { id: "net-1", networkName: "party", isHost: true, hostAddr: "10.14.0.2:49881", gameTag: null, members: [] },
+    ]);
+    render(<VirtualNetworkPanel />);
+
+    const startBtn = await screen.findByTestId("vn-saved-start-btn");
+    expect(startBtn).toBeDisabled();
+
+    fireEvent.click(startBtn);
+    expect(invokeMock).not.toHaveBeenCalledWith("create_network", expect.anything());
+  });
 });

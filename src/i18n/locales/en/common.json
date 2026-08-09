@@ -57,6 +57,8 @@
     "savedModeJoin": "Join",
     "savedStart": "Start",
     "savedForget": "Forget",
+    "savedRunning": "Running",
+    "savedAlreadyRunning": "Already running — leave it first to restart it.",
     "virtualConnecting": "Connecting…"
   },
   "nodeIdentity": {

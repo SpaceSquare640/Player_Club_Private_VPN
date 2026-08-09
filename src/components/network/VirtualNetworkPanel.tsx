@@ -150,35 +150,48 @@ export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsBy
     </div>
   );
 
+  // A saved entry whose name matches a currently active network would just
+  // fail to (re-)bind/join if started again — most concretely, re-creating
+  // with the same specific bind address a moment ago hit "os error 10048"
+  // (address already in use) because the earlier instance was still live.
+  // Disabling Start for those (rather than letting the click reach the
+  // backend and surface a raw OS error) prevents that class of failure
+  // outright instead of just wording the error better.
+  const activeNetworkNames = new Set(networks.map((n) => n.networkName));
+
   const savedNetworksList = savedNetworks.length > 0 && (
     <Card className="p-4 text-xs" data-testid="vn-saved-list">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">{t("network.savedHeading")}</h3>
       <ul className="mt-3 space-y-1.5">
-        {savedNetworks.map((saved) => (
-          <li key={saved.id} data-testid="vn-saved-item" className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-ink">{saved.networkName}</span>
-              <Badge tone={saved.mode === "create" ? "violet" : "cyan"}>
-                {t(saved.mode === "create" ? "network.savedModeHost" : "network.savedModeJoin")}
-              </Badge>
-              <span className="font-mono text-ink-muted">{saved.mode === "create" ? saved.bindAddr : saved.hostAddr}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="secondary"
-                size="sm"
-                data-testid="vn-saved-start-btn"
-                onClick={() => void onQuickStart(saved)}
-                disabled={busy}
-              >
-                {busy ? t("network.virtualConnecting") : t("network.savedStart")}
-              </Button>
-              <Button variant="ghost" size="sm" data-testid="vn-saved-forget-btn" onClick={() => onForgetSaved(saved.id)}>
-                {t("network.savedForget")}
-              </Button>
-            </div>
-          </li>
-        ))}
+        {savedNetworks.map((saved) => {
+          const isRunning = activeNetworkNames.has(saved.networkName);
+          return (
+            <li key={saved.id} data-testid="vn-saved-item" className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-ink">{saved.networkName}</span>
+                <Badge tone={saved.mode === "create" ? "violet" : "cyan"}>
+                  {t(saved.mode === "create" ? "network.savedModeHost" : "network.savedModeJoin")}
+                </Badge>
+                <span className="font-mono text-ink-muted">{saved.mode === "create" ? saved.bindAddr : saved.hostAddr}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  data-testid="vn-saved-start-btn"
+                  onClick={() => void onQuickStart(saved)}
+                  disabled={busy || isRunning}
+                  title={isRunning ? t("network.savedAlreadyRunning") : undefined}
+                >
+                  {isRunning ? t("network.savedRunning") : busy ? t("network.virtualConnecting") : t("network.savedStart")}
+                </Button>
+                <Button variant="ghost" size="sm" data-testid="vn-saved-forget-btn" onClick={() => onForgetSaved(saved.id)}>
+                  {t("network.savedForget")}
+                </Button>
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </Card>
   );

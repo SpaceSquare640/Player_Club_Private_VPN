@@ -57,6 +57,8 @@
     "savedModeJoin": "加入",
     "savedStart": "启动",
     "savedForget": "移除",
+    "savedRunning": "运行中",
+    "savedAlreadyRunning": "已经在运行——请先离开网络才能重新启动。",
     "virtualConnecting": "连接中…"
   },
   "nodeIdentity": {

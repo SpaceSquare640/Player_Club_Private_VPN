@@ -16,6 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.48.2] - 2026-08-09
+
+### Fixed
+**Restarting a saved network that's still active failed with a raw OS error.** A user hit `failed to bind signaling server: ... (os error 10048)` — WSAEADDRINUSE — clicking Start on a Saved Networks entry whose name matched a network they were already hosting. The saved entry's exact bind address was still held by the live instance, so the second `create_network` could only fail; the raw OS error text was the only feedback.
+
+- The Saved Networks list now disables **Start** for any entry whose name matches a currently active network, showing "Running" instead — the failing rebind attempt is prevented outright rather than produced and then explained. Leave the active network first to restart it from its saved entry.
+
+Full suite: 181/181 frontend (up from 180), 163/163 Rust (unchanged — frontend-only fix).
+
+---
+
 ## [0.48.1] - 2026-08-09
 
 ### Fixed
