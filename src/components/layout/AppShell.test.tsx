@@ -5,6 +5,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 // isn't there. These tests are about routing, not telemetry.
 vi.mock("../../hooks/useEngineTelemetry", () => ({ useEngineTelemetry: () => {} }));
 vi.mock("../../hooks/useLiveConnectionSettings", () => ({ useLiveConnectionSettings: () => {} }));
+vi.mock("../../hooks/useUpdateCheck", () => ({ useUpdateCheck: () => {} }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn().mockResolvedValue(undefined) }));
 
 import { createMemoryRouter, RouterProvider } from "react-router";

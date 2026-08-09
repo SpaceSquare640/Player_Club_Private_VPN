@@ -169,7 +169,9 @@
     "userManualLink": "使用者手冊",
     "termsOfServiceLink": "使用條款",
     "privacyPolicyLink": "私隱政策",
-    "wikiLink": "Wiki 與支援"
+    "wikiLink": "Wiki 與支援",
+    "versionLabel": "版本 {{version}}",
+    "updateAvailable": "有新版本：v{{version}}"
   },
   "minecraft": {
     "title": "Minecraft",

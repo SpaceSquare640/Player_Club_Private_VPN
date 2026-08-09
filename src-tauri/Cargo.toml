@@ -1,6 +1,6 @@
 [package]
 name = "player-club-private-vpn"
-version = "0.43.1"
+version = "0.44.0"
 description = "Player Club Private VPN — a high-performance Gaming Virtual Network."
 authors = ["Player Club"]
 edition = "2021"
@@ -56,6 +56,10 @@ tauri-plugin-fs = "2.5.1"
 # browser from the About/Legal settings section, rather than navigating the
 # app's own webview away from the UI.
 tauri-plugin-opener = "2"
+# Frontend-side fetch() for the GitHub Releases API, used by the in-app
+# "check for updates" feature (check-and-notify only — no auto-download/
+# install, so no updater signing-key infrastructure is needed here).
+tauri-plugin-http = "2"
 tokio-tungstenite = "0.29.0"
 futures-util = "0.3.33"
 

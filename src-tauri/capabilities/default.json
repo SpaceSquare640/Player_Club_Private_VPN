@@ -8,6 +8,10 @@
     "dialog:default",
     "opener:default",
     {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://api.github.com/*" }]
+    },
+    {
       "identifier": "fs:allow-write-text-file",
       "allow": [{ "path": "**" }]
     },

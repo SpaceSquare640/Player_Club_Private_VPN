@@ -169,7 +169,9 @@
     "userManualLink": "User Manual",
     "termsOfServiceLink": "Terms of Service",
     "privacyPolicyLink": "Privacy Policy",
-    "wikiLink": "Wiki & Support"
+    "wikiLink": "Wiki & Support",
+    "versionLabel": "Version {{version}}",
+    "updateAvailable": "Update available: v{{version}}"
   },
   "minecraft": {
     "title": "Minecraft",

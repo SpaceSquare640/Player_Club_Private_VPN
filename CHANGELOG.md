@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.44.0] - 2026-08-09
+
+### Added
+**In-app update check.** The app now checks GitHub Releases once per launch and, if a newer version exists, shows an "Update available: vX.Y.Z" link in Settings → About & Legal — clicking it opens the release page in the system browser. This is check-and-notify only: no auto-download or auto-install, and no code-signing/updater-endpoint infrastructure was added, since none exists for this project yet.
+
+- `src/lib/updateCheck.ts` — fetches `.../releases/latest` via the new `tauri-plugin-http` (frontend-side `fetch`, capability scoped to exactly `https://api.github.com/*`, nothing broader), compares against `getVersion()` (`@tauri-apps/api/app`) with a small numeric major/minor/patch `isNewerVersion` (unit tested, 6 cases including missing components).
+- `useUpdateCheck` hook, wired into `AppShell` alongside the existing app-wide telemetry/settings subscriptions — runs once per launch, best-effort: a failed check (offline, GitHub API hiccup) is silently ignored, same pattern as the rest of the app's non-critical background checks.
+- Settings also now always shows the running app's own version number, which it never did before.
+
+Full suite: 162/162 frontend (up from 156), 142/142 Rust (unchanged — this is a frontend-only feature).
+
+---
+
 ## [0.43.1] - 2026-08-09
 
 ### Fixed

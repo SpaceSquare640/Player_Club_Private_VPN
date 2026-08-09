@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ExternalLink, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { save, open as openDialog } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { getVersion } from "@tauri-apps/api/app";
 import { useAppStore } from "../../stores/appStore";
+import { useUpdateStore } from "../../stores/updateStore";
 import { THEMES } from "../../theme/themes";
 import { cn } from "../../lib/cn";
 import type { SupportedLanguage } from "../../i18n";
@@ -54,6 +56,16 @@ export default function SettingsOverlay() {
   const setExtraRoutes = useAppStore((s) => s.setExtraRoutes);
   const [extraRoutesText, setExtraRoutesText] = useState(() => extraRoutes.join(", "));
   const [importError, setImportError] = useState<string | null>(null);
+  const [currentVersion, setCurrentVersion] = useState<string | null>(null);
+  const updateAvailable = useUpdateStore((s) => s.available);
+
+  useEffect(() => {
+    void getVersion()
+      .then(setCurrentVersion)
+      .catch(() => {
+        // No Tauri context (e.g. a plain browser preview) — leave blank.
+      });
+  }, []);
 
   const handleExportProfile = async () => {
     setImportError(null);
@@ -333,6 +345,21 @@ export default function SettingsOverlay() {
                 <ExternalLink size={14} />
               </button>
             ))}
+          </div>
+
+          <div className="mt-4 flex items-center justify-between px-3 text-xs text-ink-muted" data-testid="settings-version">
+            <span>{currentVersion ? t("settings.versionLabel", { version: currentVersion }) : ""}</span>
+            {updateAvailable && (
+              <button
+                type="button"
+                data-testid="settings-update-available"
+                onClick={() => openUrl(updateAvailable.releaseUrl)}
+                className="flex items-center gap-1 rounded-md bg-brand-violet/15 px-2 py-1 font-medium text-brand-violet transition-colors duration-150 hover:bg-brand-violet/25"
+              >
+                {t("settings.updateAvailable", { version: updateAvailable.latestVersion })}
+                <ExternalLink size={12} />
+              </button>
+            )}
           </div>
         </section>
       </aside>
