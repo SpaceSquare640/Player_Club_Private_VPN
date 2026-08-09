@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useTelemetryStore } from "../../stores/telemetryStore";
+import Button from "../ui/Button";
 
 /**
  * This node's identity: the short fingerprint (for voice/chat verification) plus
@@ -14,7 +15,7 @@ export default function NodeIdentity() {
   return (
     <div
       data-testid="node-identity"
-      className="flex items-center gap-3 rounded-lg border border-white/10 bg-surface-2/40 px-3 py-2 text-xs"
+      className="flex items-center gap-3 rounded-xl border border-white/5 bg-surface-2/60 px-4 py-2.5 text-xs"
     >
       <span className="text-ink-muted">{t("nodeIdentity.label")}</span>
       <span
@@ -24,15 +25,16 @@ export default function NodeIdentity() {
       >
         {identity.peerAddress}
       </span>
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="sm"
         data-testid="copy-pubkey"
         title={t("nodeIdentity.copyButtonTitle")}
         onClick={() => void navigator.clipboard?.writeText(identity.publicKeyB64)}
-        className="ml-auto rounded border border-white/15 px-2 py-1 text-ink-muted transition-colors hover:text-ink"
+        className="ml-auto"
       >
         {t("nodeIdentity.copyButton")}
-      </button>
+      </Button>
     </div>
   );
 }

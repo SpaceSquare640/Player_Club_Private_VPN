@@ -2,7 +2,8 @@ import { Gamepad2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../stores/appStore";
 import VirtualNetworkPanel from "../components/network/VirtualNetworkPanel";
-import { cn } from "../lib/cn";
+import Card from "../components/ui/Card";
+import Button from "../components/ui/Button";
 
 /**
  * Manually-triggered preset, not a background process scan — deliberately
@@ -34,12 +35,12 @@ export default function Minecraft() {
             artwork licensing before it can ship in this repo. */}
         <Gamepad2 size={28} className="text-brand-violet" />
         <div>
-          <h1 className="text-2xl font-semibold text-ink">{t("minecraft.title")}</h1>
-          <p className="text-sm text-ink-muted">{t("minecraft.subtitle")}</p>
+          <h1 className="text-2xl font-semibold text-balance text-ink">{t("minecraft.title")}</h1>
+          <p className="text-sm text-pretty text-ink-muted">{t("minecraft.subtitle")}</p>
         </div>
       </div>
 
-      <section className="rounded-2xl bg-surface-2 p-6 ring-1 ring-white/5" data-testid="minecraft-summary">
+      <Card data-testid="minecraft-summary">
         <h2 className="text-sm font-medium text-ink-muted">{t("minecraft.currentSettingsHeading")}</h2>
         <ul className="mt-3 space-y-2 text-sm">
           <li className="text-ink">
@@ -59,13 +60,13 @@ export default function Minecraft() {
             <span className="text-brand-cyan">{t("settings.fecRedundancyValue", { n: fecParityShards })}</span>
           </li>
         </ul>
-      </section>
+      </Card>
 
-      <section className="rounded-2xl bg-surface-2 p-6 ring-1 ring-white/5">
+      <Card>
         <h2 className="text-sm font-medium text-ink-muted">{t("minecraft.presetHeading")}</h2>
-        <p className="mt-1 text-xs text-ink-muted">{t("minecraft.presetSubtitle")}</p>
-        <button
-          type="button"
+        <p className="mt-1 text-xs text-pretty text-ink-muted">{t("minecraft.presetSubtitle")}</p>
+        <Button
+          variant={isApplied ? "ghost" : "primary"}
           data-testid="minecraft-apply-preset"
           disabled={isApplied}
           onClick={() => {
@@ -73,16 +74,11 @@ export default function Minecraft() {
             setForwardMulticast(MINECRAFT_PRESET.forwardMulticast);
             setFecParityShards(MINECRAFT_PRESET.fecParityShards);
           }}
-          className={cn(
-            "mt-4 rounded-lg px-4 py-2 text-sm font-medium transition",
-            isApplied
-              ? "cursor-default bg-white/5 text-ink-muted"
-              : "bg-brand-violet text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-brand-violet/60",
-          )}
+          className="mt-4"
         >
           {isApplied ? t("minecraft.presetApplied") : t("minecraft.presetApply")}
-        </button>
-      </section>
+        </Button>
+      </Card>
 
       <section>
         <h2 className="mb-3 text-sm font-medium text-ink-muted">{t("minecraft.networkHeading")}</h2>

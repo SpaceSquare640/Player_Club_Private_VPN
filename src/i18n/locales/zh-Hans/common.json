@@ -16,12 +16,16 @@
   },
   "dashboard": {
     "title": "仪表板",
-    "subtitle": "虚拟网络总览。",
-    "engine": "引擎",
-    "pingEngine": "Ping 引擎",
-    "status": "状态",
-    "idle": "闲置",
-    "peersConnected": "已连接 {{count}} 个对等节点"
+    "subtitle": "引擎状态，以及前往其他页面的快捷方式。",
+    "statusHeading": "引擎状态",
+    "notRunning": "尚未运行。请至诊断页面启动遥测连接。",
+    "goDiagnostics": "打开诊断",
+    "quickActionsHeading": "快速操作",
+    "goNetworkHint": "连接对等节点",
+    "goDiagnosticsHint": "实时遥测与数据包记录",
+    "goMinecraftHint": "推荐设置与加入网络",
+    "recentActivityHeading": "最近活动",
+    "noActivity": "尚无活动。请至诊断页面启动引擎，或在网络页面连接对等节点。"
   },
   "network": {
     "title": "网络",

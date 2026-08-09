@@ -16,6 +16,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.43.0] - 2026-08-09
+
+### Changed
+**Full UI redesign.** Users reported the app "looks ugly" and has design problems. Audit found the code itself was clean (no gradients, no arbitrary z-index, decent accessibility) — the real cause was that every card/button/panel was hand-rolled Tailwind duplicated near-verbatim across every page, with no shared primitives to keep them in sync, plus a genuine WCAG contrast failure on primary buttons in 4 of the 6 themes.
+
+- **New shared primitive layer** (`src/components/ui/`): `Card`, `Button` (primary/secondary/ghost/danger/warning), `Toggle` (a real switch — `role="switch"`, `aria-checked`, replacing the old "button whose border changes color and says On/Off" pattern), `Badge`, `StatTile` (promoted out of `Diagnostics.tsx`), `IconButton`. Every page and panel re-skinned onto these instead of inline Tailwind strings.
+- **Fixed a real accessibility bug, not just a look-and-feel one:** the primary `Button` variant used `text-white` on `bg-brand-violet`, which measured as low as 2.54:1 contrast (WCAG AA needs 4.5:1) in Aurora, and failed in Carbon/Abyss/Ember too — several theme accents are light/pastel violets that don't work with white text. Fixed by switching to each theme's own dark `surface` color as the button text color (token-driven, not a hardcoded fix), which measures 4.5–7.4:1 across all 6 themes.
+- **`Dashboard.tsx` rebuilt from scratch** — replaced the scaffolding-era "ping engine" button and hardcoded fake status ("idle", "0 peers connected") with a real overview: live engine status (from the same `telemetryStore` already wired app-wide), quick-action shortcuts to Network/Diagnostics/Minecraft, and a recent-activity feed from the live packet log. No new backend calls — reuses what `useEngineTelemetry` already exposes.
+- Consolidated on **one accent color per view** (violet) where panels had previously mixed violet + cyan + amber button colors with no semantic reason for the split (e.g. `PeerConnectionPanel`'s Create Offer vs. Process buttons).
+- Standardized page-title sizing (`Network`/`Diagnostics` were `text-xl` while `Dashboard`/`Minecraft` were `text-2xl` for the same role) and added `text-balance`/`text-pretty` to headings/body copy per the project's UI baseline.
+- Verified with a live audit of all 6 theme palettes' actual contrast ratios (computed WCAG, not eyeballed) rather than assuming they were fine.
+
+All existing `data-testid`s, i18n keys, and component logic were preserved by design; the only test changes were 3 assertions in `SettingsOverlay.test.tsx` updated from `aria-pressed` to `aria-checked` to match the new `Toggle`'s corrected switch semantics. Full suite: 156/156.
+
+---
+
 ## [0.42.1] - 2026-08-09
 
 ### Fixed

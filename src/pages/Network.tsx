@@ -22,8 +22,8 @@ export default function Network() {
   return (
     <section data-testid="page-network" className="flex h-full flex-col gap-5">
       <header>
-        <h1 className="text-xl font-semibold text-ink">{t("network.title")}</h1>
-        <p className="text-sm text-ink-muted">{t("network.subtitle")}</p>
+        <h1 className="text-2xl font-semibold text-balance text-ink">{t("network.title")}</h1>
+        <p className="text-sm text-pretty text-ink-muted">{t("network.subtitle")}</p>
       </header>
 
       <NodeIdentity />

@@ -16,12 +16,16 @@
   },
   "dashboard": {
     "title": "儀表板",
-    "subtitle": "虛擬網路總覽。",
-    "engine": "引擎",
-    "pingEngine": "Ping 引擎",
-    "status": "狀態",
-    "idle": "閒置",
-    "peersConnected": "已連線 {{count}} 個對等節點"
+    "subtitle": "引擎狀態，以及前往其他頁面的捷徑。",
+    "statusHeading": "引擎狀態",
+    "notRunning": "尚未執行。請至診斷頁面啟動遙測連線。",
+    "goDiagnostics": "開啟診斷",
+    "quickActionsHeading": "快速操作",
+    "goNetworkHint": "連接對等節點",
+    "goDiagnosticsHint": "即時遙測與封包記錄",
+    "goMinecraftHint": "建議設定與加入網路",
+    "recentActivityHeading": "最近活動",
+    "noActivity": "尚無活動。請至診斷頁面啟動引擎，或於網路頁面連接對等節點。"
   },
   "network": {
     "title": "網路",

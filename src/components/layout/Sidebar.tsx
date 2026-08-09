@@ -9,7 +9,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useAppStore, type RouteId } from "../../stores/appStore";
-import { cn } from "../../lib/cn";
+import IconButton from "../ui/IconButton";
 
 interface NavItem {
   id: RouteId;
@@ -27,7 +27,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "minecraft", labelKey: "nav.minecraft", path: "/minecraft", Icon: Gamepad2 },
 ];
 
-/** Fixed 60px icon rail. Active item glows violet (semantic "active"). */
+/** Fixed 60px icon rail. Active item marked by a left accent bar + tinted background. */
 export default function Sidebar() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -35,49 +35,40 @@ export default function Sidebar() {
   const toggleSettings = useAppStore((s) => s.toggleSettings);
 
   return (
-    <nav className="flex h-full w-[60px] flex-col items-center gap-1 border-r border-white/5 bg-surface-2 py-3">
-      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-brand-violet/20 text-xs font-bold text-brand-violet">
+    <nav className="flex h-full w-[60px] flex-col items-center gap-1.5 border-r border-white/5 bg-surface-2 py-4">
+      <div className="mb-4 flex size-9 items-center justify-center rounded-xl bg-brand-violet/15 text-xs font-bold text-brand-violet ring-1 ring-brand-violet/20">
         PC
       </div>
 
       {NAV_ITEMS.map(({ id, labelKey, path, Icon }) => {
         const active = activeRoute === id;
-        const label = t(labelKey);
         return (
-          <button
+          <IconButton
             key={id}
-            type="button"
-            title={label}
-            aria-label={label}
-            aria-current={active ? "page" : undefined}
+            label={t(labelKey)}
+            active={active}
             data-testid={`nav-${id}`}
             data-active={active}
+            aria-current={active ? "page" : undefined}
             onClick={() => navigate(path)}
-            className={cn(
-              "relative flex h-10 w-10 items-center justify-center rounded-xl transition-colors",
-              active
-                ? "bg-brand-violet/15 text-brand-violet"
-                : "text-ink-muted hover:bg-white/5 hover:text-ink",
-            )}
+            className="relative"
           >
             {active && (
-              <span className="absolute left-[-10px] h-6 w-1 rounded-r bg-brand-violet" />
+              <span className="absolute left-[-12px] h-6 w-1 rounded-r bg-brand-violet" />
             )}
             <Icon size={20} />
-          </button>
+          </IconButton>
         );
       })}
 
-      <button
-        type="button"
-        title={t("nav.settings")}
-        aria-label={t("nav.settings")}
+      <IconButton
+        label={t("nav.settings")}
         data-testid="nav-settings"
         onClick={() => toggleSettings()}
-        className="mt-auto flex h-10 w-10 items-center justify-center rounded-xl text-ink-muted transition-colors hover:bg-white/5 hover:text-ink"
+        className="mt-auto"
       >
         <Settings size={20} />
-      </button>
+      </IconButton>
     </nav>
   );
 }

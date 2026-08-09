@@ -16,12 +16,16 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "subtitle": "Overview of your virtual network.",
-    "engine": "Engine",
-    "pingEngine": "Ping engine",
-    "status": "Status",
-    "idle": "Idle",
-    "peersConnected": "{{count}} peers connected"
+    "subtitle": "Engine status and shortcuts to the rest of the app.",
+    "statusHeading": "Engine Status",
+    "notRunning": "Not running. Start a telemetry session on the Diagnostics page.",
+    "goDiagnostics": "Open Diagnostics",
+    "quickActionsHeading": "Quick Actions",
+    "goNetworkHint": "Connect to a peer",
+    "goDiagnosticsHint": "Live telemetry & packet log",
+    "goMinecraftHint": "Recommended preset & join",
+    "recentActivityHeading": "Recent Activity",
+    "noActivity": "No activity yet. Start the engine from Diagnostics, or connect to a peer on the Network page."
   },
   "network": {
     "title": "Network",

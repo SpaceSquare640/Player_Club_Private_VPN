@@ -10,6 +10,8 @@ import { cn } from "../../lib/cn";
 import type { SupportedLanguage } from "../../i18n";
 import { parseConnectionProfile, serializeConnectionProfile } from "../../lib/profile";
 import { repoDoc, wikiPage } from "../../lib/externalDocs";
+import Button from "../ui/Button";
+import Toggle from "../ui/Toggle";
 
 function legalLinks(language: SupportedLanguage) {
   return {
@@ -106,10 +108,7 @@ export default function SettingsOverlay() {
       )}
     >
       {/* Scrim */}
-      <div
-        className="absolute inset-0 bg-black/40"
-        onClick={() => toggle(false)}
-      />
+      <div className="absolute inset-0 bg-black/50" onClick={() => toggle(false)} />
 
       {/* Frosted-glass panel */}
       <aside
@@ -128,7 +127,7 @@ export default function SettingsOverlay() {
             aria-label={t("settings.closeAriaLabel")}
             data-testid="settings-close"
             onClick={() => toggle(false)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-white/5 hover:text-ink"
+            className="flex size-8 items-center justify-center rounded-lg text-ink-muted transition-colors duration-150 hover:bg-white/5 hover:text-ink"
           >
             <X size={18} />
           </button>
@@ -147,14 +146,14 @@ export default function SettingsOverlay() {
                 aria-pressed={theme === th.id}
                 onClick={() => setTheme(th.id)}
                 className={cn(
-                  "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors",
+                  "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors duration-150",
                   theme === th.id
-                    ? "border-brand-violet text-ink"
+                    ? "border-brand-violet bg-brand-violet/10 text-ink"
                     : "border-white/10 text-ink-muted hover:border-white/25 hover:text-ink",
                 )}
               >
                 <span
-                  className="h-4 w-4 rounded-full ring-1 ring-white/20"
+                  className="size-4 rounded-full ring-1 ring-white/20"
                   style={{ background: th.swatch }}
                 />
                 {t(`theme.${th.id}`)}
@@ -176,9 +175,9 @@ export default function SettingsOverlay() {
                 aria-pressed={language === opt.id}
                 onClick={() => setLanguage(opt.id)}
                 className={cn(
-                  "rounded-lg border px-3 py-2 text-sm transition-colors",
+                  "rounded-lg border px-3 py-2 text-sm transition-colors duration-150",
                   language === opt.id
-                    ? "border-brand-violet text-ink"
+                    ? "border-brand-violet bg-brand-violet/10 text-ink"
                     : "border-white/10 text-ink-muted hover:border-white/25 hover:text-ink",
                 )}
               >
@@ -189,24 +188,17 @@ export default function SettingsOverlay() {
         </section>
 
         <section className="mt-6">
-          <button
-            type="button"
-            data-testid="settings-expert-mode"
-            aria-pressed={expertMode}
-            onClick={() => setExpertMode(!expertMode)}
-            title={t("settings.expertModeTitle")}
-            className={cn(
-              "flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors",
-              expertMode
-                ? "border-brand-violet text-ink"
-                : "border-white/10 text-ink-muted hover:border-white/25 hover:text-ink",
-            )}
-          >
-            {t("settings.expertMode")}
-            <span className={expertMode ? "text-brand-violet" : "text-ink-muted"}>
-              {expertMode ? t("settings.on") : t("settings.off")}
+          <label className="flex w-full items-center justify-between rounded-lg border border-white/10 px-3 py-2.5 text-sm">
+            <span className="text-ink" title={t("settings.expertModeTitle")}>
+              {t("settings.expertMode")}
             </span>
-          </button>
+            <Toggle
+              checked={expertMode}
+              onChange={setExpertMode}
+              label={t("settings.expertMode")}
+              data-testid="settings-expert-mode"
+            />
+          </label>
         </section>
 
         {/* Advanced settings — display-only filter. Hidden values remain in
@@ -217,56 +209,42 @@ export default function SettingsOverlay() {
             <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
               {t("settings.connectionHeading")}
             </h3>
-            <p className="mt-1 text-xs text-ink-muted">{t("settings.connectionSubtitle")}</p>
+            <p className="mt-1 text-xs text-pretty text-ink-muted">{t("settings.connectionSubtitle")}</p>
 
             <div className="mt-3 flex flex-col gap-2">
-              <button
-                type="button"
-                data-testid="settings-forward-broadcast"
-                aria-pressed={forwardBroadcast}
-                onClick={() => setForwardBroadcast(!forwardBroadcast)}
-                title={t("settings.forwardBroadcastTitle")}
-                className={cn(
-                  "flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors",
-                  forwardBroadcast
-                    ? "border-brand-violet text-ink"
-                    : "border-white/10 text-ink-muted hover:border-white/25 hover:text-ink",
-                )}
-              >
-                {t("settings.forwardBroadcast")}
-                <span className={forwardBroadcast ? "text-brand-violet" : "text-ink-muted"}>
-                  {forwardBroadcast ? t("settings.on") : t("settings.off")}
+              <label className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-2.5 text-sm">
+                <span className="text-ink" title={t("settings.forwardBroadcastTitle")}>
+                  {t("settings.forwardBroadcast")}
                 </span>
-              </button>
+                <Toggle
+                  checked={forwardBroadcast}
+                  onChange={setForwardBroadcast}
+                  label={t("settings.forwardBroadcast")}
+                  data-testid="settings-forward-broadcast"
+                />
+              </label>
 
-              <button
-                type="button"
-                data-testid="settings-forward-multicast"
-                aria-pressed={forwardMulticast}
-                onClick={() => setForwardMulticast(!forwardMulticast)}
-                title={t("settings.forwardMulticastTitle")}
-                className={cn(
-                  "flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors",
-                  forwardMulticast
-                    ? "border-brand-violet text-ink"
-                    : "border-white/10 text-ink-muted hover:border-white/25 hover:text-ink",
-                )}
-              >
-                {t("settings.forwardMulticast")}
-                <span className={forwardMulticast ? "text-brand-violet" : "text-ink-muted"}>
-                  {forwardMulticast ? t("settings.on") : t("settings.off")}
+              <label className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-2.5 text-sm">
+                <span className="text-ink" title={t("settings.forwardMulticastTitle")}>
+                  {t("settings.forwardMulticast")}
                 </span>
-              </button>
+                <Toggle
+                  checked={forwardMulticast}
+                  onChange={setForwardMulticast}
+                  label={t("settings.forwardMulticast")}
+                  data-testid="settings-forward-multicast"
+                />
+              </label>
             </div>
 
             <div className="mt-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-ink">{t("settings.fecRedundancyHeading")}</span>
-                <span className="text-xs text-ink-muted">
+                <span className="text-xs tabular-nums text-ink-muted">
                   {t("settings.fecRedundancyValue", { n: fecParityShards })}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-ink-muted">{t("settings.fecRedundancySubtitle")}</p>
+              <p className="mt-1 text-xs text-pretty text-ink-muted">{t("settings.fecRedundancySubtitle")}</p>
               <div className="mt-2 grid grid-cols-3 gap-2">
                 {FEC_OPTIONS.map((n) => (
                   <button
@@ -276,9 +254,9 @@ export default function SettingsOverlay() {
                     aria-pressed={fecParityShards === n}
                     onClick={() => setFecParityShards(n)}
                     className={cn(
-                      "rounded-lg border px-3 py-2 text-sm transition-colors",
+                      "rounded-lg border px-3 py-2 text-sm tabular-nums transition-colors duration-150",
                       fecParityShards === n
-                        ? "border-brand-violet text-ink"
+                        ? "border-brand-violet bg-brand-violet/10 text-ink"
                         : "border-white/10 text-ink-muted hover:border-white/25 hover:text-ink",
                     )}
                   >
@@ -290,38 +268,40 @@ export default function SettingsOverlay() {
 
             <div className="mt-4">
               <span className="text-sm text-ink">{t("settings.extraRoutesHeading")}</span>
-              <p className="mt-1 text-xs text-ink-muted">{t("settings.extraRoutesSubtitle")}</p>
+              <p className="mt-1 text-xs text-pretty text-ink-muted">{t("settings.extraRoutesSubtitle")}</p>
               <input
                 data-testid="settings-extra-routes"
                 value={extraRoutesText}
                 onChange={(e) => setExtraRoutesText(e.target.value)}
                 onBlur={commitExtraRoutesText}
                 placeholder={t("settings.extraRoutesPlaceholder")}
-                className="mt-2 w-full rounded bg-black/40 p-2 font-mono text-xs text-ink placeholder:text-ink-muted"
+                className="mt-2 w-full rounded-lg bg-black/40 p-2 font-mono text-xs text-ink placeholder:text-ink-muted"
               />
             </div>
 
             <div className="mt-4 flex flex-col gap-2">
               <div className="flex gap-2">
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="sm"
                   data-testid="settings-export-profile"
                   onClick={handleExportProfile}
-                  className="flex-1 rounded-lg border border-white/10 px-3 py-2 text-sm text-ink-muted transition-colors hover:border-white/25 hover:text-ink"
+                  className="flex-1 border border-white/10"
                 >
                   {t("settings.exportProfile")}
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   data-testid="settings-import-profile"
                   onClick={handleImportProfile}
-                  className="flex-1 rounded-lg border border-white/10 px-3 py-2 text-sm text-ink-muted transition-colors hover:border-white/25 hover:text-ink"
+                  className="flex-1 border border-white/10"
                 >
                   {t("settings.importProfile")}
-                </button>
+                </Button>
               </div>
               {importError && (
-                <p data-testid="settings-import-error" className="text-xs text-red-400">
+                <p data-testid="settings-import-error" className="text-xs text-brand-red">
                   {importError}
                 </p>
               )}
@@ -347,7 +327,7 @@ export default function SettingsOverlay() {
                 type="button"
                 data-testid={`settings-about-${linkKey}`}
                 onClick={() => openUrl(legalLinks(language)[linkKey])}
-                className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-ink-muted transition-colors hover:bg-white/5 hover:text-ink"
+                className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-ink-muted transition-colors duration-150 hover:bg-white/5 hover:text-ink"
               >
                 {t(`settings.${labelKey}`)}
                 <ExternalLink size={14} />

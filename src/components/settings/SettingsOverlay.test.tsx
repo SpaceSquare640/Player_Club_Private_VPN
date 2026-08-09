@@ -52,11 +52,11 @@ describe("SettingsOverlay — Connection section (Phase B.3)", () => {
     render(<SettingsOverlay />);
     expect(screen.getByTestId("settings-connection")).toBeInTheDocument();
     expect(screen.getByTestId("settings-forward-broadcast")).toHaveAttribute(
-      "aria-pressed",
+      "aria-checked",
       "true",
     );
     expect(screen.getByTestId("settings-forward-multicast")).toHaveAttribute(
-      "aria-pressed",
+      "aria-checked",
       "true",
     );
     expect(screen.getByTestId("settings-fec-1")).toHaveAttribute("aria-pressed", "true");
@@ -67,7 +67,7 @@ describe("SettingsOverlay — Connection section (Phase B.3)", () => {
     fireEvent.click(screen.getByTestId("settings-forward-broadcast"));
     expect(useAppStore.getState().forwardBroadcast).toBe(false);
     expect(screen.getByTestId("settings-forward-broadcast")).toHaveAttribute(
-      "aria-pressed",
+      "aria-checked",
       "false",
     );
   });
@@ -156,7 +156,7 @@ describe("SettingsOverlay — Basic/Expert layering", () => {
     useAppStore.setState({ expertMode: false });
     render(<SettingsOverlay />);
     expect(screen.queryByTestId("settings-connection")).not.toBeInTheDocument();
-    expect(screen.getByTestId("settings-expert-mode")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("settings-expert-mode")).toHaveAttribute("aria-checked", "false");
     // Basic personalization is never gated — it isn't an "expert" concern.
     expect(screen.getByTestId("settings-language")).toBeInTheDocument();
   });

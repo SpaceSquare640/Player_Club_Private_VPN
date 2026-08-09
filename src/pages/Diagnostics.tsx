@@ -3,75 +3,18 @@ import { useTranslation } from "react-i18next";
 import { useTelemetryStore } from "../stores/telemetryStore";
 import { configForMode, requestElevation, startEngine, stopEngine } from "../lib/engine";
 import { cn } from "../lib/cn";
+import { ENGINE_STATE_STYLES } from "../lib/engineStateStyles";
 import SpectrumChart from "../components/diagnostics/SpectrumChart";
 import TopologyView from "../components/diagnostics/TopologyView";
-import type { EngineMode, EngineState } from "../types/telemetry";
+import StatTile from "../components/ui/StatTile";
+import Button from "../components/ui/Button";
+import type { EngineMode } from "../types/telemetry";
 
 const MODE_LABEL_KEYS: Record<EngineMode, string> = {
   simulated: "diagnostics.mode.simulated",
   probe: "diagnostics.mode.probe",
   real: "diagnostics.mode.real",
 };
-
-/**
- * Semantic styling per lifecycle state (Cyan idle, Amber transient, …). Labels
- * are translation *keys*, not literal strings — this is a module-level const,
- * evaluated once at import time, so it cannot hold text that needs to change
- * when the user switches language. `t(STATE_STYLES[state].labelKey)` resolves
- * it at render time instead.
- */
-const STATE_STYLES: Record<EngineState, { labelKey: string; dot: string; text: string }> = {
-  idle: { labelKey: "diagnostics.state.idle", dot: "bg-brand-cyan", text: "text-brand-cyan" },
-  connecting: {
-    labelKey: "diagnostics.state.connecting",
-    dot: "bg-brand-amber animate-pulse",
-    text: "text-brand-amber",
-  },
-  starting: {
-    labelKey: "diagnostics.state.starting",
-    dot: "bg-brand-amber animate-pulse",
-    text: "text-brand-amber",
-  },
-  connected: {
-    labelKey: "diagnostics.state.connected",
-    dot: "bg-brand-violet",
-    text: "text-brand-violet",
-  },
-  "needs-elevation": {
-    labelKey: "diagnostics.state.needs-elevation",
-    dot: "bg-brand-amber",
-    text: "text-brand-amber",
-  },
-  error: { labelKey: "diagnostics.state.error", dot: "bg-brand-red", text: "text-brand-red" },
-};
-
-function StatTile({
-  label,
-  value,
-  unit,
-  testid,
-  title,
-}: {
-  label: string;
-  value: string;
-  unit: string;
-  testid: string;
-  title?: string;
-}) {
-  return (
-    <div
-      data-testid={testid}
-      title={title}
-      className="rounded-xl border border-white/10 bg-surface-2/60 p-4"
-    >
-      <div className="text-xs uppercase tracking-wider text-ink-muted">{label}</div>
-      <div className="mt-1 flex items-baseline gap-1">
-        <span className="text-2xl font-semibold tabular-nums text-ink">{value}</span>
-        <span className="text-xs text-ink-muted">{unit}</span>
-      </div>
-    </div>
-  );
-}
 
 /**
  * Diagnostics — the live *readout* of whatever session is active: a telemetry
@@ -90,7 +33,7 @@ export default function Diagnostics() {
 
   const [mode, setMode] = useState<EngineMode>("simulated");
 
-  const sm = STATE_STYLES[state];
+  const sm = ENGINE_STATE_STYLES[state];
   const fmt = (n: number | undefined, d = 1) => (n == null ? "—" : n.toFixed(d));
   // Counters are whole packets — never show "12.0".
   const count = (n: number | undefined) => (n == null ? "—" : String(n));
@@ -114,7 +57,7 @@ export default function Diagnostics() {
     <section data-testid="page-diagnostics" className="flex h-full flex-col gap-5">
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-ink">{t("diagnostics.title")}</h1>
+          <h1 className="text-2xl font-semibold text-balance text-ink">{t("diagnostics.title")}</h1>
           <p className="text-sm text-ink-muted">
             {t("diagnostics.subtitle", { mode: t(MODE_LABEL_KEYS[mode]).toLowerCase() })}
           </p>
@@ -140,23 +83,13 @@ export default function Diagnostics() {
             </select>
           )}
           {running ? (
-            <button
-              type="button"
-              data-testid="engine-stop"
-              onClick={stop}
-              className="rounded-lg border border-brand-red/40 px-3 py-1.5 text-sm text-brand-red transition-colors hover:bg-brand-red/10"
-            >
+            <Button variant="danger" size="sm" data-testid="engine-stop" onClick={stop}>
               {t("diagnostics.stop")}
-            </button>
+            </Button>
           ) : (
-            <button
-              type="button"
-              data-testid="engine-start"
-              onClick={start}
-              className="rounded-lg border border-brand-violet/40 px-3 py-1.5 text-sm text-brand-violet transition-colors hover:bg-brand-violet/10"
-            >
+            <Button variant="secondary" size="sm" data-testid="engine-start" onClick={start}>
               {t("diagnostics.start")}
-            </button>
+            </Button>
           )}
         </div>
       </header>
@@ -169,14 +102,15 @@ export default function Diagnostics() {
           <p className="text-sm text-brand-amber">
             {notice?.message ?? t("diagnostics.elevationDefaultMessage")}
           </p>
-          <button
-            type="button"
+          <Button
+            variant="warning"
+            size="sm"
             data-testid="relaunch-admin"
             onClick={relaunch}
-            className="shrink-0 rounded-lg border border-brand-amber/50 px-3 py-1.5 text-sm text-brand-amber transition-colors hover:bg-brand-amber/15"
+            className="shrink-0"
           >
             {t("diagnostics.relaunchAsAdmin")}
-          </button>
+          </Button>
         </div>
       )}
 

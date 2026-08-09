@@ -15,9 +15,9 @@ export default function Breadcrumb() {
   const activeRoute = useAppStore((s) => s.activeRoute);
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-white/5 px-6 text-sm">
-      <span className="text-ink-muted">Player Club</span>
-      <ChevronRight size={14} className="text-ink-muted/60" />
+    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-white/5 px-6 text-sm">
+      <span className="text-ink-muted/70">Player Club</span>
+      <ChevronRight size={14} className="text-ink-muted/40" />
       <span data-testid="breadcrumb-current" className="font-medium text-ink">
         {t(LABEL_KEYS[activeRoute])}
       </span>
