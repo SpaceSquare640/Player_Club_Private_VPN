@@ -13,7 +13,9 @@
 
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
@@ -111,12 +113,18 @@ pub struct MeshOrchestrator {
 }
 
 impl MeshOrchestrator {
+    /// `roster` is supplied by the caller (rather than allocated here) so a
+    /// reconnect can hand in the *same* `Arc` a fresh orchestrator instance
+    /// replaces — `MeshSession::start`'s retry loop depends on this: the
+    /// `ActiveMesh`/`statuses()` plumbing holds one roster handle for the
+    /// lifetime of a network, surviving any number of reconnects underneath it.
     pub fn new(
         manager: Arc<ConnectionManager>,
         identity: Arc<Identity>,
         settings: ConnectionSettings,
         socket: UdpTransport,
         local_candidates: Vec<Candidate>,
+        roster: Arc<std::sync::Mutex<Vec<MemberInfo>>>,
     ) -> Self {
         Self {
             manager,
@@ -126,7 +134,7 @@ impl MeshOrchestrator {
             local_candidates,
             pending_offers: HashMap::new(),
             seen_members: std::collections::HashSet::new(),
-            roster: Arc::new(std::sync::Mutex::new(Vec::new())),
+            roster,
         }
     }
 
@@ -308,6 +316,12 @@ pub struct NetworkStatus {
     /// tag value, not a code change here.
     pub game_tag: Option<String>,
     pub members: Vec<MemberSnapshot>,
+    /// `true` while a previously-established connection is being retried
+    /// after an unexpected drop (see `MeshSession::start`'s retry loop) —
+    /// `false` both before the first connection succeeds (that failure is
+    /// returned directly from `create`/`join`, never surfaced as this) and
+    /// once reconnected.
+    pub reconnecting: bool,
 }
 
 struct ActiveMesh {
@@ -318,6 +332,7 @@ struct ActiveMesh {
     is_host: bool,
     host_addr: SocketAddr,
     game_tag: Option<String>,
+    reconnecting: Arc<std::sync::atomic::AtomicBool>,
 }
 
 /// Resolve an unspecified bind IP (`0.0.0.0`) to this machine's primary
@@ -351,6 +366,133 @@ fn advertisable_addr(addr: SocketAddr) -> SocketAddr {
 #[derive(Default)]
 pub struct MeshSession {
     active: Mutex<HashMap<NetworkId, ActiveMesh>>,
+}
+
+/// Backoff for `run_mesh_task`'s reconnect loop — the exact shape of the
+/// prior Python project's `Client_App.py` `control_loop` (`retry_delay`
+/// starting at 2s, doubling, capped at 30s), since matching that project's
+/// reconnect feel is the explicit point of this behavior.
+const INITIAL_RETRY_DELAY: Duration = Duration::from_secs(2);
+const MAX_RETRY_DELAY: Duration = Duration::from_secs(30);
+
+/// One connection attempt — direct or via relay depending on `relay_addr` —
+/// shared by the initial (synchronous, failure-propagating) connect in
+/// `MeshSession::start` and every retry `run_mesh_task` makes afterward.
+async fn connect_once(
+    host_addr: SocketAddr,
+    network_name: &str,
+    password: &str,
+    identity: &Identity,
+    relay_addr: Option<SocketAddr>,
+) -> Result<(SignalingClient, mpsc::UnboundedReceiver<MemberEvent>), String> {
+    let result = if relay_addr.is_some() {
+        SignalingClient::join_via_relay(
+            host_addr,
+            network_name.to_string(),
+            password,
+            identity.public_b64(),
+            identity.peer_address(),
+        )
+        .await
+    } else {
+        SignalingClient::join(
+            host_addr,
+            network_name.to_string(),
+            password,
+            identity.public_b64(),
+            identity.peer_address(),
+        )
+        .await
+    };
+    result.map_err(|e| e.to_string())
+}
+
+/// Drives one network's whole background lifecycle, across any number of
+/// reconnects: runs `MeshOrchestrator` on the already-connected `client`
+/// until it exits, and — unless that exit was `cancel` firing (an explicit
+/// `MeshSession::leave`) — clears stale membership and retries `connect_once`
+/// with capped exponential backoff (see `INITIAL_RETRY_DELAY`/`MAX_RETRY_DELAY`)
+/// until it reconnects or is cancelled while waiting. `roster` is the one
+/// `Arc` `ActiveMesh`/`statuses()` holds for this network's whole lifetime —
+/// every fresh `MeshOrchestrator` built here reuses it rather than starting
+/// a new one, so a reconnect is invisible to anything reading status.
+#[allow(clippy::too_many_arguments)]
+async fn run_mesh_task(
+    mut client: SignalingClient,
+    mut events: mpsc::UnboundedReceiver<MemberEvent>,
+    manager: Arc<ConnectionManager>,
+    identity: Arc<Identity>,
+    settings: ConnectionSettings,
+    socket: UdpTransport,
+    candidates: Vec<Candidate>,
+    roster: Arc<Mutex<Vec<MemberInfo>>>,
+    sink_factory: impl Fn() -> Box<dyn TelemetrySink> + Send + Sync + 'static,
+    mut cancel_rx: watch::Receiver<bool>,
+    server: Option<SignalingServer>,
+    host_addr: SocketAddr,
+    network_name: String,
+    password: String,
+    relay_addr: Option<SocketAddr>,
+    reconnecting: Arc<AtomicBool>,
+) {
+    loop {
+        let mut orch =
+            MeshOrchestrator::new(manager.clone(), identity.clone(), settings.clone(), socket.clone(), candidates.clone(), roster.clone());
+        orch.run(&client, events, &sink_factory, cancel_rx.clone()).await;
+        client.disconnect().await;
+
+        // Always tear down this session's peer links when its signaling
+        // session ends — explicit `leave()` or an unexpected drop alike.
+        // Without this, a peer's `PeerLink` can linger `Connected` in
+        // `ConnectionManager` past the point its signaling roster says
+        // they're gone, which blocks `connect_to` from ever establishing a
+        // fresh link to that same peer again (its guard rejects a second
+        // `connect_to` while an existing entry still reads Connecting/Connected).
+        let stale_peers: Vec<PeerKey> =
+            roster.lock().expect("mesh roster lock poisoned").drain(..).map(|m| m.pubkey).collect();
+        for peer in stale_peers {
+            manager.disconnect_peer(&peer);
+        }
+
+        if *cancel_rx.borrow() {
+            break;
+        }
+
+        // Unexpected disconnect, not a `leave()` — retry.
+        reconnecting.store(true, Ordering::Relaxed);
+
+        let mut delay = INITIAL_RETRY_DELAY;
+        let reconnected = 'retry: loop {
+            tokio::select! {
+                _ = cancel_rx.changed() => break 'retry None,
+                result = connect_once(host_addr, &network_name, &password, &identity, relay_addr) => {
+                    match result {
+                        Ok(pair) => break 'retry Some(pair),
+                        Err(_) => {
+                            tokio::select! {
+                                _ = cancel_rx.changed() => break 'retry None,
+                                _ = tokio::time::sleep(delay) => {}
+                            }
+                            delay = (delay * 2).min(MAX_RETRY_DELAY);
+                        }
+                    }
+                }
+            }
+        };
+
+        match reconnected {
+            Some((new_client, new_events)) => {
+                client = new_client;
+                events = new_events;
+                reconnecting.store(false, Ordering::Relaxed);
+            }
+            None => break,
+        }
+    }
+
+    if let Some(server) = server {
+        server.shutdown().await;
+    }
 }
 
 impl MeshSession {
@@ -483,50 +625,47 @@ impl MeshSession {
         relay_addr: Option<SocketAddr>,
     ) -> Result<NetworkId, String> {
         manager.ensure_socket(STUN_SERVER).await.map_err(|e| e.to_string())?;
-        // `host_addr` already *is* `relay_addr` whenever the latter is
-        // `Some` — both call sites above arrange that — so the only thing
-        // left to decide here is which transport speaks to it.
-        let join_result = if relay_addr.is_some() {
-            SignalingClient::join_via_relay(
-                host_addr,
-                network_name.clone(),
-                &password,
-                identity.public_b64(),
-                identity.peer_address(),
-            )
-            .await
-        } else {
-            SignalingClient::join(
-                host_addr,
-                network_name.clone(),
-                &password,
-                identity.public_b64(),
-                identity.peer_address(),
-            )
-            .await
-        };
-        let (client, events) = join_result.map_err(|e| e.to_string())?;
+        // The first attempt is synchronous and its failure is returned
+        // directly — a wrong password/network name, or an address that's
+        // simply unreachable, rejects the `create`/`join` call immediately,
+        // exactly as before this method grew a retry loop. Auto-reconnect
+        // (in `run_mesh_task`) only ever kicks in after a connection that
+        // *did* succeed later drops — at that point the credentials are
+        // already known good, so blindly retrying makes sense in a way it
+        // wouldn't here.
+        let (client, events) = connect_once(host_addr, &network_name, &password, &identity, relay_addr).await?;
 
         let socket = manager.socket().ok_or("no socket after ensure_socket")?;
         let candidates = manager.local_candidates();
-        let mut orch = MeshOrchestrator::new(manager, identity, settings, socket, candidates);
-        let roster = orch.roster_handle();
+        let roster: Arc<Mutex<Vec<MemberInfo>>> = Arc::new(Mutex::new(Vec::new()));
         let is_host = server.is_some();
+        let reconnecting = Arc::new(AtomicBool::new(false));
 
         let (cancel, cancel_rx) = watch::channel(false);
-        let task = tokio::spawn(async move {
-            orch.run(&client, events, sink_factory, cancel_rx).await;
-            client.disconnect().await;
-            if let Some(server) = server {
-                server.shutdown().await;
-            }
-        });
+        let task = tokio::spawn(run_mesh_task(
+            client,
+            events,
+            manager,
+            identity,
+            settings,
+            socket,
+            candidates,
+            roster.clone(),
+            sink_factory,
+            cancel_rx,
+            server,
+            host_addr,
+            network_name.clone(),
+            password,
+            relay_addr,
+            reconnecting.clone(),
+        ));
 
         let id = new_sid();
-        self.active
-            .lock()
-            .expect("mesh session lock poisoned")
-            .insert(id.clone(), ActiveMesh { cancel, task, roster, network_name, is_host, host_addr, game_tag });
+        self.active.lock().expect("mesh session lock poisoned").insert(
+            id.clone(),
+            ActiveMesh { cancel, task, roster, network_name, is_host, host_addr, game_tag, reconnecting },
+        );
         Ok(id)
     }
 
@@ -571,6 +710,7 @@ impl MeshSession {
                     host_addr: active.host_addr.to_string(),
                     game_tag: active.game_tag.clone(),
                     members,
+                    reconnecting: active.reconnecting.load(std::sync::atomic::Ordering::Relaxed),
                 }
             })
             .collect()
@@ -649,9 +789,9 @@ mod tests {
         let (socket_b, cand_b) = loopback_socket_and_candidate().await;
 
         let mut orch_a =
-            MeshOrchestrator::new(manager_a.clone(), id_a.clone(), ConnectionSettings::default(), socket_a, vec![cand_a]);
+            MeshOrchestrator::new(manager_a.clone(), id_a.clone(), ConnectionSettings::default(), socket_a, vec![cand_a], Arc::new(Mutex::new(Vec::new())));
         let mut orch_b =
-            MeshOrchestrator::new(manager_b.clone(), id_b.clone(), ConnectionSettings::default(), socket_b, vec![cand_b]);
+            MeshOrchestrator::new(manager_b.clone(), id_b.clone(), ConnectionSettings::default(), socket_b, vec![cand_b], Arc::new(Mutex::new(Vec::new())));
 
         let (cancel_a, cancel_rx_a) = watch::channel(false);
         let (cancel_b, cancel_rx_b) = watch::channel(false);
@@ -709,7 +849,7 @@ mod tests {
         // this is guaranteed to sort after any real identity's key — meaning
         // `should_initiate` is true and an offer actually gets sent, proving
         // the guard fires before the *send*, not just before some no-op.
-        let mut orch = MeshOrchestrator::new(manager, id, ConnectionSettings::default(), socket, vec![cand]);
+        let mut orch = MeshOrchestrator::new(manager, id, ConnectionSettings::default(), socket, vec![cand], Arc::new(Mutex::new(Vec::new())));
         let member = MemberInfo { pubkey: "z".repeat(44), fingerprint: "PC-0000-0000-0000-0000".to_string() };
 
         orch.on_member_present(&client, &member).await.unwrap();
@@ -735,7 +875,7 @@ mod tests {
 
         let manager = Arc::new(ConnectionManager::default());
         let (socket, cand) = loopback_socket_and_candidate().await;
-        let mut orch = MeshOrchestrator::new(manager, id, ConnectionSettings::default(), socket, vec![cand]);
+        let mut orch = MeshOrchestrator::new(manager, id, ConnectionSettings::default(), socket, vec![cand], Arc::new(Mutex::new(Vec::new())));
         let roster = orch.roster_handle();
         assert_eq!(roster.lock().unwrap().len(), 0);
 
@@ -988,6 +1128,157 @@ mod tests {
             let sb = session_b.statuses(&manager_b);
             let a_sees_b = sa.iter().any(|s| s.members.iter().any(|m| m.link == LinkState::Connected));
             let b_sees_a = sb.iter().any(|s| s.members.iter().any(|m| m.link == LinkState::Connected));
+            a_sees_b && b_sees_a
+        })
+        .await;
+    }
+
+    /// The behavior the whole retry loop exists for: a joiner whose host
+    /// disconnects it unexpectedly (here, by the host leaving — which shuts
+    /// down its `SignalingServer` and severs every member's connection,
+    /// exactly like a real network blip would from the joiner's point of
+    /// view) shows `reconnecting: true`, and `leave()` on the joiner's side
+    /// returns promptly rather than waiting out the backoff — proving
+    /// `cancel` actually interrupts the retry loop's sleep, not just the
+    /// connected state.
+    #[tokio::test]
+    async fn joiner_shows_reconnecting_after_the_host_disappears_and_leave_is_prompt() {
+        let session_a = MeshSession::default();
+        let session_b = MeshSession::default();
+        let manager_a = Arc::new(ConnectionManager::default());
+        let manager_b = Arc::new(ConnectionManager::default());
+        let identity_a = Arc::new(Identity::generate().unwrap());
+        let identity_b = Arc::new(Identity::generate().unwrap());
+
+        let (host_id, host_addr) = session_a
+            .create(
+                "127.0.0.1:0".parse().unwrap(),
+                "party".to_string(),
+                "secret".to_string(),
+                None,
+                ConnectionSettings::default(),
+                identity_a,
+                manager_a.clone(),
+                || Box::new(NullSink),
+                None,
+            )
+            .await
+            .unwrap();
+
+        let join_id = session_b
+            .join(
+                host_addr,
+                "party".to_string(),
+                "secret".to_string(),
+                None,
+                ConnectionSettings::default(),
+                identity_b,
+                manager_b.clone(),
+                || Box::new(NullSink),
+                None,
+            )
+            .await
+            .unwrap();
+
+        until(15, "joiner shows Connected before disconnecting the host", || {
+            session_b.statuses(&manager_b).iter().any(|s| s.members.iter().any(|m| m.link == LinkState::Connected))
+        })
+        .await;
+
+        session_a.leave(&host_id).await; // shuts down the host's server out from under session_b
+
+        until(5, "joiner shows reconnecting after the host disappears", || {
+            session_b.statuses(&manager_b).iter().any(|s| s.reconnecting)
+        })
+        .await;
+
+        // Bounded well under INITIAL_RETRY_DELAY's 2s-and-doubling backoff —
+        // if leave() actually waited out a sleep instead of racing `cancel`
+        // against it, this would time out.
+        tokio::time::timeout(Duration::from_millis(500), session_b.leave(&join_id))
+            .await
+            .expect("leave() should cancel the retry loop promptly, not wait out the backoff");
+        assert!(session_b.statuses(&manager_b).is_empty());
+    }
+
+    /// Proves the retry loop doesn't just detect a drop but actually
+    /// recovers from one: the joiner's host disappears, then a new host
+    /// comes back up on the exact same address shortly after — the joiner
+    /// should reconnect on its own, ending with both sides `Connected`
+    /// again, with no `leave`/re-`join` on the joiner's side at all.
+    #[tokio::test]
+    async fn joiner_reconnects_once_the_host_comes_back_on_the_same_address() {
+        let session_a = MeshSession::default();
+        let session_b = MeshSession::default();
+        let manager_a = Arc::new(ConnectionManager::default());
+        let manager_b = Arc::new(ConnectionManager::default());
+        let identity_a = Arc::new(Identity::generate().unwrap());
+        let identity_b = Arc::new(Identity::generate().unwrap());
+
+        let (host_id, host_addr) = session_a
+            .create(
+                "127.0.0.1:0".parse().unwrap(),
+                "party".to_string(),
+                "secret".to_string(),
+                None,
+                ConnectionSettings::default(),
+                identity_a.clone(),
+                manager_a.clone(),
+                || Box::new(NullSink),
+                None,
+            )
+            .await
+            .unwrap();
+
+        session_b
+            .join(
+                host_addr,
+                "party".to_string(),
+                "secret".to_string(),
+                None,
+                ConnectionSettings::default(),
+                identity_b,
+                manager_b.clone(),
+                || Box::new(NullSink),
+                None,
+            )
+            .await
+            .unwrap();
+
+        until(15, "joiner shows Connected before disconnecting the host", || {
+            session_b.statuses(&manager_b).iter().any(|s| s.members.iter().any(|m| m.link == LinkState::Connected))
+        })
+        .await;
+
+        session_a.leave(&host_id).await;
+
+        until(5, "joiner shows reconnecting after the host disappears", || {
+            session_b.statuses(&manager_b).iter().any(|s| s.reconnecting)
+        })
+        .await;
+
+        // Bring the host back on the exact same port the joiner is retrying
+        // against — the retry loop must find it without any help from us.
+        session_a
+            .create(
+                host_addr,
+                "party".to_string(),
+                "secret".to_string(),
+                None,
+                ConnectionSettings::default(),
+                identity_a,
+                manager_a.clone(),
+                || Box::new(NullSink),
+                None,
+            )
+            .await
+            .unwrap();
+
+        until(15, "joiner reconnects and both sides show Connected again", || {
+            let sa = session_a.statuses(&manager_a);
+            let sb = session_b.statuses(&manager_b);
+            let a_sees_b = sa.iter().any(|s| s.members.iter().any(|m| m.link == LinkState::Connected));
+            let b_sees_a = sb.iter().any(|s| !s.reconnecting && s.members.iter().any(|m| m.link == LinkState::Connected));
             a_sees_b && b_sees_a
         })
         .await;

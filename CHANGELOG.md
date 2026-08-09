@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.51.0] - 2026-08-10
+
+### Added
+**Simplified Virtual Networks: auto-reconnect, optional names, one-invite create/join.** The user asked for the whole feature to feel as simple as their earlier `Admin_App.py`/`Client_App.py` project, whose `control_loop` reconnected automatically on drop and needed nothing beyond a player name, host IP, and shared secret. This app is deliberately symmetric (anyone can host or join, multiple networks at once since `[0.45.0]`) and that isn't changing — this closes the friction gap without giving that up.
+
+- **Auto-reconnect.** A network whose signaling connection drops unexpectedly now retries automatically with capped exponential backoff (2s → doubling → capped at 30s — the exact shape of the old project's `retry_delay`), instead of silently ending and requiring a manual Leave + re-Create/Join. Only an explicit Leave stops it; an unreachable host is retried indefinitely, same as before. The active-network card shows a "Reconnecting…" badge while this is happening. Fixed a related bug this surfaced: a peer's connection could linger `Connected` in `ConnectionManager` past the point its signaling roster said they were gone, blocking a fresh connection to that same peer from ever being established again.
+- **The host doesn't have to think of a network name.** Leaving the Create form's name field blank now generates a short default (`swift-fox-42`-style) instead of blocking the button — the generated name is what's actually created and shown, nothing changes server-side.
+- **One invite instead of three separate fields.** The active-network card gains a **Copy Invite** button bundling network name, password, and address into one clipboard string; the Join form gains a matching **Paste Invite** button that fills all three fields from it in one action — the closest honest equivalent to the old project's "give a friend the IP and go," without changing what the join protocol actually requires.
+
+Full suite: 199/199 frontend (up from 192), 165/165 Rust (up from 163 — two new tests proving the retry loop both detects an unexpected drop and actually recovers from one).
+
+---
+
 ## [0.50.0] - 2026-08-09
 
 ### Changed

@@ -59,7 +59,13 @@
     "savedForget": "Forget",
     "savedRunning": "Running",
     "savedAlreadyRunning": "Already running — leave it first to restart it.",
-    "virtualConnecting": "Connecting…"
+    "virtualConnecting": "Connecting…",
+    "virtualReconnecting": "Reconnecting…",
+    "virtualNamePlaceholderOptional": "Network name (optional — a name is generated if left blank)",
+    "virtualNameOptionalTitle": "Leave blank to get a generated name automatically — there's nothing to remember in advance for hosting.",
+    "virtualCopyInvite": "Copy Invite",
+    "virtualPasteInvite": "Paste Invite",
+    "pasteInviteInvalid": "Clipboard doesn't contain a valid invite"
   },
   "nodeIdentity": {
     "label": "This node · fingerprint",

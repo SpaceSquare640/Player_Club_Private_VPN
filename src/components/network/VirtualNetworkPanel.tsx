@@ -6,6 +6,7 @@ import { useVirtualNetwork } from "../../hooks/useVirtualNetwork";
 import { useAppStore } from "../../stores/appStore";
 import { cn } from "../../lib/cn";
 import { wikiPage } from "../../lib/externalDocs";
+import { encodeInvite } from "../../lib/networkInvite";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
 import Badge from "../ui/Badge";
@@ -83,70 +84,103 @@ export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsBy
     onLeave,
     onQuickStart,
     onForgetSaved,
+    onPasteInvite,
   } = useVirtualNetwork(gameTag, settings);
 
   const activeNetworksList = networks.length > 0 && (
     <div className="flex flex-col gap-3">
-      {networks.map((status) => (
-        <Card
-          key={status.id}
-          variant="raised"
-          className="p-4 text-xs"
-          data-testid="virtual-network-active"
-          data-network-id={status.id}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <span data-testid="vn-network-name" className="font-medium text-ink">
-                {status.networkName}
+      {networks.map((status) => {
+        // The invite needs the password, which `NetworkStatus` never carries
+        // (the backend doesn't echo it back) — `savedNetworksStore` already
+        // has it from the create/join that produced this network, so that's
+        // the source of truth here rather than tracking it separately.
+        const savedForInvite = savedNetworks.find(
+          (s) => s.networkName === status.networkName && s.mode === (status.isHost ? "create" : "join"),
+        );
+        return (
+          <Card
+            key={status.id}
+            variant="raised"
+            className="p-4 text-xs"
+            data-testid="virtual-network-active"
+            data-network-id={status.id}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <span data-testid="vn-network-name" className="font-medium text-ink">
+                  {status.networkName}
+                </span>
+                {status.isHost && (
+                  <Badge tone="violet" className="ml-2">
+                    {t("network.virtualHostBadge")}
+                  </Badge>
+                )}
+                {status.gameTag && (
+                  <Badge tone="cyan" className="ml-2" data-testid="vn-game-tag">
+                    {status.gameTag in GAME_TAG_LABEL_KEYS ? t(GAME_TAG_LABEL_KEYS[status.gameTag]) : status.gameTag}
+                  </Badge>
+                )}
+                {status.reconnecting && (
+                  <Badge tone="amber" className="ml-2" data-testid="vn-reconnecting">
+                    {t("network.virtualReconnecting")}
+                  </Badge>
+                )}
+              </div>
+              <Button
+                variant="danger"
+                size="sm"
+                data-testid="vn-leave-btn"
+                onClick={() => void onLeave(status.id)}
+                disabled={busy}
+              >
+                {t("network.virtualLeave")}
+              </Button>
+            </div>
+
+            <div className="mt-3 flex items-center gap-2 text-ink-muted">
+              <span>{t("network.virtualHostAddr")}:</span>
+              <span data-testid="vn-host-addr" className="font-mono text-ink">
+                {status.hostAddr}
               </span>
-              {status.isHost && (
-                <Badge tone="violet" className="ml-2">
-                  {t("network.virtualHostBadge")}
-                </Badge>
-              )}
-              {status.gameTag && (
-                <Badge tone="cyan" className="ml-2" data-testid="vn-game-tag">
-                  {status.gameTag in GAME_TAG_LABEL_KEYS ? t(GAME_TAG_LABEL_KEYS[status.gameTag]) : status.gameTag}
-                </Badge>
+              <Button variant="ghost" size="sm" onClick={() => void navigator.clipboard?.writeText(status.hostAddr)}>
+                {t("network.virtualCopyAddr")}
+              </Button>
+              {savedForInvite && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  data-testid="vn-copy-invite"
+                  onClick={() =>
+                    void navigator.clipboard?.writeText(
+                      encodeInvite({
+                        networkName: status.networkName,
+                        password: savedForInvite.password,
+                        hostAddr: status.hostAddr,
+                      }),
+                    )
+                  }
+                >
+                  {t("network.virtualCopyInvite")}
+                </Button>
               )}
             </div>
-            <Button
-              variant="danger"
-              size="sm"
-              data-testid="vn-leave-btn"
-              onClick={() => void onLeave(status.id)}
-              disabled={busy}
-            >
-              {t("network.virtualLeave")}
-            </Button>
-          </div>
 
-          <div className="mt-3 flex items-center gap-2 text-ink-muted">
-            <span>{t("network.virtualHostAddr")}:</span>
-            <span data-testid="vn-host-addr" className="font-mono text-ink">
-              {status.hostAddr}
-            </span>
-            <Button variant="ghost" size="sm" onClick={() => void navigator.clipboard?.writeText(status.hostAddr)}>
-              {t("network.virtualCopyAddr")}
-            </Button>
-          </div>
-
-          <ul data-testid="vn-member-list" className="mt-3 space-y-1.5">
-            {status.members.length === 0 ? (
-              <li className="text-ink-muted">{t("network.virtualNoMembers")}</li>
-            ) : (
-              status.members.map((m) => (
-                <li key={m.pubkey} data-testid="vn-member" className="flex items-center gap-2">
-                  <span className={cn("size-2 rounded-full", LINK_DOT[m.link])} />
-                  <span className="font-mono text-ink">{m.fingerprint}</span>
-                  <span className="text-ink-muted">{m.link}</span>
-                </li>
-              ))
-            )}
-          </ul>
-        </Card>
-      ))}
+            <ul data-testid="vn-member-list" className="mt-3 space-y-1.5">
+              {status.members.length === 0 ? (
+                <li className="text-ink-muted">{t("network.virtualNoMembers")}</li>
+              ) : (
+                status.members.map((m) => (
+                  <li key={m.pubkey} data-testid="vn-member" className="flex items-center gap-2">
+                    <span className={cn("size-2 rounded-full", LINK_DOT[m.link])} />
+                    <span className="font-mono text-ink">{m.fingerprint}</span>
+                    <span className="text-ink-muted">{m.link}</span>
+                  </li>
+                ))
+              )}
+            </ul>
+          </Card>
+        );
+      })}
     </div>
   );
 
@@ -241,7 +275,8 @@ export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsBy
             data-testid="vn-create-name"
             value={createName}
             onChange={(e) => setCreateName(e.target.value)}
-            placeholder={t("network.virtualNamePlaceholder")}
+            placeholder={t("network.virtualNamePlaceholderOptional")}
+            title={t("network.virtualNameOptionalTitle")}
             className="rounded-lg bg-black/40 p-2 text-ink placeholder:text-ink-muted"
           />
           <input
@@ -264,7 +299,7 @@ export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsBy
             size="sm"
             data-testid="vn-create-btn"
             onClick={() => void onCreate()}
-            disabled={busy || !createName || !createPassword}
+            disabled={busy || !createPassword}
           >
             {busy ? t("network.virtualConnecting") : t("network.virtualCreateButton")}
           </Button>
@@ -287,6 +322,9 @@ export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsBy
           </button>
         </div>
         <div className="mt-3 flex flex-col gap-2">
+          <Button variant="ghost" size="sm" data-testid="vn-paste-invite" onClick={() => void onPasteInvite()} className="self-start -ml-3">
+            {t("network.virtualPasteInvite")}
+          </Button>
           <input
             data-testid="vn-join-host-addr"
             value={joinHostAddr}

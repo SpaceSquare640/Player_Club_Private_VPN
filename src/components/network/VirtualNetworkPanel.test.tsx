@@ -6,6 +6,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 
 import VirtualNetworkPanel from "./VirtualNetworkPanel";
 import { useSavedNetworksStore } from "../../stores/savedNetworksStore";
+import { encodeInvite } from "../../lib/networkInvite";
 import { DEFAULT_CONNECTION_SETTINGS, type NetworkStatus } from "../../types/telemetry";
 
 function wireInvoke(networks: NetworkStatus[] = []) {
@@ -30,6 +31,10 @@ beforeEach(() => {
   wireInvoke([]);
   localStorage.clear();
   useSavedNetworksStore.setState({ networks: [] });
+  Object.defineProperty(navigator, "clipboard", {
+    value: { writeText: vi.fn(), readText: vi.fn() },
+    configurable: true,
+  });
 });
 
 describe("VirtualNetworkPanel — not in any network", () => {
@@ -40,15 +45,28 @@ describe("VirtualNetworkPanel — not in any network", () => {
     expect(screen.getByTestId("vn-join-btn")).toBeInTheDocument();
   });
 
-  it("disables Create until a name and password are entered", async () => {
+  it("disables Create until a password is entered — the name is optional", async () => {
     render(<VirtualNetworkPanel />);
     expect(screen.getByTestId("vn-create-btn")).toBeDisabled();
 
-    fireEvent.change(screen.getByTestId("vn-create-name"), { target: { value: "party" } });
-    expect(screen.getByTestId("vn-create-btn")).toBeDisabled();
-
+    // Leaving the name blank never blocks Create — a generated one fills in
+    // for it (see the "blank name" test below).
     fireEvent.change(screen.getByTestId("vn-create-password"), { target: { value: "secret" } });
     expect(screen.getByTestId("vn-create-btn")).not.toBeDisabled();
+  });
+
+  it("generates a default network name when the field is left blank", async () => {
+    render(<VirtualNetworkPanel />);
+    fireEvent.change(screen.getByTestId("vn-create-password"), { target: { value: "secret" } });
+
+    fireEvent.click(screen.getByTestId("vn-create-btn"));
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith(
+        "create_network",
+        expect.objectContaining({ networkName: expect.stringMatching(/^[a-z]+-[a-z]+-\d{2}$/) }),
+      ),
+    );
   });
 
   it("creates a network with the entered name, password, and bind address", async () => {
@@ -157,7 +175,7 @@ describe("VirtualNetworkPanel — collapseFormsByDefault", () => {
 
   it("shows the active-network card (not the hint) once in a network", async () => {
     wireInvoke([
-      { id: "net-1", networkName: "party", isHost: true, hostAddr: "127.0.0.1:54321", gameTag: null, members: [] },
+      { id: "net-1", networkName: "party", isHost: true, hostAddr: "127.0.0.1:54321", gameTag: null, members: [], reconnecting: false },
     ]);
     render(<VirtualNetworkPanel collapseFormsByDefault />);
 
@@ -184,6 +202,7 @@ describe("VirtualNetworkPanel — game tag badge", () => {
         hostAddr: "127.0.0.1:54321",
         gameTag: "minecraft",
         members: [],
+        reconnecting: false,
       },
     ]);
     render(<VirtualNetworkPanel />);
@@ -199,6 +218,7 @@ describe("VirtualNetworkPanel — game tag badge", () => {
         hostAddr: "127.0.0.1:54321",
         gameTag: "some-future-game",
         members: [],
+        reconnecting: false,
       },
     ]);
     render(<VirtualNetworkPanel />);
@@ -207,7 +227,7 @@ describe("VirtualNetworkPanel — game tag badge", () => {
 
   it("shows no badge when the network has no game tag", async () => {
     wireInvoke([
-      { id: "net-1", networkName: "party", isHost: true, hostAddr: "127.0.0.1:54321", gameTag: null, members: [] },
+      { id: "net-1", networkName: "party", isHost: true, hostAddr: "127.0.0.1:54321", gameTag: null, members: [], reconnecting: false },
     ]);
     render(<VirtualNetworkPanel />);
     await screen.findByTestId("vn-network-name");
@@ -226,6 +246,7 @@ describe("VirtualNetworkPanel — in a network", () => {
       { pubkey: "pkA", fingerprint: "PC-AAAA-AAAA-AAAA-AAAA", link: "connected" },
       { pubkey: "pkB", fingerprint: "PC-BBBB-BBBB-BBBB-BBBB", link: "connecting" },
     ],
+    reconnecting: false,
   };
 
   it("shows the network name, host badge, address, and member list", async () => {
@@ -269,8 +290,8 @@ describe("VirtualNetworkPanel — in a network", () => {
 describe("VirtualNetworkPanel — multiple simultaneous networks", () => {
   it("renders one card per active network, each with its own leave button", async () => {
     wireInvoke([
-      { id: "net-1", networkName: "party-a", isHost: true, hostAddr: "127.0.0.1:1111", gameTag: null, members: [] },
-      { id: "net-2", networkName: "party-b", isHost: false, hostAddr: "127.0.0.1:2222", gameTag: null, members: [] },
+      { id: "net-1", networkName: "party-a", isHost: true, hostAddr: "127.0.0.1:1111", gameTag: null, members: [], reconnecting: false },
+      { id: "net-2", networkName: "party-b", isHost: false, hostAddr: "127.0.0.1:2222", gameTag: null, members: [], reconnecting: false },
     ]);
     render(<VirtualNetworkPanel />);
 
@@ -283,8 +304,8 @@ describe("VirtualNetworkPanel — multiple simultaneous networks", () => {
 
   it("leaves only the targeted network", async () => {
     wireInvoke([
-      { id: "net-1", networkName: "party-a", isHost: true, hostAddr: "127.0.0.1:1111", gameTag: null, members: [] },
-      { id: "net-2", networkName: "party-b", isHost: false, hostAddr: "127.0.0.1:2222", gameTag: null, members: [] },
+      { id: "net-1", networkName: "party-a", isHost: true, hostAddr: "127.0.0.1:1111", gameTag: null, members: [], reconnecting: false },
+      { id: "net-2", networkName: "party-b", isHost: false, hostAddr: "127.0.0.1:2222", gameTag: null, members: [], reconnecting: false },
     ]);
     render(<VirtualNetworkPanel />);
 
@@ -358,7 +379,7 @@ describe("VirtualNetworkPanel — saved networks", () => {
       gameTag: null,
     });
     wireInvoke([
-      { id: "net-1", networkName: "party", isHost: true, hostAddr: "10.14.0.2:49881", gameTag: null, members: [] },
+      { id: "net-1", networkName: "party", isHost: true, hostAddr: "10.14.0.2:49881", gameTag: null, members: [], reconnecting: false },
     ]);
     render(<VirtualNetworkPanel />);
 
@@ -367,5 +388,80 @@ describe("VirtualNetworkPanel — saved networks", () => {
 
     fireEvent.click(startBtn);
     expect(invokeMock).not.toHaveBeenCalledWith("create_network", expect.anything());
+  });
+});
+
+describe("VirtualNetworkPanel — auto-reconnect status", () => {
+  it("shows a reconnecting badge when the status reports it", async () => {
+    wireInvoke([
+      { id: "net-1", networkName: "party", isHost: true, hostAddr: "127.0.0.1:54321", gameTag: null, members: [], reconnecting: true },
+    ]);
+    render(<VirtualNetworkPanel />);
+
+    expect(await screen.findByTestId("vn-reconnecting")).toBeInTheDocument();
+  });
+
+  it("shows no reconnecting badge once reconnected", async () => {
+    wireInvoke([
+      { id: "net-1", networkName: "party", isHost: true, hostAddr: "127.0.0.1:54321", gameTag: null, members: [], reconnecting: false },
+    ]);
+    render(<VirtualNetworkPanel />);
+
+    await screen.findByTestId("virtual-network-active");
+    expect(screen.queryByTestId("vn-reconnecting")).not.toBeInTheDocument();
+  });
+});
+
+describe("VirtualNetworkPanel — invite copy/paste", () => {
+  it("copies an invite that round-trips the network's name, password, and address", async () => {
+    useSavedNetworksStore.getState().remember({
+      mode: "create",
+      networkName: "party",
+      password: "secret",
+      bindAddr: "127.0.0.1:54321",
+      gameTag: null,
+    });
+    wireInvoke([
+      { id: "net-1", networkName: "party", isHost: true, hostAddr: "127.0.0.1:54321", gameTag: null, members: [], reconnecting: false },
+    ]);
+    render(<VirtualNetworkPanel />);
+
+    fireEvent.click(await screen.findByTestId("vn-copy-invite"));
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      encodeInvite({ networkName: "party", password: "secret", hostAddr: "127.0.0.1:54321" }),
+    );
+  });
+
+  it("does not show a Copy Invite button when the password isn't known (no matching saved entry)", async () => {
+    wireInvoke([
+      { id: "net-1", networkName: "party", isHost: true, hostAddr: "127.0.0.1:54321", gameTag: null, members: [], reconnecting: false },
+    ]);
+    render(<VirtualNetworkPanel />);
+
+    await screen.findByTestId("virtual-network-active");
+    expect(screen.queryByTestId("vn-copy-invite")).not.toBeInTheDocument();
+  });
+
+  it("fills all three join fields from a pasted invite", async () => {
+    const invite = encodeInvite({ networkName: "party", password: "secret", hostAddr: "192.168.1.5:7777" });
+    vi.mocked(navigator.clipboard.readText).mockResolvedValue(invite);
+    render(<VirtualNetworkPanel />);
+
+    fireEvent.click(screen.getByTestId("vn-paste-invite"));
+
+    await waitFor(() => expect(screen.getByTestId("vn-join-host-addr")).toHaveValue("192.168.1.5:7777"));
+    expect(screen.getByTestId("vn-join-name")).toHaveValue("party");
+    expect(screen.getByTestId("vn-join-password")).toHaveValue("secret");
+  });
+
+  it("shows an error and leaves the join fields untouched when the clipboard has no valid invite", async () => {
+    vi.mocked(navigator.clipboard.readText).mockResolvedValue("just some random text");
+    render(<VirtualNetworkPanel />);
+
+    fireEvent.click(screen.getByTestId("vn-paste-invite"));
+
+    expect(await screen.findByTestId("vn-error")).toHaveTextContent("Clipboard doesn't contain a valid invite");
+    expect(screen.getByTestId("vn-join-host-addr")).toHaveValue("");
   });
 });

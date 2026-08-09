@@ -59,7 +59,13 @@
     "savedForget": "移除",
     "savedRunning": "运行中",
     "savedAlreadyRunning": "已经在运行——请先离开网络才能重新启动。",
-    "virtualConnecting": "连接中…"
+    "virtualConnecting": "连接中…",
+    "virtualReconnecting": "重新连接中…",
+    "virtualNamePlaceholderOptional": "网络名称(选填——留空会自动生成名称)",
+    "virtualNameOptionalTitle": "留空会自动生成名称——架设网络不需要事先想好名称。",
+    "virtualCopyInvite": "复制邀请",
+    "virtualPasteInvite": "粘贴邀请",
+    "pasteInviteInvalid": "剪贴板内容不是有效的邀请"
   },
   "nodeIdentity": {
     "label": "本节点 · 指纹",

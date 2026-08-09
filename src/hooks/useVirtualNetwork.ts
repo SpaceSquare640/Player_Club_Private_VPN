@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { createNetwork, getNetworkStatuses, joinNetwork, leaveNetwork } from "../lib/engine";
 import { useAppStore } from "../stores/appStore";
 import { useSavedNetworksStore, type SavedNetwork } from "../stores/savedNetworksStore";
+import { generateNetworkName } from "../lib/networkName";
+import { decodeInvite } from "../lib/networkInvite";
 import { DEFAULT_CONNECTION_SETTINGS, type ConnectionSettings, type NetworkStatus } from "../types/telemetry";
 
 const STATUS_POLL_MS = 2000;
@@ -29,6 +32,8 @@ export interface VirtualNetworkController {
   /** Recreate/rejoin a remembered network with one click, filling nothing in first. */
   onQuickStart: (saved: SavedNetwork) => Promise<void>;
   onForgetSaved: (id: string) => void;
+  /** Reads the clipboard and, if it holds a valid invite (see `lib/networkInvite.ts`), fills all three join fields at once. */
+  onPasteInvite: () => Promise<void>;
 }
 
 /**
@@ -66,6 +71,7 @@ export function useVirtualNetwork(
   gameTag: string | null = null,
   settings: ConnectionSettings = DEFAULT_CONNECTION_SETTINGS,
 ): VirtualNetworkController {
+  const { t } = useTranslation();
   const [networks, setNetworks] = useState<NetworkStatus[]>([]);
   const [createName, setCreateName] = useState("");
   const [createPassword, setCreatePassword] = useState("");
@@ -131,8 +137,29 @@ export function useVirtualNetwork(
     }
   };
 
-  const onCreate = () => runCreate(createBindAddr, createName, createPassword);
+  // A blank name is filled with a generated default rather than blocked —
+  // the host doesn't have to think one up, mirroring the old project (where
+  // there was no "network name" concept to fill in at all). The *generated*
+  // name is what's actually created/shown/shared, not the empty field.
+  const onCreate = () => runCreate(createBindAddr, createName.trim() || generateNetworkName(), createPassword);
   const onJoin = () => runJoin(joinHostAddr, joinName, joinPassword);
+
+  const onPasteInvite = async () => {
+    setError(null);
+    try {
+      const text = await navigator.clipboard.readText();
+      const invite = decodeInvite(text);
+      if (!invite) {
+        setError(t("network.pasteInviteInvalid"));
+        return;
+      }
+      setJoinHostAddr(invite.hostAddr);
+      setJoinName(invite.networkName);
+      setJoinPassword(invite.password);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
 
   const onQuickStart = (saved: SavedNetwork) =>
     saved.mode === "create"
@@ -174,5 +201,6 @@ export function useVirtualNetwork(
     onLeave,
     onQuickStart,
     onForgetSaved: forget,
+    onPasteInvite,
   };
 }

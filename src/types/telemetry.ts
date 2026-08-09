@@ -95,6 +95,14 @@ export interface NetworkStatus {
   /** Free-form label set at creation/join time (e.g. `"minecraft"`) — display only. */
   gameTag: string | null;
   members: NetworkMember[];
+  /**
+   * `true` while a previously-established connection is being retried after
+   * an unexpected drop (auto-reconnect, mirroring the old project's
+   * `control_loop`) — `false` both before the first connection succeeds
+   * (that failure surfaces as `onCreate`/`onJoin` throwing, never this) and
+   * once reconnected.
+   */
+  reconnecting: boolean;
 }
 
 /** Status of a relay this app itself is hosting (`engine::relay`), or `null` if not hosting one. */
