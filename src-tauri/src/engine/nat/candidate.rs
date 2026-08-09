@@ -53,7 +53,15 @@ pub async fn gather(transport: &UdpTransport, stun_server: &str) -> Vec<Candidat
 
 /// Best-effort primary local IPv4 via the standard "connect a UDP socket to a
 /// public address and read back the chosen source IP" trick (sends no packets).
-fn primary_local_ipv4() -> Option<Ipv4Addr> {
+///
+/// `pub(crate)` rather than private: `mesh::MeshSession::create` reuses this
+/// to resolve the host address it displays/returns when the signaling
+/// server was bound to `0.0.0.0` (the UI's default) — `TcpListener::
+/// local_addr()` echoes back the unspecified address verbatim rather than
+/// resolving it to a real interface IP, which would otherwise show the user
+/// an address nobody (not even a second instance on the same machine) can
+/// actually connect to.
+pub(crate) fn primary_local_ipv4() -> Option<Ipv4Addr> {
     let sock = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).ok()?;
     sock.connect((Ipv4Addr::new(8, 8, 8, 8), 80)).ok()?;
     match sock.local_addr().ok()?.ip() {

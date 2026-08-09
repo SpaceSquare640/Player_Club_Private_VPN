@@ -12,7 +12,7 @@
 //! network membership at a time, created by `commands/mesh_cmds.rs`.
 
 use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
 
 use base64::engine::general_purpose::STANDARD;
@@ -314,6 +314,19 @@ struct ActiveMesh {
     game_tag: Option<String>,
 }
 
+/// Resolve an unspecified bind IP (`0.0.0.0`) to this machine's primary
+/// local IPv4 address, for display/sharing purposes — see the comment at
+/// `MeshSession::create`'s call site. Falls back to loopback if discovery
+/// fails, which at least keeps same-machine testing working. A concrete
+/// (already-specific) IP is returned unchanged.
+fn advertisable_addr(addr: SocketAddr) -> SocketAddr {
+    if !addr.ip().is_unspecified() {
+        return addr;
+    }
+    let ip = super::nat::candidate::primary_local_ipv4().unwrap_or(Ipv4Addr::LOCALHOST);
+    SocketAddr::new(IpAddr::V4(ip), addr.port())
+}
+
 /// One networked-signaling membership at a time (Phase G.4). Owns the
 /// lifecycle Tauri commands drive: `create`/`join` start a
 /// [`SignalingClient`] + [`MeshOrchestrator`] pair (and, for `create`, a
@@ -349,10 +362,20 @@ impl MeshSession {
         let server = SignalingServer::start(bind_addr, network_name.clone(), &password)
             .await
             .map_err(|e| e.to_string())?;
+        // `local_addr()` echoes back the literal bind IP — with the UI's
+        // default `0.0.0.0`, that's `TcpListener::local_addr`'s unspecified
+        // address, not a real interface address. Some OSes happen to treat a
+        // `connect()` to `0.0.0.0` as loopback (which is why the self-join
+        // below, using this same value, has worked despite the bug), but
+        // that's not behaviour to rely on, and it's certainly not an address
+        // a second machine on the LAN could use. Advertise the resolved
+        // address instead; the server itself keeps listening on every
+        // interface either way, since only the *display/return* value
+        // changes here, not `bind_addr`.
         let host_addr = server.local_addr();
         self.start(host_addr, network_name, password, game_tag, settings, identity, manager, sink_factory, Some(server))
             .await?;
-        Ok(host_addr)
+        Ok(advertisable_addr(host_addr))
     }
 
     /// Joins an existing network hosted at `host_addr`. Rejected if already
@@ -814,5 +837,22 @@ mod tests {
             a_sees_b && b_sees_a
         })
         .await;
+    }
+
+    /// The bug this guards against: hosting with the UI's default
+    /// `0.0.0.0:0` bind address must never surface `0.0.0.0` as "the
+    /// address to share" — that's not connectable by anyone, including a
+    /// second instance on the same machine.
+    #[test]
+    fn advertisable_addr_resolves_unspecified_ip() {
+        let resolved = advertisable_addr("0.0.0.0:51820".parse().unwrap());
+        assert_ne!(resolved.ip(), Ipv4Addr::UNSPECIFIED, "must not advertise 0.0.0.0");
+        assert_eq!(resolved.port(), 51820, "port must be preserved exactly");
+    }
+
+    #[test]
+    fn advertisable_addr_leaves_a_concrete_ip_unchanged() {
+        let addr: SocketAddr = "192.168.1.42:51820".parse().unwrap();
+        assert_eq!(advertisable_addr(addr), addr);
     }
 }
