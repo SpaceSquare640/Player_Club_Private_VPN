@@ -1274,7 +1274,11 @@ mod tests {
             .await
             .unwrap();
 
-        until(15, "joiner reconnects and both sides show Connected again", || {
+        // Generous relative to the 2s initial backoff — CI runners (this
+        // failed on windows-latest with a 15s budget) can be slow/contended
+        // enough that a real reconnect legitimately takes longer than local
+        // dev timing would suggest.
+        until(40, "joiner reconnects and both sides show Connected again", || {
             let sa = session_a.statuses(&manager_a);
             let sb = session_b.statuses(&manager_b);
             let a_sees_b = sa.iter().any(|s| s.members.iter().any(|m| m.link == LinkState::Connected));

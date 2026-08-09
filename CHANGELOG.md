@@ -16,6 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.51.1] - 2026-08-10
+
+### Fixed
+**CI caught a real flaky test in `[0.51.0]`'s auto-reconnect work before it ever reached a release.** `joiner_reconnects_once_the_host_comes_back_on_the_same_address` (proving a joiner recovers once its host comes back on the same address) timed out on the `windows-latest` CI runner, though it passed reliably in local dev. Root cause: recreating a `SignalingServer` on the exact same port moments after the previous one closed — exactly what that test does, and what auto-reconnect's host-side self-join can do for real — can fail to rebind immediately on Windows without `SO_REUSEADDR` explicitly set, which plain `TcpListener::bind` doesn't set. `v0.51.0`'s draft release was never published because of this.
+
+- `SignalingServer::start` now binds via `socket2` with `SO_REUSEADDR` set, same as `UdpTransport` already does — an immediate rebind of the same address now just works.
+- The affected test's timeout widened from 15s to 40s for CI headroom, on top of the actual fix.
+
+Full suite: 199/199 frontend (unchanged), 165/165 Rust (unchanged count — this is a robustness fix + a timeout adjustment, not a new test).
+
+---
+
 ## [0.51.0] - 2026-08-10
 
 ### Added

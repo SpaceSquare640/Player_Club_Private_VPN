@@ -18,6 +18,7 @@ use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use sha2::{Digest, Sha256};
+use socket2::{Domain, Socket, Type};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, watch};
 use tokio_tungstenite::tungstenite::Message as WsMessage;
@@ -53,6 +54,23 @@ fn hex_encode(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// Binds a TCP listener with `SO_REUSEADDR` set — plain `TcpListener::bind`
+/// doesn't set it, and on Windows a listening socket can fail to rebind a
+/// port immediately after a previous listener on it closed (lingering
+/// per-connection state, not the listener itself, but Windows is stricter
+/// about it than Linux/macOS). This matters concretely for this app:
+/// recreating a network — including auto-reconnect's host-side self-join
+/// after a drop — can land on the exact same address moments after leaving
+/// it, and that rebind needs to just work.
+fn bind_reuseaddr(addr: SocketAddr) -> std::io::Result<TcpListener> {
+    let socket = Socket::new(Domain::for_address(addr), Type::STREAM, None)?;
+    socket.set_reuse_address(true)?;
+    socket.bind(&addr.into())?;
+    socket.listen(1024)?;
+    socket.set_nonblocking(true)?;
+    TcpListener::from_std(socket.into())
+}
+
 struct MemberHandle {
     fingerprint: String,
     tx: mpsc::UnboundedSender<ServerMessage>,
@@ -83,7 +101,7 @@ impl SignalingServer {
         network_name: impl Into<String>,
         password: &str,
     ) -> Result<Self, SignalingError> {
-        let listener = TcpListener::bind(bind_addr).await.map_err(SignalingError::Bind)?;
+        let listener = bind_reuseaddr(bind_addr).map_err(SignalingError::Bind)?;
         let local_addr = listener.local_addr().map_err(SignalingError::Bind)?;
 
         let state = Arc::new(SharedState {
