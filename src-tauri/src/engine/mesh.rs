@@ -1308,7 +1308,12 @@ mod tests {
             }
         }
 
-        until(45, "joiner reconnects and both sides show Connected again", || {
+        // Budget must comfortably exceed the worst case of the production
+        // backoff schedule itself (2+4+8+16+30 = 60s by the 5th retry, before
+        // even counting P2P/ICE time on top of a successful reconnect) — a
+        // smaller budget here was the actual cause of `[0.51.3]`'s CI
+        // failure, not CI being slow.
+        until(90, "joiner reconnects and both sides show Connected again", || {
             let sa = session_a.statuses(&manager_a);
             let sb = session_b.statuses(&manager_b);
             let a_sees_b = sa.iter().any(|s| s.members.iter().any(|m| m.link == LinkState::Connected));

@@ -16,6 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.51.4] - 2026-08-10
+
+### Fixed
+**`[0.51.3]`'s widened budget (15s → 45s) still wasn't enough — the actual bug was arithmetic, not "CI is slow."** The production retry backoff (2s → 4s → 8s → 16s → 30s, doubling and capping) sums to 60 seconds of pure waiting by the 5th attempt alone, before any P2P/ICE time on top of a *successful* reconnect gets added — a 45s test budget couldn't cover the worst case of the schedule it was itself waiting on, independent of CI runner speed. `[0.51.3]`'s CI run confirmed this: the test ran the full budget and failed outright, not marginally.
+
+- Widened the same `until(...)` in `joiner_reconnects_once_the_host_comes_back_via_the_relay` from 45s to 90s — comfortably past the 60s worst-case backoff sum plus reconnection overhead. Production backoff behavior is unchanged.
+
+Full suite: 165/165 Rust (unchanged count). Frontend suite untouched by this change (no frontend files modified) — last confirmed 199/199 in `[0.51.3]`.
+
+---
+
 ## [0.51.3] - 2026-08-10
 
 ### Fixed
