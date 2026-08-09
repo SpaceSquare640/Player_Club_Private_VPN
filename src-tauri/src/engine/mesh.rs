@@ -364,18 +364,22 @@ impl MeshSession {
             .map_err(|e| e.to_string())?;
         // `local_addr()` echoes back the literal bind IP — with the UI's
         // default `0.0.0.0`, that's `TcpListener::local_addr`'s unspecified
-        // address, not a real interface address. Some OSes happen to treat a
-        // `connect()` to `0.0.0.0` as loopback (which is why the self-join
-        // below, using this same value, has worked despite the bug), but
-        // that's not behaviour to rely on, and it's certainly not an address
-        // a second machine on the LAN could use. Advertise the resolved
-        // address instead; the server itself keeps listening on every
-        // interface either way, since only the *display/return* value
-        // changes here, not `bind_addr`.
-        let host_addr = server.local_addr();
+        // address, not a real interface address. This used to be resolved
+        // only for the *returned/displayed* value while the self-join below
+        // still connected to the raw `0.0.0.0:port`, on the assumption that
+        // `connect()` to `0.0.0.0` gets silently treated as loopback. It
+        // does not on Windows: that connect fails outright with WSAEADDRNOTAVAIL
+        // ("os error 10049"), which is exactly the error a user hit hosting
+        // a Virtual Network with the default bind address — creating a
+        // network never worked at all on Windows, it just hadn't been
+        // exercised for real before. Resolve once, use everywhere: the
+        // server itself still listens on every interface (`bind_addr` is
+        // untouched), only what we connect-to-ourselves-with and advertise
+        // changes.
+        let host_addr = advertisable_addr(server.local_addr());
         self.start(host_addr, network_name, password, game_tag, settings, identity, manager, sink_factory, Some(server))
             .await?;
-        Ok(advertisable_addr(host_addr))
+        Ok(host_addr)
     }
 
     /// Joins an existing network hosted at `host_addr`. Rejected if already
@@ -692,6 +696,38 @@ mod tests {
 
         session.leave().await;
         assert!(session.status(&manager).is_none());
+    }
+
+    /// Regression test for a real user-hit bug: `create()` with the UI's
+    /// actual default bind address (`0.0.0.0:0`, not `127.0.0.1:0` like the
+    /// test above) failed outright on Windows with "os error 10049"
+    /// (WSAEADDRNOTAVAIL) — the self-join step connected to the literal
+    /// unspecified address instead of a resolved concrete one. Every other
+    /// test in this file uses `127.0.0.1` and would never have caught this.
+    #[tokio::test]
+    async fn mesh_session_create_succeeds_with_the_uis_actual_default_bind_address() {
+        let session = MeshSession::default();
+        let manager = Arc::new(ConnectionManager::default());
+        let identity = Arc::new(Identity::generate().unwrap());
+
+        let host_addr = session
+            .create(
+                "0.0.0.0:0".parse().unwrap(),
+                "party".to_string(),
+                "secret".to_string(),
+                None,
+                ConnectionSettings::default(),
+                identity,
+                manager.clone(),
+                || Box::new(NullSink),
+            )
+            .await
+            .unwrap();
+
+        assert_ne!(host_addr.ip(), Ipv4Addr::UNSPECIFIED, "must not advertise/self-join 0.0.0.0");
+        assert!(session.status(&manager).is_some(), "self-join must have actually succeeded");
+
+        session.leave().await;
     }
 
     #[tokio::test]

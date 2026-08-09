@@ -16,6 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.43.1] - 2026-08-09
+
+### Fixed
+**Critical: creating a Virtual Network failed outright on Windows with the UI's own default settings.** A user hit `failed to connect to signaling host: IO error: ... (os error 10049)` — WSAEADDRNOTAVAIL — trying to create a network with the Create form's default bind address (`0.0.0.0:0`). `[0.43.0]` had already fixed `MeshSession::create` to resolve an unspecified bind IP to a real interface address for the *displayed* host address, but left the host's own self-join step connecting to the raw, unspecified `0.0.0.0:port` — on the assumption, stated explicitly in that fix's own comment, that `connect()` to `0.0.0.0` gets silently treated as loopback. It does not on Windows, where that connect fails immediately. Every existing test used `127.0.0.1:0` as its bind address rather than the UI's actual `0.0.0.0:0` default, so this was never exercised in CI.
+
+Fixed by resolving the bind address once and using the resolved value for both the self-join connect and the advertised/returned address, rather than resolving only the latter. Added a regression test using the UI's actual default (`0.0.0.0:0`) rather than `127.0.0.1:0`, specifically so this class of bug can't hide behind an easier test address again. Full suite: 142/142 (up from 141).
+
+---
+
 ## [0.43.0] - 2026-08-09
 
 ### Changed
