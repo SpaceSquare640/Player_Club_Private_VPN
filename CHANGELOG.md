@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.46.0] - 2026-08-09
+
+### Added
+**Saved Networks — remembers what you've hosted/joined, across restarts.** A follow-up report right after multi-network support (`[0.45.0]`) landed: after closing and reopening the app, a virtual network created earlier was gone. That's expected — `MeshSession` is purely in-memory on the Rust side and holds nothing across a relaunch — but it wasn't what the user wanted: they want to recreate/rejoin a previously used network without retyping its name, password, and address every time.
+
+- New `savedNetworksStore` (`src/stores/savedNetworksStore.ts`), a `zustand` store persisted to `localStorage` (same pattern as `appStore`'s theme/language/settings persistence). Every successful `create`/`join` in `useVirtualNetwork` is remembered here — a repeat create/join with the same mode + name + address updates the existing entry (refreshed password, new `savedAt`) instead of duplicating it.
+- The Virtual Network panel now shows a "Saved Networks" section (hidden entirely when empty) listing every remembered network with its mode (Host/Join) and address, a one-click **Start** button that recreates/rejoins it without touching the create/join forms, and a **Forget** button to remove it.
+- This does **not** auto-reconnect on launch — the host may be offline, the password may have changed, or the user simply may not want every remembered network active at once. It only saves a round trip through the forms; joining/creating is still one click away, not automatic.
+
+Full suite: 172/172 frontend (up from 165), 142/142 Rust (unchanged — this is a frontend-only feature, no Tauri command surface changed).
+
+---
+
 ## [0.45.0] - 2026-08-09
 
 ### Added

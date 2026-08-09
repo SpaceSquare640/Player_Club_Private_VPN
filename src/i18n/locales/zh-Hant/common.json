@@ -50,7 +50,12 @@
     "virtualCollapsedHint": "尚未加入任何虛擬網路。請前往對應的遊戲頁面(例如 Minecraft)建立或加入該遊戲的網路。",
     "virtualExpandGeneralForms": "或建立一般用途網路",
     "createGuideLink": "如何建立",
-    "joinGuideLink": "如何加入"
+    "joinGuideLink": "如何加入",
+    "savedHeading": "已儲存的網路",
+    "savedModeHost": "主機",
+    "savedModeJoin": "加入",
+    "savedStart": "啟動",
+    "savedForget": "移除"
   },
   "nodeIdentity": {
     "label": "本節點 · 指紋",

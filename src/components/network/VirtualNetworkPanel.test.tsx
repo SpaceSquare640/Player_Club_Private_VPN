@@ -5,6 +5,7 @@ const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 
 import VirtualNetworkPanel from "./VirtualNetworkPanel";
+import { useSavedNetworksStore } from "../../stores/savedNetworksStore";
 import { DEFAULT_CONNECTION_SETTINGS, type NetworkStatus } from "../../types/telemetry";
 
 function wireInvoke(networks: NetworkStatus[] = []) {
@@ -27,6 +28,8 @@ function wireInvoke(networks: NetworkStatus[] = []) {
 beforeEach(() => {
   invokeMock.mockReset();
   wireInvoke([]);
+  localStorage.clear();
+  useSavedNetworksStore.setState({ networks: [] });
 });
 
 describe("VirtualNetworkPanel — not in any network", () => {
@@ -287,5 +290,59 @@ describe("VirtualNetworkPanel — multiple simultaneous networks", () => {
     fireEvent.click(screen.getAllByTestId("vn-leave-btn")[0]);
 
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("leave_network", { networkId: "net-1" }));
+  });
+});
+
+describe("VirtualNetworkPanel — saved networks", () => {
+  it("remembers a network after creating it, and it survives a remount", async () => {
+    const { unmount } = render(<VirtualNetworkPanel />);
+    fireEvent.change(screen.getByTestId("vn-create-name"), { target: { value: "party" } });
+    fireEvent.change(screen.getByTestId("vn-create-password"), { target: { value: "secret" } });
+    fireEvent.click(screen.getByTestId("vn-create-btn"));
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("create_network", expect.anything()));
+    unmount();
+
+    render(<VirtualNetworkPanel />);
+    expect(await screen.findByTestId("vn-saved-list")).toBeInTheDocument();
+    expect(screen.getByText("party")).toBeInTheDocument();
+  });
+
+  it("quick-starts a saved network without needing the form filled in", async () => {
+    useSavedNetworksStore.getState().remember({
+      mode: "join",
+      networkName: "old-party",
+      password: "secret",
+      hostAddr: "192.168.1.5:7777",
+      gameTag: null,
+    });
+    render(<VirtualNetworkPanel />);
+
+    fireEvent.click(await screen.findByTestId("vn-saved-start-btn"));
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("join_network", {
+        hostAddr: "192.168.1.5:7777",
+        networkName: "old-party",
+        password: "secret",
+        gameTag: null,
+        settings: DEFAULT_CONNECTION_SETTINGS,
+      }),
+    );
+  });
+
+  it("forgets a saved network on click", async () => {
+    useSavedNetworksStore.getState().remember({
+      mode: "create",
+      networkName: "old-party",
+      password: "secret",
+      bindAddr: "0.0.0.0:0",
+      gameTag: null,
+    });
+    render(<VirtualNetworkPanel />);
+
+    fireEvent.click(await screen.findByTestId("vn-saved-forget-btn"));
+
+    expect(screen.queryByTestId("vn-saved-list")).not.toBeInTheDocument();
+    expect(useSavedNetworksStore.getState().networks).toHaveLength(0);
   });
 });

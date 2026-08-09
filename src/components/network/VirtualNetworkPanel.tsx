@@ -63,6 +63,7 @@ export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsBy
   const [formsExpanded, setFormsExpanded] = useState(!collapseFormsByDefault);
   const {
     networks,
+    savedNetworks,
     createName,
     createPassword,
     createBindAddr,
@@ -80,6 +81,8 @@ export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsBy
     onCreate,
     onJoin,
     onLeave,
+    onQuickStart,
+    onForgetSaved,
   } = useVirtualNetwork(gameTag, settings);
 
   const activeNetworksList = networks.length > 0 && (
@@ -147,26 +150,63 @@ export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsBy
     </div>
   );
 
+  const savedNetworksList = savedNetworks.length > 0 && (
+    <Card className="p-4 text-xs" data-testid="vn-saved-list">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">{t("network.savedHeading")}</h3>
+      <ul className="mt-3 space-y-1.5">
+        {savedNetworks.map((saved) => (
+          <li key={saved.id} data-testid="vn-saved-item" className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-ink">{saved.networkName}</span>
+              <Badge tone={saved.mode === "create" ? "violet" : "cyan"}>
+                {t(saved.mode === "create" ? "network.savedModeHost" : "network.savedModeJoin")}
+              </Badge>
+              <span className="font-mono text-ink-muted">{saved.mode === "create" ? saved.bindAddr : saved.hostAddr}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="secondary"
+                size="sm"
+                data-testid="vn-saved-start-btn"
+                onClick={() => void onQuickStart(saved)}
+                disabled={busy}
+              >
+                {t("network.savedStart")}
+              </Button>
+              <Button variant="ghost" size="sm" data-testid="vn-saved-forget-btn" onClick={() => onForgetSaved(saved.id)}>
+                {t("network.savedForget")}
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+
   if (networks.length === 0 && !formsExpanded) {
     return (
-      <Card className="p-4 text-xs text-ink-muted" data-testid="vn-collapsed-hint">
-        <p className="text-pretty">{t("network.virtualCollapsedHint")}</p>
-        <Button
-          variant="ghost"
-          size="sm"
-          data-testid="vn-expand-general-forms"
-          onClick={() => setFormsExpanded(true)}
-          className="mt-2 -ml-3"
-        >
-          {t("network.virtualExpandGeneralForms")}
-        </Button>
-      </Card>
+      <div className="flex flex-col gap-4">
+        {savedNetworksList}
+        <Card className="p-4 text-xs text-ink-muted" data-testid="vn-collapsed-hint">
+          <p className="text-pretty">{t("network.virtualCollapsedHint")}</p>
+          <Button
+            variant="ghost"
+            size="sm"
+            data-testid="vn-expand-general-forms"
+            onClick={() => setFormsExpanded(true)}
+            className="mt-2 -ml-3"
+          >
+            {t("network.virtualExpandGeneralForms")}
+          </Button>
+        </Card>
+      </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
       {activeNetworksList}
+      {savedNetworksList}
       <div className="flex flex-wrap items-start gap-4">
         <Card className="min-w-[240px] flex-1 p-4 text-xs">
         <div className="flex items-center justify-between gap-2">

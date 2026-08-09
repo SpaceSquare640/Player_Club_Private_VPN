@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { createNetwork, getNetworkStatuses, joinNetwork, leaveNetwork } from "../lib/engine";
+import { useSavedNetworksStore, type SavedNetwork } from "../stores/savedNetworksStore";
 import { DEFAULT_CONNECTION_SETTINGS, type ConnectionSettings, type NetworkStatus } from "../types/telemetry";
 
 const STATUS_POLL_MS = 2000;
 
 export interface VirtualNetworkController {
   networks: NetworkStatus[];
+  savedNetworks: SavedNetwork[];
   createName: string;
   createPassword: string;
   createBindAddr: string;
@@ -23,6 +25,9 @@ export interface VirtualNetworkController {
   onCreate: () => Promise<void>;
   onJoin: () => Promise<void>;
   onLeave: (networkId: string) => Promise<void>;
+  /** Recreate/rejoin a remembered network with one click, filling nothing in first. */
+  onQuickStart: (saved: SavedNetwork) => Promise<void>;
+  onForgetSaved: (id: string) => void;
 }
 
 /**
@@ -34,6 +39,13 @@ export interface VirtualNetworkController {
  * interval while mounted — the same accepted tradeoff as the Basic/Expert
  * Settings display filter: simple and correct, not the most efficient
  * possible.
+ *
+ * Every successful create/join is also remembered in `savedNetworksStore`
+ * (persisted to `localStorage`, so it survives an app restart) — the live
+ * `MeshSession` on the Rust side is purely in-memory and forgets everything
+ * when the app closes, so this is what lets a previously created/joined
+ * network be recreated/rejoined with one click (`onQuickStart`) instead of
+ * retyping its name/password/address.
  *
  * `gameTag` (display metadata, e.g. `"minecraft"`) and `settings` (applied
  * to every auto-connected peer) are fixed for the lifetime of this hook
@@ -57,6 +69,9 @@ export function useVirtualNetwork(
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const savedNetworks = useSavedNetworksStore((s) => s.networks);
+  const remember = useSavedNetworksStore((s) => s.remember);
+  const forget = useSavedNetworksStore((s) => s.forget);
 
   const refreshStatus = async () => {
     try {
@@ -75,11 +90,12 @@ export function useVirtualNetwork(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const onCreate = async () => {
+  const runCreate = async (bindAddr: string, networkName: string, password: string) => {
     setError(null);
     setBusy(true);
     try {
-      await createNetwork(createBindAddr, createName, createPassword, gameTag, settings);
+      await createNetwork(bindAddr, networkName, password, gameTag, settings);
+      remember({ mode: "create", networkName, password, bindAddr, gameTag });
       await refreshStatus();
     } catch (e) {
       setError(String(e));
@@ -88,11 +104,12 @@ export function useVirtualNetwork(
     }
   };
 
-  const onJoin = async () => {
+  const runJoin = async (hostAddr: string, networkName: string, password: string) => {
     setError(null);
     setBusy(true);
     try {
-      await joinNetwork(joinHostAddr, joinName, joinPassword, gameTag, settings);
+      await joinNetwork(hostAddr, networkName, password, gameTag, settings);
+      remember({ mode: "join", networkName, password, hostAddr, gameTag });
       await refreshStatus();
     } catch (e) {
       setError(String(e));
@@ -100,6 +117,14 @@ export function useVirtualNetwork(
       setBusy(false);
     }
   };
+
+  const onCreate = () => runCreate(createBindAddr, createName, createPassword);
+  const onJoin = () => runJoin(joinHostAddr, joinName, joinPassword);
+
+  const onQuickStart = (saved: SavedNetwork) =>
+    saved.mode === "create"
+      ? runCreate(saved.bindAddr ?? "0.0.0.0:0", saved.networkName, saved.password)
+      : runJoin(saved.hostAddr ?? "", saved.networkName, saved.password);
 
   const onLeave = async (networkId: string) => {
     setError(null);
@@ -116,6 +141,7 @@ export function useVirtualNetwork(
 
   return {
     networks,
+    savedNetworks,
     createName,
     createPassword,
     createBindAddr,
@@ -133,5 +159,7 @@ export function useVirtualNetwork(
     onCreate,
     onJoin,
     onLeave,
+    onQuickStart,
+    onForgetSaved: forget,
   };
 }

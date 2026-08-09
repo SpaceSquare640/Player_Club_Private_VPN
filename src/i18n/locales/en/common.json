@@ -50,7 +50,12 @@
     "virtualCollapsedHint": "Not in a network yet. Create or join a game's network from that game's page (e.g. Minecraft).",
     "virtualExpandGeneralForms": "Or create a general-purpose network",
     "createGuideLink": "How to create",
-    "joinGuideLink": "How to join"
+    "joinGuideLink": "How to join",
+    "savedHeading": "Saved Networks",
+    "savedModeHost": "Host",
+    "savedModeJoin": "Join",
+    "savedStart": "Start",
+    "savedForget": "Forget"
   },
   "nodeIdentity": {
     "label": "This node · fingerprint",

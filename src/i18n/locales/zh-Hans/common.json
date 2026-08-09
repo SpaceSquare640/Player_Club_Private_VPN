@@ -50,7 +50,12 @@
     "virtualCollapsedHint": "尚未加入任何虚拟网络。请前往对应的游戏页面(例如 Minecraft)创建或加入该游戏的网络。",
     "virtualExpandGeneralForms": "或创建一般用途网络",
     "createGuideLink": "如何创建",
-    "joinGuideLink": "如何加入"
+    "joinGuideLink": "如何加入",
+    "savedHeading": "已保存的网络",
+    "savedModeHost": "主机",
+    "savedModeJoin": "加入",
+    "savedStart": "启动",
+    "savedForget": "移除"
   },
   "nodeIdentity": {
     "label": "本节点 · 指纹",
