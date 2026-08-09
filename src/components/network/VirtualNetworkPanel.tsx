@@ -171,7 +171,7 @@ export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsBy
                 onClick={() => void onQuickStart(saved)}
                 disabled={busy}
               >
-                {t("network.savedStart")}
+                {busy ? t("network.virtualConnecting") : t("network.savedStart")}
               </Button>
               <Button variant="ghost" size="sm" data-testid="vn-saved-forget-btn" onClick={() => onForgetSaved(saved.id)}>
                 {t("network.savedForget")}
@@ -253,7 +253,7 @@ export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsBy
             onClick={() => void onCreate()}
             disabled={busy || !createName || !createPassword}
           >
-            {t("network.virtualCreateButton")}
+            {busy ? t("network.virtualConnecting") : t("network.virtualCreateButton")}
           </Button>
         </div>
       </Card>
@@ -303,7 +303,7 @@ export default function VirtualNetworkPanel({ gameTag, settings, collapseFormsBy
             onClick={() => void onJoin()}
             disabled={busy || !joinHostAddr || !joinName || !joinPassword}
           >
-            {t("network.virtualJoinButton")}
+            {busy ? t("network.virtualConnecting") : t("network.virtualJoinButton")}
           </Button>
         </div>
       </Card>

@@ -16,6 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.48.1] - 2026-08-09
+
+### Fixed
+**Joining a virtual network felt like the app had frozen.** A user reported the app becoming very unresponsive after clicking Join. Root cause: neither `SignalingClient::join` (direct dial) nor `join_via_relay` had any connect timeout of their own — a join against an unreachable address (the common case: a private LAN address dialed from outside that LAN) just waited out the OS's own TCP connect timeout, which defaults to roughly 21 seconds on Windows. During that entire wait, the Join/Create buttons only went gray (`disabled`) with no other feedback, which reads exactly like a hang rather than "still working."
+
+- Both connection attempts now fail fast after 8 seconds (`ConnectTimeout`) instead of waiting on the OS default — `SignalingServer::start_via_relay`'s own relay registration gets the same treatment for consistency.
+- The Create/Join/quick-start buttons on the Virtual Network panel now show "Connecting…" while busy instead of just going gray, so a few-second wait doesn't read as unresponsive even when it does legitimately take a moment (STUN, a slower relay, etc.).
+
+Full suite: 180/180 frontend (unchanged), 163/163 Rust (unchanged — the timeout path isn't covered by an automated test, since exercising it for real would mean an 8s+ test; verified by code review and the existing `RelayConnect`/`Connect` error-mapping tests this reuses the same shape as).
+
+---
+
 ## [0.48.0] - 2026-08-09
 
 ### Added

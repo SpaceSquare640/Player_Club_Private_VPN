@@ -14,6 +14,7 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use sha2::{Digest, Sha256};
@@ -35,6 +36,10 @@ pub enum SignalingError {
     #[error("relay sent an unexpected reply to REGISTER")]
     RelayMalformedReply,
 }
+
+/// Same reasoning as `signaling::client`'s `CONNECT_TIMEOUT`: fail fast on an
+/// unreachable relay instead of waiting out the OS's own TCP connect timeout.
+const RELAY_CONNECT_TIMEOUT: Duration = Duration::from_secs(8);
 
 /// Hex SHA-256 digest of a network password. The server only ever sees and
 /// stores this — never the plaintext password — matching the boundary
@@ -111,7 +116,10 @@ impl SignalingServer {
         password: &str,
     ) -> Result<Self, SignalingError> {
         let network_name = network_name.into();
-        let mut control = TcpStream::connect(relay_addr).await.map_err(SignalingError::RelayConnect)?;
+        let mut control = tokio::time::timeout(RELAY_CONNECT_TIMEOUT, TcpStream::connect(relay_addr))
+            .await
+            .map_err(|_| SignalingError::RelayConnect(std::io::Error::new(std::io::ErrorKind::TimedOut, "connect timed out")))?
+            .map_err(SignalingError::RelayConnect)?;
         write_client_frame(&mut control, &RelayClientFrame::Register { network_name: network_name.clone() })
             .await
             .map_err(SignalingError::RelayConnect)?;

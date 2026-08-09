@@ -56,7 +56,8 @@
     "savedModeHost": "主机",
     "savedModeJoin": "加入",
     "savedStart": "启动",
-    "savedForget": "移除"
+    "savedForget": "移除",
+    "virtualConnecting": "连接中…"
   },
   "nodeIdentity": {
     "label": "本节点 · 指纹",

@@ -56,7 +56,8 @@
     "savedModeHost": "Host",
     "savedModeJoin": "Join",
     "savedStart": "Start",
-    "savedForget": "Forget"
+    "savedForget": "Forget",
+    "virtualConnecting": "Connecting…"
   },
   "nodeIdentity": {
     "label": "This node · fingerprint",

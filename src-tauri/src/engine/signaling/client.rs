@@ -15,6 +15,7 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpStream;
@@ -54,7 +55,21 @@ pub enum SignalingClientError {
     RelayRejected(String),
     #[error("relay sent an unexpected reply to CONNECT")]
     RelayMalformedReply,
+    #[error("connection attempt timed out after {CONNECT_TIMEOUT_SECS}s")]
+    ConnectTimeout,
 }
+
+/// Bounds every connection attempt this client makes (direct dial, relay
+/// dial) so a host that's unreachable — the common case being a private
+/// LAN address dialed from outside that LAN — fails fast instead of waiting
+/// out the OS's own TCP connect timeout, which on Windows defaults to
+/// roughly 21 seconds. A user hit exactly this: clicking Join felt like the
+/// whole app had frozen, because nothing failed (or even showed feedback)
+/// for that long. 8s is generous for any connection that's actually going
+/// to succeed (LAN or a reachable relay) while cutting the dead-end wait by
+/// more than half.
+const CONNECT_TIMEOUT_SECS: u64 = 8;
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(CONNECT_TIMEOUT_SECS);
 
 impl From<JoinRejectReason> for SignalingClientError {
     fn from(reason: JoinRejectReason) -> Self {
@@ -109,8 +124,9 @@ impl SignalingClient {
         pubkey: impl Into<String>,
         fingerprint: impl Into<String>,
     ) -> Result<(Self, mpsc::UnboundedReceiver<MemberEvent>), SignalingClientError> {
-        let (ws, _resp) = tokio_tungstenite::connect_async(format!("ws://{host_addr}"))
+        let (ws, _resp) = tokio::time::timeout(CONNECT_TIMEOUT, tokio_tungstenite::connect_async(format!("ws://{host_addr}")))
             .await
+            .map_err(|_| SignalingClientError::ConnectTimeout)?
             .map_err(SignalingClientError::Connect)?;
         Self::finish_join(ws, network_name.into(), password, pubkey.into(), fingerprint.into()).await
     }
@@ -131,7 +147,10 @@ impl SignalingClient {
         fingerprint: impl Into<String>,
     ) -> Result<(Self, mpsc::UnboundedReceiver<MemberEvent>), SignalingClientError> {
         let network_name = network_name.into();
-        let mut stream = TcpStream::connect(relay_addr).await.map_err(SignalingClientError::RelayConnect)?;
+        let mut stream = tokio::time::timeout(CONNECT_TIMEOUT, TcpStream::connect(relay_addr))
+            .await
+            .map_err(|_| SignalingClientError::ConnectTimeout)?
+            .map_err(SignalingClientError::RelayConnect)?;
         write_relay_client_frame(&mut stream, &RelayClientFrame::Connect { network_name: network_name.clone() })
             .await
             .map_err(SignalingClientError::RelayConnect)?;

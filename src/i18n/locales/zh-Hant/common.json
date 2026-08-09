@@ -56,7 +56,8 @@
     "savedModeHost": "主機",
     "savedModeJoin": "加入",
     "savedStart": "啟動",
-    "savedForget": "移除"
+    "savedForget": "移除",
+    "virtualConnecting": "連線中…"
   },
   "nodeIdentity": {
     "label": "本節點 · 指紋",
