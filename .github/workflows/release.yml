@@ -89,5 +89,5 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "Player Club Private VPN ${{ github.ref_name }}"
           releaseBody: ${{ needs.notes.outputs.body }}
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
